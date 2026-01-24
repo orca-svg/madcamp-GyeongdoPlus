@@ -7,6 +7,7 @@ import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../core/widgets/delta_chip.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/room_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -53,14 +54,14 @@ class HomeScreen extends ConsumerWidget {
                 GradientButton(
                   variant: GradientButtonVariant.createRoom,
                   title: '방 만들기',
-                  onPressed: () => ref.read(gamePhaseProvider.notifier).toLobby(),
+                  onPressed: () => _showCreateRoomSheet(context: context, ref: ref),
                   leading: const Icon(Icons.add_rounded, color: Colors.white),
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
                   variant: GradientButtonVariant.joinRoom,
                   title: '방 참여하기',
-                  onPressed: () => ref.read(gamePhaseProvider.notifier).toLobby(),
+                  onPressed: () => _showJoinRoomSheet(context: context, ref: ref),
                   leading: const Icon(Icons.login_rounded, color: Colors.white),
                 ),
                 const SizedBox(height: 26),
@@ -84,6 +85,99 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _showCreateRoomSheet({required BuildContext context, required WidgetRef ref}) async {
+    final controller = TextEditingController(text: '김선수');
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final bottom = MediaQuery.of(context).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottom),
+          child: _RoomSheet(
+            title: '방 만들기',
+            primaryTitle: '만들기',
+            primaryVariant: GradientButtonVariant.createRoom,
+            onPrimary: () {
+              ref.read(roomProvider.notifier).createRoom(myName: controller.text);
+              Navigator.of(context).pop();
+              ref.read(gamePhaseProvider.notifier).toLobby();
+            },
+            child: TextField(
+              key: const Key('createRoomNameField'),
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                labelText: '닉네임',
+                labelStyle: TextStyle(color: AppColors.textSecondary),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showJoinRoomSheet({required BuildContext context, required WidgetRef ref}) async {
+    final codeController = TextEditingController();
+    final nameController = TextEditingController(text: '김선수');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final bottom = MediaQuery.of(context).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottom),
+          child: _RoomSheet(
+            title: '방 참여하기',
+            primaryTitle: '참여',
+            primaryVariant: GradientButtonVariant.joinRoom,
+            onPrimary: () {
+              ref
+                  .read(roomProvider.notifier)
+                  .joinRoom(myName: nameController.text, code: codeController.text.toUpperCase());
+              Navigator.of(context).pop();
+              ref.read(gamePhaseProvider.notifier).toLobby();
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  key: const Key('joinRoomCodeField'),
+                  controller: codeController,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    labelText: '방 코드',
+                    labelStyle: TextStyle(color: AppColors.textSecondary),
+                    border: InputBorder.none,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('joinRoomNameField'),
+                  controller: nameController,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    labelText: '닉네임',
+                    labelStyle: TextStyle(color: AppColors.textSecondary),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -128,6 +222,76 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoomSheet extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final String primaryTitle;
+  final GradientButtonVariant primaryVariant;
+  final VoidCallback onPrimary;
+
+  const _RoomSheet({
+    required this.title,
+    required this.child,
+    required this.primaryTitle,
+    required this.primaryVariant,
+    required this.onPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: GlowCard(
+          glow: true,
+          glowColor: AppColors.borderCyan.withOpacity(0.12),
+          borderColor: AppColors.borderCyan.withOpacity(0.35),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.surface2.withOpacity(0.45),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.outlineLow.withOpacity(0.9)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  child: child,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('취소'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GradientButton(
+                      variant: primaryVariant,
+                      title: primaryTitle,
+                      onPressed: onPrimary,
+                      leading: const Icon(Icons.check_rounded, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

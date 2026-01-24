@@ -39,9 +39,10 @@ class MatchRulesController extends Notifier<MatchRulesState> {
         releaseMode: '터치/근접',
       );
 
+  void reset() => state = build();
+
   void setDurationMin(int v) => state = state.copyWith(durationMin: v);
   void setMapName(String v) => state = state.copyWith(mapName: v);
   void setMaxPlayers(int v) => state = state.copyWith(maxPlayers: v);
   void setReleaseMode(String v) => state = state.copyWith(releaseMode: v);
 }
-

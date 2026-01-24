@@ -10,6 +10,7 @@ import '../ability/ability_screen.dart';
 import '../match/match_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
 import '../../ui/history/history_screen.dart';
 import '../../ui/lobby/lobby_screen.dart';
@@ -51,7 +52,11 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   Widget build(BuildContext context) {
     ref.listen<GamePhase>(gamePhaseProvider, (prev, next) {
       if (!mounted) return;
-      if (next == GamePhase.offGame) setState(() => _index = 0);
+      if (next == GamePhase.offGame) {
+        final requested = ref.read(shellTabRequestProvider.notifier).consume();
+        final safe = (requested != null && requested >= 0 && requested < _screensOff.length) ? requested : 0;
+        setState(() => _index = safe);
+      }
       if (next == GamePhase.inGame) setState(() => _index = 1);
     });
 

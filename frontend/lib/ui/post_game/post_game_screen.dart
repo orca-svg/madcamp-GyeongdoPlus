@@ -6,6 +6,7 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/shell_tab_request_provider.dart';
 
 class PostGameScreen extends ConsumerWidget {
   const PostGameScreen({super.key});
@@ -34,7 +35,10 @@ class PostGameScreen extends ConsumerWidget {
                     GradientButton(
                       variant: GradientButtonVariant.createRoom,
                       title: '전적 보기',
-                      onPressed: () => ref.read(gamePhaseProvider.notifier).toOffGame(),
+                      onPressed: () {
+                        ref.read(shellTabRequestProvider.notifier).requestOffGameTab(1);
+                        ref.read(gamePhaseProvider.notifier).toOffGame();
+                      },
                       leading: const Icon(Icons.bar_chart_rounded, color: Colors.white),
                     ),
                     const SizedBox(height: 12),
@@ -54,4 +58,3 @@ class PostGameScreen extends ConsumerWidget {
     );
   }
 }
-

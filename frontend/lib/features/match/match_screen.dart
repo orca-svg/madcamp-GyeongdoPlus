@@ -9,15 +9,16 @@ import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
-import '../../providers/room_role_provider.dart';
+import '../../providers/room_provider.dart';
 
 class MatchScreen extends ConsumerWidget {
   const MatchScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final role = ref.watch(roomRoleProvider);
+    final room = ref.watch(roomProvider);
     final rules = ref.watch(matchRulesProvider);
+    final isHost = room.amIHost;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -38,22 +39,34 @@ class MatchScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 14),
                 Row(
-                  children: const [
-                    Expanded(child: _SideCard(title: '경찰', value: '3', accent: AppColors.borderCyan, icon: Icons.shield_rounded)),
-                    SizedBox(width: 14),
-                    Expanded(child: _SideCard(title: '도둑', value: '2', accent: AppColors.red, icon: Icons.lock_rounded)),
+                  children: [
+                    Expanded(
+                      child: _SideCard(
+                        title: '경찰',
+                        value: '${room.policeCount}',
+                        accent: AppColors.borderCyan,
+                        icon: Icons.shield_rounded,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _SideCard(
+                        title: '도둑',
+                        value: '${room.thiefCount}',
+                        accent: AppColors.red,
+                        icon: Icons.lock_rounded,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 22),
                 Row(
                   children: [
                     Expanded(child: Text('경기 규칙', style: Theme.of(context).textTheme.titleMedium)),
-                    const SizedBox(width: 10),
-                    _hostToggle(
-                      context: context,
-                      isHost: role.isHost,
-                      onChanged: (v) => ref.read(roomRoleProvider.notifier).setHost(v),
-                    ),
+                    if (!isHost) ...[
+                      const SizedBox(width: 10),
+                      const Icon(Icons.lock_rounded, color: AppColors.textMuted, size: 18),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -61,8 +74,8 @@ class MatchScreen extends ConsumerWidget {
                   title: '경기 시간',
                   value: '${rules.durationMin}분',
                   accent: AppColors.borderCyan,
-                  enabled: role.isHost,
-                  onTap: role.isHost
+                  enabled: isHost,
+                  onTap: isHost
                       ? () async {
                           final v = await _editInt(
                             context: context,
@@ -80,8 +93,8 @@ class MatchScreen extends ConsumerWidget {
                   title: '경기장',
                   value: rules.mapName,
                   accent: AppColors.borderCyan,
-                  enabled: role.isHost,
-                  onTap: role.isHost
+                  enabled: isHost,
+                  onTap: isHost
                       ? () async {
                           final v = await _editText(
                             context: context,
@@ -100,8 +113,8 @@ class MatchScreen extends ConsumerWidget {
                   title: '경기 참여 인원',
                   value: '최대 ${rules.maxPlayers}명',
                   accent: AppColors.borderCyan,
-                  enabled: role.isHost,
-                  onTap: role.isHost
+                  enabled: isHost,
+                  onTap: isHost
                       ? () async {
                           final v = await _editInt(
                             context: context,
@@ -119,8 +132,8 @@ class MatchScreen extends ConsumerWidget {
                   title: '해방 방식',
                   value: rules.releaseMode,
                   accent: AppColors.borderCyan,
-                  enabled: role.isHost,
-                  onTap: role.isHost
+                  enabled: isHost,
+                  onTap: isHost
                       ? () async {
                           final v = await _editReleaseMode(
                             context: context,
@@ -143,35 +156,6 @@ class MatchScreen extends ConsumerWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _hostToggle({
-    required BuildContext context,
-    required bool isHost,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return GlowCard(
-      glow: false,
-      gradientSurface: false,
-      borderColor: AppColors.outlineLow,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.admin_panel_settings_rounded, color: AppColors.textSecondary, size: 18),
-          const SizedBox(width: 8),
-          Text('방장 모드', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
-          const SizedBox(width: 10),
-          Switch.adaptive(
-            value: isHost,
-            onChanged: onChanged,
-            activeColor: AppColors.borderCyan,
-            inactiveThumbColor: AppColors.textMuted,
-            inactiveTrackColor: AppColors.outlineLow.withOpacity(0.9),
-          ),
-        ],
       ),
     );
   }
