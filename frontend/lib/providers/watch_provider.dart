@@ -1,12 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../watch/watch_bridge.dart';
 
-final watchConnectedProvider = StateNotifierProvider<WatchConnectedController, bool>((ref) {
-  return WatchConnectedController();
-});
+final watchConnectedProvider = NotifierProvider<WatchConnectedController, bool>(WatchConnectedController.new);
 
-class WatchConnectedController extends StateNotifier<bool> {
-  WatchConnectedController() : super(false);
+class WatchConnectedController extends Notifier<bool> {
+  @override
+  bool build() => false;
 
   Future<void> init() async {
     await WatchBridge.init();
