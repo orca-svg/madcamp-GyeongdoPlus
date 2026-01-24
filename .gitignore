@@ -1,3 +1,38 @@
 
 # FVM Version Cache
 .fvm/
+
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+
+# VSCode (팀에서 설정 공유 안 하면 ignore)
+.vscode/
+
+# =========================
+# Flutter / Dart
+# =========================
+.dart_tool/
+.packages
+.pub/
+build/
+coverage/
+
+# Flutter plugin/metadata (대부분은 ignore 권장)
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Local env files
+.env
+.env.*
+*.keystore
+*.jks
+
+# Logs
+*.log
