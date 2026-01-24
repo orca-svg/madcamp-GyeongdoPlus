@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../core/widgets/delta_chip.dart';
+import '../../providers/game_phase_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final phase = ref.watch(gamePhaseProvider);
+    final bottomPad = (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,
@@ -18,7 +23,7 @@ class HomeScreen extends StatelessWidget {
         child: SafeArea(
           bottom: true,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -48,14 +53,14 @@ class HomeScreen extends StatelessWidget {
                 GradientButton(
                   variant: GradientButtonVariant.createRoom,
                   title: '방 만들기',
-                  onPressed: () {},
+                  onPressed: () => ref.read(gamePhaseProvider.notifier).toLobby(),
                   leading: const Icon(Icons.add_rounded, color: Colors.white),
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
                   variant: GradientButtonVariant.joinRoom,
                   title: '방 참여하기',
-                  onPressed: () {},
+                  onPressed: () => ref.read(gamePhaseProvider.notifier).toLobby(),
                   leading: const Icon(Icons.login_rounded, color: Colors.white),
                 ),
                 const SizedBox(height: 26),

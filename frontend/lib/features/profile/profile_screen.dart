@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/delta_chip.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../providers/game_phase_provider.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final phase = ref.watch(gamePhaseProvider);
+    final bottomPad = (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,
@@ -18,7 +23,7 @@ class ProfileScreen extends StatelessWidget {
         child: SafeArea(
           bottom: true,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -358,4 +363,3 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-

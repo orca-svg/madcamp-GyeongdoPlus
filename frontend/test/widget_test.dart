@@ -11,10 +11,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/app.dart';
 
 void main() {
-  testWidgets('App boots to Radar tab', (WidgetTester tester) async {
+  testWidgets('App boots to OFF_GAME home', (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: GyeongdoPlusApp()));
     await tester.pumpAndSettle();
 
-    expect(find.text('전술 레이더'), findsOneWidget);
+    expect(find.text('환영합니다'), findsOneWidget);
   });
 }

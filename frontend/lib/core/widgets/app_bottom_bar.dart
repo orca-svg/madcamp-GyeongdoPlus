@@ -116,7 +116,7 @@ class _BottomBarButton extends StatelessWidget {
       onTap: onTap,
       radius: 30,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -141,7 +141,7 @@ class _BottomBarButton extends StatelessWidget {
                 Icon(item.icon, color: color, size: 22),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               item.label,
               style: TextStyle(
@@ -152,12 +152,12 @@ class _BottomBarButton extends StatelessWidget {
                 height: 1.0,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             AnimatedContainer(
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOut,
               width: selected ? 18 : 4,
-              height: 2.6,
+              height: 2.4,
               decoration: BoxDecoration(
                 color: selected ? AppColors.borderCyan : Colors.transparent,
                 borderRadius: BorderRadius.circular(99),
