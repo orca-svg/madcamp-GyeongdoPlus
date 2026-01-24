@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
@@ -42,7 +43,16 @@ class LobbyScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                _RoomCodeCard(roomCode: room.roomCode),
+                _RoomCodeCard(
+                  roomCode: room.roomCode,
+                  onCopy: room.roomCode.isEmpty
+                      ? null
+                      : () async {
+                          await Clipboard.setData(ClipboardData(text: room.roomCode));
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('방 코드가 복사되었습니다')));
+                        },
+                ),
                 const SizedBox(height: 16),
                 Text('참가자', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
@@ -104,6 +114,26 @@ class LobbyScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
                 _StartHelper(room: room),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      TextButton(
+                        onPressed: room.inRoom ? () => ref.read(roomProvider.notifier).addFakeMember() : null,
+                        style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+                        child: const Text('+ 봇 추가'),
+                      ),
+                      TextButton(
+                        onPressed: room.inRoom ? () => ref.read(roomProvider.notifier).toggleFakeReadyAll() : null,
+                        style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+                        child: const Text('봇 READY 토글'),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -115,8 +145,9 @@ class LobbyScreen extends ConsumerWidget {
 
 class _RoomCodeCard extends StatelessWidget {
   final String roomCode;
+  final VoidCallback? onCopy;
 
-  const _RoomCodeCard({required this.roomCode});
+  const _RoomCodeCard({required this.roomCode, required this.onCopy});
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +188,11 @@ class _RoomCodeCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.copy_rounded, color: AppColors.textMuted, size: 18),
+          IconButton(
+            tooltip: '복사',
+            onPressed: onCopy,
+            icon: const Icon(Icons.copy_rounded, color: AppColors.textMuted, size: 18),
+          ),
         ],
       ),
     );

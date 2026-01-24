@@ -38,4 +38,33 @@ void main() {
     expect(codeText, isNotEmpty);
     expect(RegExp(r'^[A-Z0-9]{4,6}$').hasMatch(codeText), isTrue);
   });
+
+  testWidgets('PostGame 전적 보기 -> OFF_GAME 전적 탭 포커스', (WidgetTester tester) async {
+    await tester.pumpWidget(const ProviderScope(child: GyeongdoPlusApp()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('방 만들기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('만들기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('준비 완료'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('경기 시작'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('매치'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('경기 종료(테스트)'), 200);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('경기 종료(테스트)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('경기 종료'), findsOneWidget);
+    await tester.tap(find.text('전적 보기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('최근 경기 기록'), findsOneWidget);
+  });
 }

@@ -191,6 +191,48 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
+  void addFakeMember() {
+    if (!state.inRoom) return;
+
+    const names = ['참가자C', '참가자D'];
+    final existing = state.members.map((m) => m.name).toSet();
+    final name = names.firstWhere((n) => !existing.contains(n), orElse: () => '참가자${state.members.length + 1}');
+
+    final police = state.policeCount;
+    final thief = state.thiefCount;
+    final team = (police <= thief) ? Team.police : Team.thief;
+
+    state = state.copyWith(
+      members: [
+        ...state.members,
+        RoomMember(
+          id: _newId(),
+          name: name,
+          team: team,
+          ready: false,
+          isHost: false,
+        ),
+      ],
+    );
+  }
+
+  void toggleFakeReadyAll() {
+    if (!state.inRoom) return;
+    if (state.members.isEmpty) return;
+
+    final others = state.members.where((m) => m.id != state.myId).toList();
+    if (others.isEmpty) return;
+
+    final shouldReady = others.any((m) => !m.ready);
+
+    state = state.copyWith(
+      members: [
+        for (final m in state.members)
+          if (m.id == state.myId) m else m.copyWith(ready: shouldReady),
+      ],
+    );
+  }
+
   String _newRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final len = 4 + _rand.nextInt(3); // 4~6
@@ -207,4 +249,3 @@ class RoomController extends Notifier<RoomState> {
 
   String _newId() => 'm_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
 }
-

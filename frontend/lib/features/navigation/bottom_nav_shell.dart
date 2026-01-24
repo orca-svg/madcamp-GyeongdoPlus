@@ -25,6 +25,7 @@ class BottomNavShell extends ConsumerStatefulWidget {
 
 class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   int _index = 0; // OFF_GAME 기본 홈
+  late final ProviderSubscription<GamePhase> _phaseSub;
 
   static const _screensOff = [
     HomeScreen(),
@@ -46,11 +47,8 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     super.initState();
 
     unawaited(ref.read(watchConnectedProvider.notifier).init());
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    ref.listen<GamePhase>(gamePhaseProvider, (prev, next) {
+    _phaseSub = ref.listenManual<GamePhase>(gamePhaseProvider, (prev, next) {
       if (!mounted) return;
       if (next == GamePhase.offGame) {
         final requested = ref.read(shellTabRequestProvider.notifier).consume();
@@ -59,7 +57,16 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       }
       if (next == GamePhase.inGame) setState(() => _index = 1);
     });
+  }
 
+  @override
+  void dispose() {
+    _phaseSub.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final phase = ref.watch(gamePhaseProvider);
 
     switch (phase) {
