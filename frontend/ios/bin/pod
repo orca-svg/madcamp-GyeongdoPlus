@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# CocoaPods (git) + Ruby 2.6 조합에서 ActiveSupport가 stdlib Logger를 자동으로 로드하지 않아
+# `uninitialized constant ...::Logger`가 나는 경우가 있어, logger를 미리 로드합니다.
+export RUBYOPT="${RUBYOPT:-} -rlogger"
+
+exec bundle exec pod "$@"

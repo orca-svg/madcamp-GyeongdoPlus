@@ -36,3 +36,13 @@ coverage/
 
 # Logs
 *.log
+
+# CocoaPods / Bundler (DO NOT COMMIT)
+frontend/ios/Pods/
+frontend/ios/Podfile.lock
+frontend/ios/Runner.xcworkspace/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/Generated.xcconfig
+frontend/ios/Flutter/flutter_export_environment.sh
+frontend/ios/CocoaPods/
+frontend/ios/vendor/bundle/
