@@ -19,4 +19,12 @@ class WatchBridge {
     final jsonStr = jsonEncode(packet.toJson());
     await _ch.invokeMethod('sendRadarPacket', {"json": jsonStr});
   }
+
+  static Future<void> sendHaptic({required String type}) async {
+    try {
+      await _ch.invokeMethod('sendHaptic', {"type": type});
+    } catch (_) {
+      // native side may not implement yet
+    }
+  }
 }

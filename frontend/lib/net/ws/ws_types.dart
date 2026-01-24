@@ -2,6 +2,7 @@ enum WsType {
   clientHello,
   serverHello,
   joinMatch,
+  action,
   telemetryBatch,
   telemetryHint,
   matchState,
@@ -19,6 +20,8 @@ extension WsTypeWire on WsType {
         return 'server_hello';
       case WsType.joinMatch:
         return 'join_match';
+      case WsType.action:
+        return 'action';
       case WsType.telemetryBatch:
         return 'telemetry_batch';
       case WsType.telemetryHint:
@@ -43,6 +46,8 @@ WsType? wsTypeFromWire(String raw) {
       return WsType.serverHello;
     case 'join_match':
       return WsType.joinMatch;
+    case 'action':
+      return WsType.action;
     case 'telemetry_batch':
       return WsType.telemetryBatch;
     case 'telemetry_hint':
@@ -59,4 +64,3 @@ WsType? wsTypeFromWire(String raw) {
       return null;
   }
 }
-

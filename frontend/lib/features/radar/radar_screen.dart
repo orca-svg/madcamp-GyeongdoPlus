@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,6 +12,7 @@ import '../../core/widgets/section_title.dart';
 import '../../net/ws/dto/match_state.dart';
 import '../../net/ws/dto/radar_ping.dart';
 import '../../net/ws/ws_envelope.dart';
+import '../../net/ws/ws_client_provider.dart';
 import '../../net/ws/ws_types.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/radar_provider.dart';
@@ -51,6 +53,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final ui = ref.watch(radarProvider);
     final sync = ref.watch(matchSyncProvider);
     final room = ref.watch(roomProvider);
+    final wsConn = ref.watch(wsConnectionProvider);
 
     final match = sync.lastMatchState?.payload;
     final ping = sync.lastRadarPing?.payload;
@@ -228,6 +231,20 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     runSpacing: 10,
                     alignment: WrapAlignment.end,
                     children: [
+                      if (kDebugMode)
+                        TextButton.icon(
+                          onPressed: () => ref.read(wsConnectionProvider.notifier).connect(),
+                          icon: const Icon(Icons.link_rounded, size: 18),
+                          label: Text('WS 연결 (${wsConn.status.name})'),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                        ),
+                      if (kDebugMode)
+                        TextButton.icon(
+                          onPressed: () => ref.read(wsConnectionProvider.notifier).disconnect(),
+                          icon: const Icon(Icons.link_off_rounded, size: 18),
+                          label: const Text('WS 해제'),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                        ),
                       TextButton.icon(
                         onPressed: () async {
                           await ref.read(watchConnectedProvider.notifier).refresh();
@@ -239,12 +256,13 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                         label: const Text('연결 확인'),
                         style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
                       ),
-                      TextButton.icon(
-                        onPressed: () => _mockRadarPing(ref: ref),
-                        icon: const Icon(Icons.waves_rounded, size: 18),
-                        label: const Text('Mock RadarPing 수신'),
-                        style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-                      ),
+                      if (kDebugMode)
+                        TextButton.icon(
+                          onPressed: () => _mockRadarPing(ref: ref),
+                          icon: const Icon(Icons.waves_rounded, size: 18),
+                          label: const Text('Mock RadarPing 수신'),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                        ),
                     ],
                   ),
                 ),

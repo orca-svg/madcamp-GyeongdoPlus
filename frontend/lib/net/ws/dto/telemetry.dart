@@ -32,43 +32,79 @@ class TelemetryBatchPayload {
 }
 
 class TelemetrySample {
-  final int tsMs;
-  final double? headingDeg;
-  final int? heartRateBpm;
-  final int? stepCount;
-  final double? speedMps;
-  final double? distanceM;
-  final double? confidence;
+  final int tMs;
+  final TelemetryMotion? motion;
+  final TelemetryHeart? heart;
+  final TelemetryContext? context;
 
   const TelemetrySample({
-    required this.tsMs,
-    this.headingDeg,
-    this.heartRateBpm,
-    this.stepCount,
-    this.speedMps,
-    this.distanceM,
-    this.confidence,
+    required this.tMs,
+    this.motion,
+    this.heart,
+    this.context,
   });
 
   Map<String, dynamic> toJson() => {
-        'tsMs': tsMs,
-        if (headingDeg != null) 'headingDeg': headingDeg,
-        if (heartRateBpm != null) 'heartRateBpm': heartRateBpm,
-        if (stepCount != null) 'stepCount': stepCount,
-        if (speedMps != null) 'speedMps': speedMps,
-        if (distanceM != null) 'distanceM': distanceM,
-        if (confidence != null) 'confidence': confidence,
+        'tMs': tMs,
+        if (motion != null) 'motion': motion!.toJson(),
+        if (heart != null) 'heart': heart!.toJson(),
+        if (context != null) 'context': context!.toJson(),
       };
 
   factory TelemetrySample.fromJson(Map<String, dynamic> json) {
     return TelemetrySample(
-      tsMs: (json['tsMs'] as num?)?.toInt() ?? 0,
+      tMs: (json['tMs'] as num?)?.toInt() ?? 0,
+      motion: (json['motion'] is Map) ? TelemetryMotion.fromJson((json['motion'] as Map).cast<String, dynamic>()) : null,
+      heart: (json['heart'] is Map) ? TelemetryHeart.fromJson((json['heart'] as Map).cast<String, dynamic>()) : null,
+      context: (json['context'] is Map) ? TelemetryContext.fromJson((json['context'] as Map).cast<String, dynamic>()) : null,
+    );
+  }
+}
+
+class TelemetryMotion {
+  final double? headingDeg;
+
+  const TelemetryMotion({required this.headingDeg});
+
+  Map<String, dynamic> toJson() => {
+        if (headingDeg != null) 'headingDeg': headingDeg,
+      };
+
+  factory TelemetryMotion.fromJson(Map<String, dynamic> json) {
+    return TelemetryMotion(
       headingDeg: (json['headingDeg'] as num?)?.toDouble(),
-      heartRateBpm: (json['heartRateBpm'] as num?)?.toInt(),
-      stepCount: (json['stepCount'] as num?)?.toInt(),
-      speedMps: (json['speedMps'] as num?)?.toDouble(),
-      distanceM: (json['distanceM'] as num?)?.toDouble(),
-      confidence: (json['confidence'] as num?)?.toDouble(),
+    );
+  }
+}
+
+class TelemetryHeart {
+  final int? bpm;
+
+  const TelemetryHeart({required this.bpm});
+
+  Map<String, dynamic> toJson() => {
+        if (bpm != null) 'bpm': bpm,
+      };
+
+  factory TelemetryHeart.fromJson(Map<String, dynamic> json) {
+    return TelemetryHeart(
+      bpm: (json['bpm'] as num?)?.toInt(),
+    );
+  }
+}
+
+class TelemetryContext {
+  final String? mode;
+
+  const TelemetryContext({required this.mode});
+
+  Map<String, dynamic> toJson() => {
+        if (mode != null) 'mode': mode,
+      };
+
+  factory TelemetryContext.fromJson(Map<String, dynamic> json) {
+    return TelemetryContext(
+      mode: json['mode']?.toString(),
     );
   }
 }

@@ -12,6 +12,7 @@ import '../profile/profile_screen.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
+import '../../net/ws/ws_client_provider.dart';
 import '../../ui/history/history_screen.dart';
 import '../../ui/lobby/lobby_screen.dart';
 import '../../ui/post_game/post_game_screen.dart';
@@ -47,6 +48,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     super.initState();
 
     unawaited(ref.read(watchConnectedProvider.notifier).init());
+    ref.read(wsRouterProvider);
 
     _phaseSub = ref.listenManual<GamePhase>(gamePhaseProvider, (prev, next) {
       if (!mounted) return;
