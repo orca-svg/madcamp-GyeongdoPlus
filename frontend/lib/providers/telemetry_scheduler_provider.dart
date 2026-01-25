@@ -70,8 +70,6 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
   void stop() {
     _timer?.cancel();
     _timer = null;
-    _buffer.clear();
-    _client = null;
     state = state.copyWith(running: false);
   }
 
@@ -97,17 +95,21 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
 
   double _computeHz(int nowMs) {
     final phase = ref.read(gamePhaseProvider);
-    final baseHz = 1.0;
-    final idleHz = (phase == GamePhase.offGame) ? 0.5 : baseHz;
+    final baseHz = switch (phase) {
+      GamePhase.offGame => 0.2,
+      GamePhase.lobby => 0.5,
+      GamePhase.inGame => 1.0,
+      GamePhase.postGame => 0.2,
+    };
 
-    var hz = idleHz;
+    var hz = baseHz;
     if (_boostUntilMs > nowMs) {
       hz = max(hz, _boostHz.toDouble());
     } else {
       _boostHz = 0;
       _boostUntilMs = 0;
     }
-    return hz.clamp(0.5, 10.0);
+    return hz.clamp(0.2, 10.0);
   }
 
   void _tick() {
@@ -118,13 +120,10 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
       _scheduleNextTick();
       return;
     }
-    if (!client.isConnected) {
-      _scheduleNextTick();
-      return;
-    }
 
     final room = ref.read(roomProvider);
-    final matchId = ref.read(matchSyncProvider).lastMatchState?.payload.matchId;
+    final sync = ref.read(matchSyncProvider);
+    final matchId = sync.lastMatchState?.payload.matchId ?? sync.currentMatchId;
     final playerId = room.myId;
     if (matchId == null || matchId.isEmpty || playerId.isEmpty) {
       _scheduleNextTick();
@@ -133,23 +132,27 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
 
     final now = DateTime.now().millisecondsSinceEpoch;
     _buffer.add(_mockSample(now));
+    while (_buffer.length > 20) {
+      _buffer.removeAt(0);
+    }
 
-    final shouldFlush = _buffer.length >= 5 || (now - _lastSendMs) >= 1200;
-    if (shouldFlush) {
-      final payload = TelemetryBatchPayload(
-        matchId: matchId,
-        playerId: playerId,
-        device: const TelemetryDevice(
-          platform: 'mobile',
-          model: 'phone',
-        ),
-        samples: List.of(_buffer),
-      );
-      _buffer.clear();
-      _lastSendMs = now;
+    if (client.isConnected) {
+      final shouldFlush = _buffer.length >= 5 || (now - _lastSendMs) >= 1200;
+      if (shouldFlush) {
+        final batch = _buffer.take(5).toList();
+        _buffer.removeRange(0, batch.length);
+        _lastSendMs = now;
 
-      final env = buildTelemetryBatch(payload: payload, matchId: matchId);
-      client.sendEnvelope(env, (p) => p.toJson());
+        final payload = TelemetryBatchPayload(
+          matchId: matchId,
+          playerId: playerId,
+          device: const TelemetryDevice(platform: 'ios', model: 'unknown'),
+          samples: batch,
+        );
+
+        final env = buildTelemetryBatch(payload: payload, matchId: matchId);
+        client.sendEnvelope(env, (p) => p.toJson());
+      }
     }
 
     _scheduleNextTick();

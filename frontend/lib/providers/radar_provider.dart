@@ -53,7 +53,7 @@ final radarProvider = Provider<RadarUiState>((ref) {
   final match = sync.lastMatchState?.payload;
   final ping = sync.lastRadarPing?.payload;
 
-  final progress = match?.live.captureProgress01 ?? 0.0;
+  final progress = match?.live.captureProgress?.progress01 ?? 0.0;
 
   final pings = _buildUiPings(ping);
   final allyCount = room.policeCount;
@@ -122,4 +122,3 @@ String _etaText(MatchStateDto? match) {
   final remain = max(0, endsAt - now);
   return '${(remain / 1000).toStringAsFixed(0)}초';
 }
-

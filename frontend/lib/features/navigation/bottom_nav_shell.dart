@@ -53,6 +53,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     _phaseSub = ref.listenManual<GamePhase>(gamePhaseProvider, (prev, next) {
       if (!mounted) return;
       if (next == GamePhase.offGame) {
+        ref.read(wsConnectionProvider.notifier).disconnect();
         final requested = ref.read(shellTabRequestProvider.notifier).consume();
         final safe = (requested != null && requested >= 0 && requested < _screensOff.length) ? requested : 0;
         setState(() => _index = safe);

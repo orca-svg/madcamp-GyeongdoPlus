@@ -324,7 +324,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     );
     ref.read(matchSyncProvider.notifier).setRadarPing(env);
 
-    final capture = ref.read(matchSyncProvider).lastMatchState?.payload.live.captureProgress01;
+    final capture = ref.read(matchSyncProvider).lastMatchState?.payload.live.captureProgress?.progress01;
     ref.read(watchRadarVectorProvider.notifier).setLastRadarVector(
           WatchRadarVector(
             headingDeg: 72,
@@ -352,7 +352,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final phase = match?.state ?? '—';
     final pingCount = ping?.pings.length ?? 0;
     final ttl = ping?.ttlMs ?? 0;
-    final cap = match?.live.captureProgress01;
+    final cap = match?.live.captureProgress?.progress01;
     final capText = (cap == null) ? '—' : cap.toStringAsFixed(2);
     return 'matchId=$matchId / phase=$phase / team=$myTeam / pings=$pingCount / ttlMs=$ttl / capture=$capText';
   }
@@ -380,12 +380,30 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     return MatchStateDto(
       matchId: matchId,
       state: 'RUNNING',
-      mode: 'RANKED',
+      mode: 'NORMAL',
       rules: const MatchRulesDto(opponentReveal: OpponentRevealRulesDto(radarPingTtlMs: 7000)),
       time: MatchTimeDto(serverNowMs: serverNowMs, prepEndsAtMs: null, endsAtMs: serverNowMs + 120000),
-      teams: MatchTeamsDto(police: police, thief: thief),
+      teams: MatchTeamsDto(police: TeamPlayersDto(playerIds: police), thief: TeamPlayersDto(playerIds: thief)),
       players: players,
-      live: const MatchLiveDto(score: null, captureProgress01: 0.72, rescueProgress01: null),
+      live: MatchLiveDto(
+        score: const MatchScoreDto(thiefFree: 1, thiefCaptured: 3),
+        captureProgress: const CaptureProgressDto(
+          targetId: 'p3',
+          byPoliceId: 'p1',
+          progress01: 0.72,
+          nearOk: true,
+          speedOk: true,
+          timeOk: false,
+          allOk: false,
+          allOkSinceMs: 0,
+          lastUpdateMs: 0,
+        ),
+        rescueProgress: const RescueProgressDto(
+          byThiefId: 'p4',
+          progress01: 0.35,
+          sinceMs: 0,
+        ),
+      ),
     );
   }
 

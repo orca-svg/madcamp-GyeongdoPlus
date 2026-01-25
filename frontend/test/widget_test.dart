@@ -5,22 +5,31 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:frontend/app.dart';
+import 'package:frontend/net/ws/ws_client.dart';
+import 'package:frontend/net/ws/ws_client_provider.dart';
+import 'package:frontend/net/ws/ws_envelope.dart';
 
 void main() {
   testWidgets('App boots to OFF_GAME home', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: GyeongdoPlusApp()));
+    final ws = _NoopWsClient();
+    addTearDown(ws.dispose);
+    await tester.pumpWidget(ProviderScope(overrides: [wsClientProvider.overrideWithValue(ws)], child: const GyeongdoPlusApp()));
     await tester.pumpAndSettle();
 
     expect(find.text('환영합니다'), findsOneWidget);
   });
 
   testWidgets('Create room -> Lobby shows room code', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: GyeongdoPlusApp()));
+    final ws = _NoopWsClient();
+    addTearDown(ws.dispose);
+    await tester.pumpWidget(ProviderScope(overrides: [wsClientProvider.overrideWithValue(ws)], child: const GyeongdoPlusApp()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('방 만들기'));
@@ -40,7 +49,9 @@ void main() {
   });
 
   testWidgets('PostGame 전적 보기 -> OFF_GAME 전적 탭 포커스', (WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: GyeongdoPlusApp()));
+    final ws = _NoopWsClient();
+    addTearDown(ws.dispose);
+    await tester.pumpWidget(ProviderScope(overrides: [wsClientProvider.overrideWithValue(ws)], child: const GyeongdoPlusApp()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('방 만들기'));
@@ -51,13 +62,13 @@ void main() {
     await tester.tap(find.text('준비 완료'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('경기 시작'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     await tester.tap(find.text('매치'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
 
     await tester.scrollUntilVisible(find.text('경기 종료(테스트)'), 200);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('경기 종료(테스트)'));
     await tester.pumpAndSettle();
 
@@ -67,4 +78,44 @@ void main() {
 
     expect(find.text('최근 경기 기록'), findsOneWidget);
   });
+}
+
+class _NoopWsClient extends WsClient {
+  final StreamController<WsEnvelope<Object?>> _envCtrl = StreamController.broadcast();
+  final StreamController<WsConnectionState> _connCtrl = StreamController.broadcast();
+
+  WsConnectionState _state = WsConnectionState.initial();
+
+  @override
+  Stream<WsEnvelope<Object?>> get envelopes => _envCtrl.stream;
+
+  @override
+  Stream<WsConnectionState> get connection => _connCtrl.stream;
+
+  @override
+  WsConnectionState get connectionState => _state;
+
+  @override
+  bool get isConnected => false;
+
+  @override
+  Future<void> connect({required Uri url, Map<String, String>? headers}) async {
+    _state = _state.copyWith(status: WsConnStatus.connected);
+    _connCtrl.add(_state);
+  }
+
+  @override
+  Future<void> disconnect() async {
+    _state = WsConnectionState.initial();
+    _connCtrl.add(_state);
+  }
+
+  @override
+  void sendEnvelope<T>(WsEnvelope<T> env, Map<String, dynamic> Function(T) payloadToJson) {}
+
+  @override
+  Future<void> dispose() async {
+    await _envCtrl.close();
+    await _connCtrl.close();
+  }
 }

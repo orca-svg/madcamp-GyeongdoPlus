@@ -7,6 +7,7 @@ import '../net/ws/dto/match_state.dart';
 import '../net/ws/dto/radar_ping.dart';
 import '../net/ws/ws_envelope.dart';
 import '../net/ws/ws_types.dart';
+import 'game_phase_provider.dart';
 import '../watch/watch_bridge.dart';
 
 class MatchSyncState {
@@ -14,12 +15,14 @@ class MatchSyncState {
   final WsEnvelope<RadarPingPayload>? lastRadarPing;
   final String? lastJsonPreview;
   final int? lastSeq;
+  final String? currentMatchId;
 
   const MatchSyncState({
     required this.lastMatchState,
     required this.lastRadarPing,
     required this.lastJsonPreview,
     required this.lastSeq,
+    required this.currentMatchId,
   });
 
   factory MatchSyncState.initial() => const MatchSyncState(
@@ -27,6 +30,7 @@ class MatchSyncState {
         lastRadarPing: null,
         lastJsonPreview: null,
         lastSeq: null,
+        currentMatchId: null,
       );
 
   MatchSyncState copyWith({
@@ -34,12 +38,14 @@ class MatchSyncState {
     WsEnvelope<RadarPingPayload>? lastRadarPing,
     String? lastJsonPreview,
     int? lastSeq,
+    String? currentMatchId,
   }) {
     return MatchSyncState(
       lastMatchState: lastMatchState ?? this.lastMatchState,
       lastRadarPing: lastRadarPing ?? this.lastRadarPing,
       lastJsonPreview: lastJsonPreview ?? this.lastJsonPreview,
       lastSeq: lastSeq ?? this.lastSeq,
+      currentMatchId: currentMatchId ?? this.currentMatchId,
     );
   }
 }
@@ -53,12 +59,19 @@ class MatchSyncController extends Notifier<MatchSyncState> {
   @override
   MatchSyncState build() => MatchSyncState.initial();
 
+  void setCurrentMatchId(String matchId) => state = state.copyWith(currentMatchId: matchId);
+
   void setMatchState(WsEnvelope<MatchStateDto> env) {
     _maybeCapture95(env.payload);
     state = state.copyWith(
       lastMatchState: env,
       lastJsonPreview: jsonEncode(env.toJson((p) => p.toJson())),
+      currentMatchId: env.payload.matchId,
     );
+
+    if (env.payload.state == 'ENDED') {
+      ref.read(gamePhaseProvider.notifier).toPostGame();
+    }
   }
 
   void setRadarPing(WsEnvelope<RadarPingPayload> env) {
@@ -157,7 +170,7 @@ class MatchSyncController extends Notifier<MatchSyncState> {
     final mid = s.matchId;
     if (_capture95MatchId != mid) _capture95MatchId = null;
 
-    final p = s.live.captureProgress01;
+    final p = s.live.captureProgress?.progress01;
     if (p == null) return;
     if (p < 0.95) return;
     if (_capture95MatchId == mid) return;

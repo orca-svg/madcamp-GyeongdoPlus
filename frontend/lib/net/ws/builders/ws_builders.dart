@@ -40,6 +40,7 @@ WsEnvelope<Map<String, dynamic>> buildJoinMatch({
 
 WsEnvelope<Map<String, dynamic>> buildRequestSync({
   required String matchId,
+  required String playerId,
   int? lastSeq,
   String? reason,
 }) {
@@ -50,9 +51,13 @@ WsEnvelope<Map<String, dynamic>> buildRequestSync({
     seq: null,
     ts: DateTime.now().millisecondsSinceEpoch,
     payload: {
-      'action': 'REQUEST_SYNC',
-      if (lastSeq != null) 'lastSeq': lastSeq,
-      if (reason != null) 'reason': reason,
+      'matchId': matchId,
+      'playerId': playerId,
+      'actionType': 'REQUEST_SYNC',
+      'meta': {
+        if (lastSeq != null) 'lastSeq': lastSeq,
+        if (reason != null) 'reason': reason,
+      },
     },
   );
 }
@@ -70,4 +75,3 @@ WsEnvelope<TelemetryBatchPayload> buildTelemetryBatch({
     payload: payload,
   );
 }
-

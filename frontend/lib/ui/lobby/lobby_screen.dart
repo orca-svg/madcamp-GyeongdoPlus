@@ -8,7 +8,9 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../net/ws/ws_client_provider.dart';
 
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
@@ -106,7 +108,19 @@ class LobbyScreen extends ConsumerWidget {
                       child: GradientButton(
                         variant: GradientButtonVariant.createRoom,
                         title: '경기 시작',
-                        onPressed: (room.amIHost && room.allReady) ? () => ref.read(gamePhaseProvider.notifier).toInGame() : null,
+                        onPressed: (room.amIHost && room.allReady)
+                            ? () {
+                                final matchId = room.roomCode.isEmpty ? '' : 'm_${room.roomCode}';
+                                if (matchId.isNotEmpty) {
+                                  ref.read(matchSyncProvider.notifier).setCurrentMatchId(matchId);
+                                  ref.read(wsConnectionProvider.notifier).connect();
+                                  ref
+                                      .read(wsConnectionProvider.notifier)
+                                      .sendJoinMatch(matchId: matchId, playerId: room.myId, roomCode: room.roomCode);
+                                }
+                                ref.read(gamePhaseProvider.notifier).toInGame();
+                              }
+                            : null,
                         leading: const Icon(Icons.play_arrow_rounded, color: Colors.white),
                       ),
                     ),

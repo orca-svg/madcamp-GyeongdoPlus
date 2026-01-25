@@ -1,7 +1,7 @@
 class MatchStateDto {
   final String matchId;
   final String state; // 'LOBBY' | 'PREP' | 'RUNNING' | 'ENDED'
-  final String mode;
+  final String mode; // 'NORMAL' | 'ITEM' | 'ABILITY'
   final MatchRulesDto rules;
   final MatchTimeDto time;
   final MatchTeamsDto teams;
@@ -107,20 +107,36 @@ class MatchTimeDto {
 }
 
 class MatchTeamsDto {
-  final List<String> police;
-  final List<String> thief;
+  final TeamPlayersDto police;
+  final TeamPlayersDto thief;
 
   const MatchTeamsDto({required this.police, required this.thief});
 
   Map<String, dynamic> toJson() => {
-        'police': police,
-        'thief': thief,
+        'POLICE': police.toJson(),
+        'THIEF': thief.toJson(),
       };
 
   factory MatchTeamsDto.fromJson(Map<String, dynamic> json) {
     return MatchTeamsDto(
-      police: (json['police'] as List? ?? const []).map((e) => e.toString()).toList(),
-      thief: (json['thief'] as List? ?? const []).map((e) => e.toString()).toList(),
+      police: TeamPlayersDto.fromJson((json['POLICE'] as Map? ?? const {}).cast<String, dynamic>()),
+      thief: TeamPlayersDto.fromJson((json['THIEF'] as Map? ?? const {}).cast<String, dynamic>()),
+    );
+  }
+}
+
+class TeamPlayersDto {
+  final List<String> playerIds;
+
+  const TeamPlayersDto({required this.playerIds});
+
+  Map<String, dynamic> toJson() => {
+        'playerIds': playerIds,
+      };
+
+  factory TeamPlayersDto.fromJson(Map<String, dynamic> json) {
+    return TeamPlayersDto(
+      playerIds: (json['playerIds'] as List? ?? const []).map((e) => e.toString()).toList(),
     );
   }
 }
@@ -156,28 +172,129 @@ class MatchPlayerDto {
 }
 
 class MatchLiveDto {
-  final Map<String, dynamic>? score;
-  final double? captureProgress01;
-  final double? rescueProgress01;
+  final MatchScoreDto? score;
+  final CaptureProgressDto? captureProgress;
+  final RescueProgressDto? rescueProgress;
 
   const MatchLiveDto({
     required this.score,
-    this.captureProgress01,
-    this.rescueProgress01,
+    required this.captureProgress,
+    required this.rescueProgress,
   });
 
   Map<String, dynamic> toJson() => {
-        if (score != null) 'score': score,
-        if (captureProgress01 != null) 'captureProgress01': captureProgress01,
-        if (rescueProgress01 != null) 'rescueProgress01': rescueProgress01,
+        if (score != null) 'score': score!.toJson(),
+        if (captureProgress != null) 'captureProgress': captureProgress!.toJson(),
+        if (rescueProgress != null) 'rescueProgress': rescueProgress!.toJson(),
       };
 
   factory MatchLiveDto.fromJson(Map<String, dynamic> json) {
     return MatchLiveDto(
-      score: (json['score'] as Map?)?.cast<String, dynamic>(),
-      captureProgress01: (json['captureProgress01'] as num?)?.toDouble(),
-      rescueProgress01: (json['rescueProgress01'] as num?)?.toDouble(),
+      score: (json['score'] is Map) ? MatchScoreDto.fromJson((json['score'] as Map).cast<String, dynamic>()) : null,
+      captureProgress: (json['captureProgress'] is Map)
+          ? CaptureProgressDto.fromJson((json['captureProgress'] as Map).cast<String, dynamic>())
+          : null,
+      rescueProgress: (json['rescueProgress'] is Map)
+          ? RescueProgressDto.fromJson((json['rescueProgress'] as Map).cast<String, dynamic>())
+          : null,
     );
   }
 }
 
+class MatchScoreDto {
+  final int thiefFree;
+  final int thiefCaptured;
+
+  const MatchScoreDto({
+    required this.thiefFree,
+    required this.thiefCaptured,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'thiefFree': thiefFree,
+        'thiefCaptured': thiefCaptured,
+      };
+
+  factory MatchScoreDto.fromJson(Map<String, dynamic> json) {
+    return MatchScoreDto(
+      thiefFree: (json['thiefFree'] as num?)?.toInt() ?? 0,
+      thiefCaptured: (json['thiefCaptured'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class CaptureProgressDto {
+  final String? targetId;
+  final String? byPoliceId;
+  final double? progress01;
+  final bool? nearOk;
+  final bool? speedOk;
+  final bool? timeOk;
+  final bool? allOk;
+  final int? allOkSinceMs;
+  final int? lastUpdateMs;
+
+  const CaptureProgressDto({
+    required this.targetId,
+    required this.byPoliceId,
+    required this.progress01,
+    required this.nearOk,
+    required this.speedOk,
+    required this.timeOk,
+    required this.allOk,
+    required this.allOkSinceMs,
+    required this.lastUpdateMs,
+  });
+
+  Map<String, dynamic> toJson() => {
+        if (targetId != null) 'targetId': targetId,
+        if (byPoliceId != null) 'byPoliceId': byPoliceId,
+        if (progress01 != null) 'progress01': progress01,
+        if (nearOk != null) 'nearOk': nearOk,
+        if (speedOk != null) 'speedOk': speedOk,
+        if (timeOk != null) 'timeOk': timeOk,
+        if (allOk != null) 'allOk': allOk,
+        if (allOkSinceMs != null) 'allOkSinceMs': allOkSinceMs,
+        if (lastUpdateMs != null) 'lastUpdateMs': lastUpdateMs,
+      };
+
+  factory CaptureProgressDto.fromJson(Map<String, dynamic> json) {
+    return CaptureProgressDto(
+      targetId: json['targetId']?.toString(),
+      byPoliceId: json['byPoliceId']?.toString(),
+      progress01: (json['progress01'] as num?)?.toDouble(),
+      nearOk: json['nearOk'] as bool?,
+      speedOk: json['speedOk'] as bool?,
+      timeOk: json['timeOk'] as bool?,
+      allOk: json['allOk'] as bool?,
+      allOkSinceMs: (json['allOkSinceMs'] as num?)?.toInt(),
+      lastUpdateMs: (json['lastUpdateMs'] as num?)?.toInt(),
+    );
+  }
+}
+
+class RescueProgressDto {
+  final String? byThiefId;
+  final double? progress01;
+  final int? sinceMs;
+
+  const RescueProgressDto({
+    required this.byThiefId,
+    required this.progress01,
+    required this.sinceMs,
+  });
+
+  Map<String, dynamic> toJson() => {
+        if (byThiefId != null) 'byThiefId': byThiefId,
+        if (progress01 != null) 'progress01': progress01,
+        if (sinceMs != null) 'sinceMs': sinceMs,
+      };
+
+  factory RescueProgressDto.fromJson(Map<String, dynamic> json) {
+    return RescueProgressDto(
+      byThiefId: json['byThiefId']?.toString(),
+      progress01: (json['progress01'] as num?)?.toDouble(),
+      sinceMs: (json['sinceMs'] as num?)?.toInt(),
+    );
+  }
+}

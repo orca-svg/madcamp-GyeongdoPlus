@@ -7,8 +7,10 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../net/ws/dto/match_state.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
+import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 
 class MatchScreen extends ConsumerWidget {
@@ -18,7 +20,9 @@ class MatchScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final room = ref.watch(roomProvider);
     final rules = ref.watch(matchRulesProvider);
+    final sync = ref.watch(matchSyncProvider);
     final isHost = room.amIHost;
+    final lastState = sync.lastMatchState?.payload;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -36,6 +40,11 @@ class MatchScreen extends ConsumerWidget {
                 Text(
                   '방장만 세부 항목을 설정할 수 있습니다.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 14),
+                _ServerSyncCard(
+                  state: lastState,
+                  matchId: sync.currentMatchId ?? sync.lastMatchState?.payload.matchId,
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -302,6 +311,135 @@ class MatchScreen extends ConsumerWidget {
   }
 }
 
+class _ServerSyncCard extends StatelessWidget {
+  final MatchStateDto? state;
+  final String? matchId;
+
+  const _ServerSyncCard({
+    required this.state,
+    required this.matchId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = state;
+    if (s == null) {
+      return GlowCard(
+        glow: true,
+        glowColor: AppColors.borderCyan.withOpacity(0.10),
+        borderColor: AppColors.borderCyan.withOpacity(0.25),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.borderCyan),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '서버 동기화 대기 중…',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
+              ),
+            ),
+            if (matchId != null && matchId!.isNotEmpty)
+              Text(
+                matchId!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final endsAt = s.time.endsAtMs;
+    final remainText = (endsAt == null || s.time.serverNowMs == 0) ? '—' : _formatRemaining(s.time.serverNowMs, endsAt);
+
+    final score = s.live.score;
+    final cap = s.live.captureProgress?.progress01;
+    final rescue = s.live.rescueProgress?.progress01;
+
+    final capText = (cap == null) ? '—' : '${(cap * 100).round()}%';
+    final rescueText = (rescue == null) ? '—' : '${(rescue * 100).round()}%';
+
+    return GlowCard(
+      glow: true,
+      glowColor: AppColors.borderCyan.withOpacity(0.10),
+      borderColor: AppColors.borderCyan.withOpacity(0.25),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.cloud_done_rounded, color: AppColors.lime, size: 18),
+              const SizedBox(width: 8),
+              Text('서버 스냅샷', style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Text(
+                s.matchId,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              _MiniPill(label: 'state', value: s.state),
+              _MiniPill(label: 'mode', value: s.mode),
+              _MiniPill(label: '남은시간', value: remainText),
+              if (score != null) _MiniPill(label: '도둑', value: '${score.thiefFree}F/${score.thiefCaptured}C'),
+              _MiniPill(label: 'capture', value: capText),
+              _MiniPill(label: 'rescue', value: rescueText),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniPill extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MiniPill({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outlineLow.withOpacity(0.8)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          children: [
+            TextSpan(text: '$label  '),
+            TextSpan(
+              text: value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatRemaining(int serverNowMs, int endsAtMs) {
+  final remain = endsAtMs - serverNowMs;
+  if (remain <= 0) return '0:00';
+  final d = Duration(milliseconds: remain);
+  final m = d.inMinutes;
+  final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
+}
+
 class _SideCard extends StatelessWidget {
   final String title;
   final String value;
@@ -466,4 +604,3 @@ class _EditSheet extends StatelessWidget {
     );
   }
 }
-
