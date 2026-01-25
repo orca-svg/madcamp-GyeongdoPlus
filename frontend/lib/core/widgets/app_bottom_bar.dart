@@ -2,23 +2,23 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../app_dimens.dart';
 import '../theme/app_colors.dart';
+import '../../providers/match_mode_provider.dart';
 
 class AppBottomBarInGame extends StatelessWidget {
+  final List<InGameTabSpec> tabs;
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  const AppBottomBarInGame({super.key, required this.currentIndex, required this.onTap});
+  const AppBottomBarInGame({
+    super.key,
+    required this.tabs,
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      _BarItem(icon: Icons.home_rounded, label: '홈'),
-      _BarItem(icon: Icons.radar_rounded, label: '레이더'),
-      _BarItem(icon: Icons.bar_chart_rounded, label: '통계'),
-      _BarItem(icon: Icons.flash_on_rounded, label: '능력'),
-      _BarItem(icon: Icons.sports_esports_rounded, label: '매치'),
-      _BarItem(icon: Icons.person_rounded, label: '프로필'),
-    ];
+    final items = tabs.map((t) => _BarItem(icon: t.icon, label: t.label)).toList();
     return _AppBottomBarBase(
       height: AppDimens.bottomBarHIn,
       items: items,

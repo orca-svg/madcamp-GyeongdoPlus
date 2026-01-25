@@ -9,15 +9,19 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/section_title.dart';
+import '../../core/widgets/ws_status_pill.dart';
 import '../../net/ws/dto/match_state.dart';
 import '../../net/ws/dto/radar_ping.dart';
 import '../../net/ws/ws_envelope.dart';
 import '../../net/ws/ws_client_provider.dart';
 import '../../net/ws/ws_types.dart';
+import '../../providers/match_mode_provider.dart';
+import '../../providers/match_rules_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/radar_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../providers/watch_provider.dart';
+import '../../providers/ws_ui_status_provider.dart';
 import 'widgets/radar_painter.dart';
 
 class RadarScreen extends ConsumerStatefulWidget {
@@ -54,16 +58,17 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final sync = ref.watch(matchSyncProvider);
     final room = ref.watch(roomProvider);
     final wsConn = ref.watch(wsConnectionProvider);
+    final wsUiStatus = ref.watch(wsUiStatusProvider);
+    final watchConnected = ref.watch(watchConnectedProvider);
+    final gameMode = ref.watch(currentGameModeProvider);
 
     final match = sync.lastMatchState?.payload;
     final ping = sync.lastRadarPing?.payload;
 
     final myTeam = room.me?.team == Team.thief ? 'THIEF' : 'POLICE';
-    final summary = _summaryLine(
-      match: match,
-      myTeam: myTeam,
-      ping: ping,
-    );
+
+    // 팀 현황 계산
+    final teamStats = _computeTeamStats(match);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -76,28 +81,28 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('전술 레이더', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 6),
-                Text('bearing+distance 기반', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                // A. 상단 타이틀 row: 전술 레이더 + Watch + WsStatusPill
+                _buildTitleRow(context, watchConnected, wsUiStatus),
                 const SizedBox(height: 12),
-                GlowCard(
-                  glow: false,
-                  borderColor: AppColors.outlineLow,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.radar_rounded, color: AppColors.textSecondary, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          summary,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+
+                // B. 팀 현황 카드 3개 (레이더 캔버스 상단)
+                _buildTeamStatusRow(context, teamStats),
                 const SizedBox(height: 14),
+
+                if (kDebugMode) ...[
+                  GlowCard(
+                    glow: false,
+                    borderColor: AppColors.outlineLow,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Text(
+                      _summaryLine(match: match, myTeam: myTeam, ping: ping),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
+                // 범례
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -107,6 +112,8 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
+
+                // 레이더 캔버스
                 Center(
                   child: GlowCard(
                     glowColor: AppColors.borderCyan.withOpacity(0.14),
@@ -128,102 +135,117 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _miniStat(icon: Icons.group_rounded, value: '${ui.allyCount}', label: '아군', border: AppColors.borderCyan)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _miniStat(icon: Icons.warning_rounded, value: '${ui.enemyCount}', label: '적', border: AppColors.red)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _miniStat(icon: Icons.shield_rounded, value: ui.safetyText, label: '페이즈', border: AppColors.lime)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const SectionTitle(title: '위험 분석'),
-                const SizedBox(height: 10),
-                GlowCard(
-                  borderColor: AppColors.orange.withOpacity(0.45),
-                  glowColor: AppColors.orange.withOpacity(0.10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                // C/D. 일반 모드가 아닐 때만 위험 분석 섹션 표시
+                if (gameMode != GameMode.normal) ...[
+                  // 기존 미니 스탯 (아군/적/페이즈)
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(width: 10, height: 10, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.orange)),
-                          const SizedBox(width: 10),
-                          Text(
-                            ui.dangerTitle,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.orange),
-                          ),
-                          const Spacer(),
-                          Text(
-                            ui.etaText,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.red, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              ui.directionText,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                      Expanded(child: _miniStat(icon: Icons.group_rounded, value: '${ui.allyCount}', label: '아군', border: AppColors.borderCyan)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _miniStat(icon: Icons.warning_rounded, value: '${ui.enemyCount}', label: '적', border: AppColors.red)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _miniStat(icon: Icons.shield_rounded, value: ui.safetyText, label: '페이즈', border: AppColors.lime)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 위험 분석 섹션
+                  const SectionTitle(title: '위험 분석'),
+                  const SizedBox(height: 10),
+                  GlowCard(
+                    borderColor: AppColors.orange.withOpacity(0.45),
+                    glowColor: AppColors.orange.withOpacity(0.10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(width: 10, height: 10, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.orange)),
+                            const SizedBox(width: 10),
+                            Text(
+                              ui.dangerTitle,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.orange),
                             ),
+                            const Spacer(),
+                            Text(
+                              ui.etaText,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.red, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                ui.directionText,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ),
+                            Text(
+                              ui.distanceText,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: ui.progress01,
+                            minHeight: 10,
+                            backgroundColor: AppColors.outlineLow.withOpacity(0.9),
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.orange),
                           ),
-                          Text(
-                            ui.distanceText,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 현재 상태 + 권장 행동 (아이템/능력 모드에서만)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GlowCard(
+                          glow: false,
+                          borderColor: AppColors.outlineLow,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('현재 상태', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                              const SizedBox(height: 10),
+                              Text(ui.safetyText, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: ui.progress01,
-                          minHeight: 10,
-                          backgroundColor: AppColors.outlineLow.withOpacity(0.9),
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.orange),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GlowCard(
+                          glow: false,
+                          borderColor: AppColors.outlineLow,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('권장 행동', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                              const SizedBox(height: 10),
+                              Text('엄폐물로 이동', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GlowCard(
-                        glow: false,
-                        borderColor: AppColors.outlineLow,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('현재 상태', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                            const SizedBox(height: 10),
-                            Text(ui.safetyText, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GlowCard(
-                        glow: false,
-                        borderColor: AppColors.outlineLow,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('권장 행동', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                            const SizedBox(height: 10),
-                            Text('엄폐물로 이동', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                ] else ...[
+                  // 일반 모드: 심박수만 표시
+                  _buildHeartRateSection(context, watchConnected),
+                ],
+
                 const SizedBox(height: 14),
+
+                // 디버그 버튼들
                 Align(
                   alignment: Alignment.centerRight,
                   child: Wrap(
@@ -266,7 +288,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     ],
                   ),
                 ),
-                if ((sync.lastJsonPreview ?? '').isNotEmpty) ...[
+
+                // 디버그 JSON
+                if (kDebugMode && (sync.lastJsonPreview ?? '').isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const SectionTitle(title: '디버그 JSON'),
                   const SizedBox(height: 10),
@@ -284,6 +308,124 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// A. 상단 타이틀 row: 전술 레이더 + Watch indicator + WsStatusPill
+  Widget _buildTitleRow(BuildContext context, bool watchConnected, WsUiStatusModel wsUiStatus) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('전술 레이더', style: Theme.of(context).textTheme.titleLarge),
+            ],
+          ),
+        ),
+        // Watch 연결 indicator
+        _ConnectionIndicator(
+          icon: Icons.watch_rounded,
+          connected: watchConnected,
+          label: '워치',
+        ),
+        const SizedBox(width: 10),
+        // WsStatusPill
+        WsStatusPill(
+          model: wsUiStatus,
+          onReconnect: wsUiStatus.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
+        ),
+      ],
+    );
+  }
+
+  /// B. 팀 현황 카드 3개 (경찰 수, 남은 도둑, 잡힌 도둑)
+  Widget _buildTeamStatusRow(BuildContext context, _TeamStats stats) {
+    return Row(
+      children: [
+        Expanded(
+          child: _TeamStatCard(
+            icon: Icons.local_police_rounded,
+            label: '경찰',
+            value: stats.policeCount,
+            color: AppColors.borderCyan,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _TeamStatCard(
+            icon: Icons.directions_run_rounded,
+            label: '남은 도둑',
+            value: stats.thiefFree,
+            color: AppColors.lime,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _TeamStatCard(
+            icon: Icons.lock_rounded,
+            label: '잡힘',
+            value: stats.thiefCaptured,
+            color: AppColors.red,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 일반 모드: 심박수만 표시
+  Widget _buildHeartRateSection(BuildContext context, bool watchConnected) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(
+            Icons.favorite_rounded,
+            color: watchConnected ? AppColors.red : AppColors.textMuted,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('심박수', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+              const SizedBox(height: 4),
+              Text(
+                watchConnected ? '-- BPM' : '워치 연결 필요',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: watchConnected ? AppColors.textPrimary : AppColors.textMuted,
+                    ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 팀 현황 계산
+  _TeamStats _computeTeamStats(MatchStateDto? match) {
+    if (match == null) {
+      return const _TeamStats(policeCount: '—', thiefFree: '—', thiefCaptured: '—');
+    }
+
+    final score = match.live.score;
+    if (score == null) {
+      return const _TeamStats(policeCount: '—', thiefFree: '—', thiefCaptured: '—');
+    }
+
+    final policeCount = match.teams.police.playerIds.length;
+    final totalThief = match.teams.thief.playerIds.length;
+    final thiefCaptured = score.thiefCaptured;
+    final thiefFree = (totalThief - thiefCaptured).clamp(0, 9999);
+
+    return _TeamStats(
+      policeCount: '$policeCount',
+      thiefFree: '$thiefFree',
+      thiefCaptured: '$thiefCaptured',
     );
   }
 
@@ -429,6 +571,103 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
           Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 팀 현황 데이터
+class _TeamStats {
+  final String policeCount;
+  final String thiefFree;
+  final String thiefCaptured;
+
+  const _TeamStats({
+    required this.policeCount,
+    required this.thiefFree,
+    required this.thiefCaptured,
+  });
+}
+
+/// Watch 연결 지표
+class _ConnectionIndicator extends StatelessWidget {
+  final IconData icon;
+  final bool connected;
+  final String label;
+
+  const _ConnectionIndicator({
+    required this.icon,
+    required this.connected,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = connected ? AppColors.lime : AppColors.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 팀 현황 카드 (3개 나란히)
+class _TeamStatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _TeamStatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlowCard(
+      glow: false,
+      borderColor: color.withOpacity(0.4),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );

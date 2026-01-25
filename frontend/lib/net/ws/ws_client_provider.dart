@@ -109,6 +109,7 @@ class WsConnectionController extends Notifier<WsConnectionState> {
     _sub = client.connection.listen((s) {
       state = s;
       if (s.status == WsConnStatus.connected) {
+        ref.read(wsUserReconnectIntentProvider.notifier).clear();
         _onConnectedEpoch(client, s.epoch);
       } else {
         _resetGateForNextSession();

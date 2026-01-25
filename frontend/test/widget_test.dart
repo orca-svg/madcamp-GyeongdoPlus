@@ -65,7 +65,7 @@ void main() {
     await tester.tap(find.text('경기 시작'));
     await tester.pump(const Duration(milliseconds: 200));
 
-    await tester.tap(find.text('매치'));
+    await tester.tap(find.text('설정'));
     await tester.pump(const Duration(milliseconds: 200));
 
     await tester.scrollUntilVisible(find.text('경기 종료(테스트)'), 200);

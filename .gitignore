@@ -46,3 +46,5 @@ frontend/ios/Flutter/Generated.xcconfig
 frontend/ios/Flutter/flutter_export_environment.sh
 frontend/ios/CocoaPods/
 frontend/ios/vendor/bundle/
+
+CLAUDE.md

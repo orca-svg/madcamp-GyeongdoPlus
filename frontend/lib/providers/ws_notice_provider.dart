@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../net/ws/builders/ws_builders.dart';
 import '../net/ws/ws_client.dart';
 import '../net/ws/ws_client_provider.dart';
+import 'game_phase_provider.dart';
 import 'match_sync_provider.dart';
 import 'room_provider.dart';
 
@@ -40,6 +41,11 @@ class WsNoticeController extends Notifier<WsNotice?> {
       _flapTimer?.cancel();
       _cooldownTimer?.cancel();
     });
+    ref.listen<GamePhase>(gamePhaseProvider, (prev, next) {
+      if (next == GamePhase.inGame) {
+        _cancelPendingNotices();
+      }
+    });
     ref.listen<WsConnectionState>(wsConnectionProvider, (prev, next) {
       _onConnChanged(prev, next);
     });
@@ -53,6 +59,13 @@ class WsNoticeController extends Notifier<WsNotice?> {
   }
 
   void _onConnChanged(WsConnectionState? prev, WsConnectionState next) {
+    final phase = ref.read(gamePhaseProvider);
+    final suppressSnackbars = phase == GamePhase.inGame;
+    if (suppressSnackbars) {
+      _cancelPendingNotices();
+      return;
+    }
+
     if (next.status == WsConnStatus.disconnected) {
       _flapWindowPassed = false;
       _flapTimer?.cancel();
@@ -103,6 +116,14 @@ class WsNoticeController extends Notifier<WsNotice?> {
     });
     state = WsNotice(type: type, message: message, tsMs: DateTime.now().millisecondsSinceEpoch);
   }
+
+  void _cancelPendingNotices() {
+    _disconnectTimer?.cancel();
+    _disconnectTimer = null;
+    _flapTimer?.cancel();
+    _flapTimer = null;
+    _disconnectShown = false;
+  }
 }
 
 final wsStaleRecoveryProvider = Provider<WsStaleRecovery>((ref) {
@@ -115,6 +136,7 @@ class WsStaleRecovery {
   final Ref _ref;
   Timer? _staleTimer;
   Timer? _rejoinTimer;
+  Timer? _reconnectTimer;
   int _armedEpoch = 0;
 
   WsStaleRecovery(this._ref) {
@@ -185,6 +207,28 @@ class WsStaleRecovery {
     final ws = _ref.read(wsConnectionProvider);
     final serverHelloEpoch = _ref.read(wsServerHelloEpochProvider);
     final sync = _ref.read(matchSyncProvider);
+    final room = _ref.read(roomProvider);
+    final matchId = sync.currentMatchId ?? sync.lastMatchState?.payload.matchId;
+
+    final stillAwaiting =
+        ws.status == WsConnStatus.connected && serverHelloEpoch == ws.epoch && sync.lastMatchState == null;
+    if (!stillAwaiting) return;
+
+    if (matchId != null && matchId.isNotEmpty && room.myId.isNotEmpty) {
+      final roomCode = room.roomCode.isEmpty ? null : room.roomCode;
+      _ref.read(wsConnectionProvider.notifier).sendJoinMatch(matchId: matchId, playerId: room.myId, roomCode: roomCode);
+    }
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 2), _onReconnectTimeout);
+  }
+
+  void _onReconnectTimeout() {
+    _reconnectTimer = null;
+    if (!_ref.mounted) return;
+
+    final ws = _ref.read(wsConnectionProvider);
+    final serverHelloEpoch = _ref.read(wsServerHelloEpochProvider);
+    final sync = _ref.read(matchSyncProvider);
 
     final stillAwaiting =
         ws.status == WsConnStatus.connected && serverHelloEpoch == ws.epoch && sync.lastMatchState == null;
@@ -198,6 +242,8 @@ class WsStaleRecovery {
     _staleTimer = null;
     _rejoinTimer?.cancel();
     _rejoinTimer = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
   }
 
   void dispose() => _cancel();
