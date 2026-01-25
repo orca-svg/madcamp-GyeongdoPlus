@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------
+// Enums (열거형 타입 정의)
+// ------------------------------------------
+
+enum Provider {
+  LOCAL
+  KAKAO
+}
+
+enum GameMode {
+  NORMAL
+  ITEM
+  ABILITY
+}
+
+enum Team {
+  POLICE
+  THIEF
+}
+
+enum MatchResult {
+  WIN
+  LOSE  // 기획서 오타(LOSW) 수정됨
+  DRAW
+}
+
+// ------------------------------------------
+// Models (테이블 정의)
+// ------------------------------------------
+
+// 1. 사용자 정보
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  nickname     String    @unique
+  provider     Provider
+  password     String?   // 소셜 로그인은 비번 없음 (Nullable)
+  socialId     String?
+  profileImage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations (관계 설정)
+  stat         UserStat? // 1:1 관계
+  achievements UserAchievement[]
+  matchRecords MatchRecord[]
+  mvpMatches   GameMatch[]       @relation("MvpUser") // 내가 MVP 받은 게임들
+}
+
+// 2. 사용자 통계 (1:1 관계)
+model UserStat {
+  userId         String @id @db.Uuid // PK이자 FK
+  mmr            Int    @default(1000)
+  integrityScore Int    @default(100) // 청렴도
+  totalCatch     Int    @default(0)
+  totalRelease   Int    @default(0)
+  totalSurvival  Int    @default(0) // 초 단위
+  totalDistance  Float  @default(0.0) // m 단위
+  totalMvpCount  Int    @default(0)
+  totalGames     Int    @default(0)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 3. 사용자 업적
+model UserAchievement {
+  userId    String   @db.Uuid
+  achieveId String   // 기획서의 adviceId -> achieveId (의미상 수정)
+  earnedAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achieveId]) // 복합 기본키 (한 유저가 같은 업적 중복 획득 불가)
+}
+
+// 4. 게임 매치 정보 (영구 기록용)
+model GameMatch {
+  id         String    @id @default(uuid()) @db.Uuid
+  createdAt  DateTime  @default(now()) // 게임 시작 시간
+  endedAt    DateTime? // 게임 종료 시간 (진행 중일 땐 Null)
+  roomCode   String    @unique // 방 입장 코드
+  mode       GameMode
+  mapConfig  Json      // 경기장 & 감옥 좌표 정보 (JSON)
+  rules      Json      // 설정한 규칙 (JSON)
+  winnerTeam Team?     // 승리 팀 (종료 전엔 Null)
+  mvpUserId  String?   @db.Uuid // MVP 유저 ID
+
+  // Relations
+  records MatchRecord[]
+  mvpUser User?         @relation("MvpUser", fields: [mvpUserId], references: [id])
+}
+
+// 5. 게임별 개인 기록 (전적)
+model MatchRecord {
+  matchId       String      @db.Uuid
+  userId        String      @db.Uuid
+  role          Team
+  result        MatchResult
+  catchCount    Int         @default(0)
+  distanceMoved Float       @default(0.0) // km 단위? 기획서는 m인데 여기 km로 적힘. Float으로 통일.
+  releaseCount  Int         @default(0)
+  survivalTime  Int         @default(0) // 초 단위
+  heartRateLog  Json?       // 심박수 배열 (JSON)
+  heartRateMax  Int?        // 최대 심박수
+  contribution  Int         @default(0) // 종합 기여도
+
+  // Relations
+  match GameMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, userId]) // 복합 기본키 (한 게임에 한 유저는 하나의 기록만 가짐)
+}
