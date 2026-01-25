@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/widgets/ws_status_pill.dart';
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
@@ -19,6 +20,12 @@ class LobbyScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final room = ref.watch(roomProvider);
     final me = room.me;
+    final wsConn = ref.watch(wsConnectionProvider);
+    final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
+    final sync = ref.watch(matchSyncProvider);
+
+    final status = wsConnectionStatusText(wsConn: wsConn, serverHelloEpoch: serverHelloEpoch, hasSnapshot: sync.lastMatchState != null);
+
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -44,6 +51,8 @@ class LobbyScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerLeft, child: WsStatusPill(text: status)),
                 const SizedBox(height: 10),
                 _RoomCodeCard(
                   roomCode: room.roomCode,
@@ -156,6 +165,7 @@ class LobbyScreen extends ConsumerWidget {
     );
   }
 }
+
 
 class _RoomCodeCard extends StatelessWidget {
   final String roomCode;

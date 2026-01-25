@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/widgets/ws_status_pill.dart';
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
@@ -12,6 +13,8 @@ import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../net/ws/ws_client_provider.dart';
+
 
 class MatchScreen extends ConsumerWidget {
   const MatchScreen({super.key});
@@ -21,8 +24,40 @@ class MatchScreen extends ConsumerWidget {
     final room = ref.watch(roomProvider);
     final rules = ref.watch(matchRulesProvider);
     final sync = ref.watch(matchSyncProvider);
+    final wsConn = ref.watch(wsConnectionProvider);
+    final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
     final isHost = room.amIHost;
     final lastState = sync.lastMatchState?.payload;
+
+    if (lastState == null) {
+      final status = wsConnectionStatusText(wsConn: wsConn, serverHelloEpoch: serverHelloEpoch, hasSnapshot: false);
+
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBody: true,
+        body: GlassBackground(
+          child: SafeArea(
+            bottom: true,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('경기 설정', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  WsStatusPill(text: status),
+                  const SizedBox(height: 14),
+                  _ServerSyncCard(
+                    state: null,
+                    matchId: sync.currentMatchId,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -42,6 +77,14 @@ class MatchScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 14),
+                WsStatusPill(
+                  text: wsConnectionStatusText(
+                    wsConn: wsConn,
+                    serverHelloEpoch: serverHelloEpoch,
+                    hasSnapshot: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 _ServerSyncCard(
                   state: lastState,
                   matchId: sync.currentMatchId ?? sync.lastMatchState?.payload.matchId,
@@ -439,6 +482,7 @@ String _formatRemaining(int serverNowMs, int endsAtMs) {
   final s = (d.inSeconds % 60).toString().padLeft(2, '0');
   return '$m:$s';
 }
+
 
 class _SideCard extends StatelessWidget {
   final String title;

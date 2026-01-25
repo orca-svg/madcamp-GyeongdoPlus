@@ -15,6 +15,7 @@ import 'package:frontend/app.dart';
 import 'package:frontend/net/ws/ws_client.dart';
 import 'package:frontend/net/ws/ws_client_provider.dart';
 import 'package:frontend/net/ws/ws_envelope.dart';
+import 'package:frontend/net/ws/ws_types.dart';
 
 void main() {
   testWidgets('App boots to OFF_GAME home', (WidgetTester tester) async {
@@ -85,6 +86,8 @@ class _NoopWsClient extends WsClient {
   final StreamController<WsConnectionState> _connCtrl = StreamController.broadcast();
 
   WsConnectionState _state = WsConnectionState.initial();
+  int _epoch = 0;
+  String? _lastJoinMatchId;
 
   @override
   Stream<WsEnvelope<Object?>> get envelopes => _envCtrl.stream;
@@ -100,8 +103,19 @@ class _NoopWsClient extends WsClient {
 
   @override
   Future<void> connect({required Uri url, Map<String, String>? headers}) async {
-    _state = _state.copyWith(status: WsConnStatus.connected);
+    _epoch += 1;
+    _state = _state.copyWith(status: WsConnStatus.connected, epoch: _epoch);
     _connCtrl.add(_state);
+    _envCtrl.add(
+      WsEnvelope<Object?>(
+        v: 1,
+        type: WsType.serverHello,
+        matchId: null,
+        seq: null,
+        ts: DateTime.now().millisecondsSinceEpoch,
+        payload: const {},
+      ),
+    );
   }
 
   @override
@@ -111,7 +125,47 @@ class _NoopWsClient extends WsClient {
   }
 
   @override
-  void sendEnvelope<T>(WsEnvelope<T> env, Map<String, dynamic> Function(T) payloadToJson) {}
+  void sendEnvelope<T>(WsEnvelope<T> env, Map<String, dynamic> Function(T) payloadToJson) {
+    if (env.type == WsType.joinMatch) {
+      final p = env.payload;
+      if (p is Map) {
+        _lastJoinMatchId = (p['matchId'] ?? '').toString();
+      }
+      final matchId = _lastJoinMatchId ?? 'm_test';
+      _envCtrl.add(
+        WsEnvelope<Object?>(
+          v: 1,
+          type: WsType.matchState,
+          matchId: matchId,
+          seq: 1,
+          ts: DateTime.now().millisecondsSinceEpoch,
+          payload: {
+            'matchId': matchId,
+            'state': 'RUNNING',
+            'mode': 'NORMAL',
+            'rules': {
+              'opponentReveal': {'radarPingTtlMs': 7000}
+            },
+            'time': {
+              'serverNowMs': DateTime.now().millisecondsSinceEpoch,
+              'prepEndsAtMs': null,
+              'endsAtMs': DateTime.now().millisecondsSinceEpoch + 120000,
+            },
+            'teams': {
+              'POLICE': {'playerIds': const <String>[]},
+              'THIEF': {'playerIds': const <String>[]},
+            },
+            'players': const <String, dynamic>{},
+            'live': {
+              'score': {'thiefFree': 1, 'thiefCaptured': 0},
+              'captureProgress': null,
+              'rescueProgress': null,
+            },
+          },
+        ),
+      );
+    }
+  }
 
   @override
   Future<void> dispose() async {

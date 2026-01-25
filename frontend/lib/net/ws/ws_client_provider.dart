@@ -13,6 +13,16 @@ import 'ws_client.dart';
 import 'ws_envelope.dart';
 import 'ws_types.dart';
 
+final wsServerHelloEpochProvider = NotifierProvider<WsServerHelloEpochController, int>(WsServerHelloEpochController.new);
+
+class WsServerHelloEpochController extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void set(int epoch) => state = epoch;
+  void reset() => state = 0;
+}
+
 final wsClientProvider = Provider<WsClient>((ref) {
   final client = WsClient();
   ref.onDispose(() => client.dispose());
@@ -79,7 +89,10 @@ final wsConnectionProvider = NotifierProvider<WsConnectionController, WsConnecti
 
 class WsConnectionController extends Notifier<WsConnectionState> {
   StreamSubscription? _sub;
-  bool _serverHelloReceived = false;
+  int _activeEpoch = 0;
+  int _helloSentEpoch = 0;
+  int _serverHelloEpoch = 0;
+  int _joinSentEpoch = 0;
   _JoinParams? _desiredJoin;
   _JoinParams? _pendingJoin;
 
@@ -88,12 +101,10 @@ class WsConnectionController extends Notifier<WsConnectionState> {
     final client = ref.watch(wsClientProvider);
     _sub = client.connection.listen((s) {
       state = s;
-      if (s.status != WsConnStatus.connected) {
-        _serverHelloReceived = false;
-      }
       if (s.status == WsConnStatus.connected) {
-        _pendingJoin = _desiredJoin;
-        _flushPendingJoin();
+        _onConnectedEpoch(client, s.epoch);
+      } else {
+        _resetGateForNextSession();
       }
     });
     ref.onDispose(() => _sub?.cancel());
@@ -105,10 +116,7 @@ class WsConnectionController extends Notifier<WsConnectionState> {
     Map<String, String>? headers,
   }) async {
     final u = url ?? Uri(scheme: 'wss', host: 'api.gyeongdo.plus', path: '/v1/ws');
-    _serverHelloReceived = false;
     await ref.read(wsClientProvider).connect(url: u, headers: headers);
-    final hello = buildClientHello(device: 'flutter', appVersion: 'dev');
-    ref.read(wsClientProvider).sendEnvelope(hello, (p) => p);
   }
 
   Future<void> disconnect() async {
@@ -123,19 +131,46 @@ class WsConnectionController extends Notifier<WsConnectionState> {
   }
 
   void onServerHello() {
-    _serverHelloReceived = true;
+    if (state.status != WsConnStatus.connected) return;
+    _serverHelloEpoch = state.epoch;
+    ref.read(wsServerHelloEpochProvider.notifier).set(state.epoch);
     _flushPendingJoin();
   }
 
   void _flushPendingJoin() {
     final p = _pendingJoin;
     if (p == null) return;
-    if (!_serverHelloReceived) return;
     if (state.status != WsConnStatus.connected) return;
+    final epoch = state.epoch;
+    if (_serverHelloEpoch != epoch) return;
+    if (_joinSentEpoch == epoch) return;
 
     final env = buildJoinMatch(matchId: p.matchId, playerId: p.playerId, roomCode: p.roomCode);
     ref.read(wsClientProvider).sendEnvelope(env, (payload) => payload);
+    _joinSentEpoch = epoch;
     _pendingJoin = null;
+  }
+
+  void _onConnectedEpoch(WsClient client, int epoch) {
+    if (_activeEpoch != epoch) {
+      _activeEpoch = epoch;
+      _serverHelloEpoch = 0;
+      _joinSentEpoch = 0;
+      ref.read(wsServerHelloEpochProvider.notifier).reset();
+      _pendingJoin = _desiredJoin;
+    }
+    if (_helloSentEpoch != epoch) {
+      _helloSentEpoch = epoch;
+      final hello = buildClientHello(device: 'flutter', appVersion: 'dev');
+      ref.read(wsClientProvider).sendEnvelope(hello, (p) => p);
+    }
+    _flushPendingJoin();
+  }
+
+  void _resetGateForNextSession() {
+    _serverHelloEpoch = 0;
+    ref.read(wsServerHelloEpochProvider.notifier).reset();
+    _pendingJoin = _desiredJoin;
   }
 }
 

@@ -13,24 +13,28 @@ class WsConnectionState {
   final WsConnStatus status;
   final int reconnectAttempt;
   final String? lastError;
+  final int epoch;
 
   const WsConnectionState({
     required this.status,
     required this.reconnectAttempt,
     required this.lastError,
+    required this.epoch,
   });
 
   factory WsConnectionState.initial() => const WsConnectionState(
         status: WsConnStatus.disconnected,
         reconnectAttempt: 0,
         lastError: null,
+        epoch: 0,
       );
 
-  WsConnectionState copyWith({WsConnStatus? status, int? reconnectAttempt, String? lastError}) {
+  WsConnectionState copyWith({WsConnStatus? status, int? reconnectAttempt, String? lastError, int? epoch}) {
     return WsConnectionState(
       status: status ?? this.status,
       reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
       lastError: lastError ?? this.lastError,
+      epoch: epoch ?? this.epoch,
     );
   }
 }
@@ -53,6 +57,7 @@ class WsClient {
   bool _manualDisconnect = false;
   Timer? _reconnectTimer;
   final _rng = Random();
+  int _epoch = 0;
 
   bool get isConnected => _ch != null && _connState.status == WsConnStatus.connected;
 
@@ -74,7 +79,11 @@ class WsClient {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     await _close();
-    _setConn(WsConnectionState.initial());
+    _setConn(_connState.copyWith(
+      status: WsConnStatus.disconnected,
+      reconnectAttempt: 0,
+      lastError: null,
+    ));
   }
 
   void sendEnvelope<T>(WsEnvelope<T> env, Map<String, dynamic> Function(T) payloadToJson) {
@@ -86,6 +95,8 @@ class WsClient {
   void _open() {
     final url = _url;
     if (url == null) return;
+
+    _epoch += 1;
 
     try {
       _ch = IOWebSocketChannel.connect(url, headers: _headers);
@@ -105,6 +116,7 @@ class WsClient {
       status: WsConnStatus.connected,
       reconnectAttempt: 0,
       lastError: null,
+      epoch: _epoch,
     ));
   }
 
