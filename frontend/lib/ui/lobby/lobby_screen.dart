@@ -53,7 +53,7 @@ class LobbyScreen extends ConsumerWidget {
                   alignment: Alignment.centerLeft,
                   child: WsStatusPill(
                     model: wsUi,
-                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).connect() : null,
+                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
                   ),
                 ),
                 const SizedBox(height: 10),

@@ -45,7 +45,7 @@ class MatchScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   WsStatusPill(
                     model: wsUi,
-                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).connect() : null,
+                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
                   ),
                   const SizedBox(height: 14),
                   _ServerSyncCard(
@@ -80,7 +80,7 @@ class MatchScreen extends ConsumerWidget {
                 const SizedBox(height: 14),
                 WsStatusPill(
                   model: wsUi,
-                  onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).connect() : null,
+                  onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
                 ),
                 const SizedBox(height: 10),
                 _ServerSyncCard(

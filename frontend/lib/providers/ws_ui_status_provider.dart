@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_colors.dart';
@@ -30,13 +32,50 @@ class WsUiStatusModel {
   bool get isSynced => status == WsUiStatus.synced;
 }
 
+final wsUserReconnectIntentProvider =
+    NotifierProvider<WsUserReconnectIntentController, bool>(WsUserReconnectIntentController.new);
+
+class WsUserReconnectIntentController extends Notifier<bool> {
+  Timer? _timer;
+
+  @override
+  bool build() {
+    ref.onDispose(() => _timer?.cancel());
+    return false;
+  }
+
+  void arm(Duration d) {
+    _timer?.cancel();
+    state = true;
+    _timer = Timer(d, () {
+      if (!ref.mounted) return;
+      state = false;
+    });
+  }
+
+  void clear() {
+    _timer?.cancel();
+    _timer = null;
+    state = false;
+  }
+}
+
 WsUiStatusModel deriveWsUiStatus({
   required WsConnectionState wsConn,
   required int serverHelloEpoch,
   required bool hasSnapshot,
+  required bool userReconnectIntent,
 }) {
   switch (wsConn.status) {
     case WsConnStatus.disconnected:
+      if (userReconnectIntent) {
+        return const WsUiStatusModel(
+          status: WsUiStatus.connecting,
+          text: '재연결 중…',
+          dotColor: AppColors.borderCyan,
+          showReconnect: false,
+        );
+      }
       return const WsUiStatusModel(
         status: WsUiStatus.disconnected,
         text: '연결 안됨',
@@ -82,11 +121,12 @@ final wsUiStatusProvider = Provider<WsUiStatusModel>((ref) {
   final wsConn = ref.watch(wsConnectionProvider);
   final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
   final hasSnapshot = ref.watch(matchSyncProvider).lastMatchState != null;
+  final intent = ref.watch(wsUserReconnectIntentProvider);
 
-return deriveWsUiStatus(
+  return deriveWsUiStatus(
     wsConn: wsConn,
     serverHelloEpoch: serverHelloEpoch,
     hasSnapshot: hasSnapshot,
+    userReconnectIntent: intent,
   );
 });
-

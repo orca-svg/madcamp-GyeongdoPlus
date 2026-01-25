@@ -61,6 +61,14 @@ class MatchSyncController extends Notifier<MatchSyncState> {
 
   void setCurrentMatchId(String matchId) => state = state.copyWith(currentMatchId: matchId);
 
+  void clearSnapshot() {
+    state = state.copyWith(
+      lastMatchState: null,
+      lastRadarPing: null,
+      lastJsonPreview: null,
+    );
+  }
+
   void setMatchState(WsEnvelope<MatchStateDto> env) {
     _maybeCapture95(env.payload);
     state = state.copyWith(

@@ -7,6 +7,8 @@ import '../../core/haptics/haptics.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../providers/telemetry_scheduler_provider.dart';
+import '../../providers/ws_notice_provider.dart';
+import '../../providers/ws_ui_status_provider.dart';
 import 'builders/ws_builders.dart';
 import 'dto/telemetry.dart';
 import 'ws_client.dart';
@@ -43,6 +45,9 @@ class WsRouter {
   WsRouter(this._ref) {
     final client = _ref.read(wsClientProvider);
     Future.microtask(() => _ref.read(telemetrySchedulerProvider.notifier).startWithClient(client));
+
+    Future.microtask(() => _ref.read(wsStaleRecoveryProvider));
+    Future.microtask(() => _ref.read(wsNoticeProvider));
 
     _sub = client.envelopes.listen(_onEnvelope);
     _connSub = client.connection.listen((s) {
@@ -93,6 +98,8 @@ class WsConnectionController extends Notifier<WsConnectionState> {
   int _helloSentEpoch = 0;
   int _serverHelloEpoch = 0;
   int _joinSentEpoch = 0;
+  Timer? _userReconnectLockTimer;
+  bool _userReconnectLocked = false;
   _JoinParams? _desiredJoin;
   _JoinParams? _pendingJoin;
 
@@ -107,7 +114,10 @@ class WsConnectionController extends Notifier<WsConnectionState> {
         _resetGateForNextSession();
       }
     });
-    ref.onDispose(() => _sub?.cancel());
+    ref.onDispose(() {
+      _sub?.cancel();
+      _userReconnectLockTimer?.cancel();
+    });
     return client.connectionState;
   }
 
@@ -115,8 +125,31 @@ class WsConnectionController extends Notifier<WsConnectionState> {
     Uri? url,
     Map<String, String>? headers,
   }) async {
+    if (state.status == WsConnStatus.connected ||
+        state.status == WsConnStatus.connecting ||
+        state.status == WsConnStatus.reconnecting) {
+      return;
+    }
     final u = url ?? Uri(scheme: 'wss', host: 'api.gyeongdo.plus', path: '/v1/ws');
     await ref.read(wsClientProvider).connect(url: u, headers: headers);
+  }
+
+  Future<void> userReconnect() async {
+    if (state.status != WsConnStatus.disconnected) return;
+    if (_userReconnectLocked) return;
+    _userReconnectLocked = true;
+    _userReconnectLockTimer?.cancel();
+    _userReconnectLockTimer = Timer(const Duration(milliseconds: 1200), () {
+      _userReconnectLocked = false;
+    });
+    ref.read(wsUserReconnectIntentProvider.notifier).arm(const Duration(seconds: 2));
+    await connect();
+  }
+
+  Future<void> forceReconnect() async {
+    final u = Uri(scheme: 'wss', host: 'api.gyeongdo.plus', path: '/v1/ws');
+    await disconnect();
+    await ref.read(wsClientProvider).connect(url: u, headers: null);
   }
 
   Future<void> disconnect() async {

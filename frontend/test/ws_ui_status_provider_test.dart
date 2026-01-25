@@ -15,6 +15,7 @@ void main() {
       ),
       serverHelloEpoch: 0,
       hasSnapshot: false,
+      userReconnectIntent: false,
     );
     expect(m1.status, WsUiStatus.disconnected);
     expect(m1.showReconnect, true);
@@ -29,6 +30,7 @@ void main() {
       ),
       serverHelloEpoch: 0,
       hasSnapshot: false,
+      userReconnectIntent: false,
     );
     expect(m2.status, WsUiStatus.awaitingServerHello);
     expect(m2.showReconnect, false);
@@ -43,6 +45,7 @@ void main() {
       ),
       serverHelloEpoch: 2,
       hasSnapshot: false,
+      userReconnectIntent: false,
     );
     expect(m3.status, WsUiStatus.awaitingSnapshot);
     expect(m3.showReconnect, false);
@@ -57,6 +60,7 @@ void main() {
       ),
       serverHelloEpoch: 2,
       hasSnapshot: true,
+      userReconnectIntent: false,
     );
     expect(m4.status, WsUiStatus.synced);
     expect(m4.isSynced, true);
