@@ -75,3 +75,6 @@ linux/flutter/ephemeral/
 # Web build
 web/.dart_tool/
 
+# Secrets (Kakao JS key)
+.env
+.env.*

@@ -305,11 +305,13 @@ class RescueProgressDto {
 
 class MatchArenaDto {
   final List<ArenaPointDto>? polygon;
+  final ArenaJailDto? jail;
 
-  const MatchArenaDto({required this.polygon});
+  const MatchArenaDto({required this.polygon, required this.jail});
 
   Map<String, dynamic> toJson() => {
         if (polygon != null) 'polygon': polygon!.map((e) => e.toJson()).toList(),
+        if (jail != null) 'jail': jail!.toJson(),
       };
 
   factory MatchArenaDto.fromJson(Map<String, dynamic> json) {
@@ -318,7 +320,10 @@ class MatchArenaDto {
         .whereType<Map>()
         .map((e) => ArenaPointDto.fromJson(e.cast<String, dynamic>()))
         .toList();
-    return MatchArenaDto(polygon: parsed.isEmpty ? null : parsed);
+    return MatchArenaDto(
+      polygon: parsed.isEmpty ? null : parsed,
+      jail: (json['jail'] is Map) ? ArenaJailDto.fromJson((json['jail'] as Map).cast<String, dynamic>()) : null,
+    );
   }
 }
 
@@ -340,5 +345,25 @@ class ArenaPointDto {
       lat: lat.clamp(-90.0, 90.0),
       lng: lng.clamp(-180.0, 180.0),
     );
+  }
+}
+
+class ArenaJailDto {
+  final ArenaPointDto? center;
+  final double? radiusM;
+
+  const ArenaJailDto({required this.center, required this.radiusM});
+
+  Map<String, dynamic> toJson() => {
+        if (center != null) 'center': center!.toJson(),
+        if (radiusM != null) 'radiusM': radiusM,
+      };
+
+  factory ArenaJailDto.fromJson(Map<String, dynamic> json) {
+    final center = (json['center'] is Map) ? ArenaPointDto.fromJson((json['center'] as Map).cast<String, dynamic>()) : null;
+    final radius = (json['radiusM'] as num?)?.toDouble();
+    final validRadius = (radius == null || radius <= 0) ? null : radius;
+    if (center == null || validRadius == null) return const ArenaJailDto(center: null, radiusM: null);
+    return ArenaJailDto(center: center, radiusM: validRadius);
   }
 }

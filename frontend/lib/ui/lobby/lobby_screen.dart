@@ -14,6 +14,7 @@ import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
 import '../../providers/ws_ui_status_provider.dart';
+import '../../features/zone/zone_editor_screen.dart';
 
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
@@ -121,6 +122,12 @@ class LobbyScreen extends ConsumerWidget {
                                       ctrl.setMapName(next.mapName);
 
                                       // TODO: 서버 룰 싱크 메시지(action/rules_update 등) 스키마 확정 후 WS로 전송.
+                                    },
+                                    onEditZone: () {
+                                      Navigator.of(context).pop(); // close sheet
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(builder: (_) => const ZoneEditorScreen()),
+                                      );
                                     },
                                   ),
                                 )
@@ -287,7 +294,9 @@ class _RulesSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final poly = rules.zonePolygon;
-    final zoneText = (poly != null && poly.length >= 3) ? '${poly.length}점 설정됨' : '미설정(—)';
+    final zoneText =
+        (poly == null || poly.isEmpty) ? '미설정(—)' : (poly.length >= 3 ? '${poly.length}점 설정됨' : '점이 ${poly.length}개(최소 3)');
+    final jailText = (rules.jailCenter != null && rules.jailRadiusM != null) ? '설정됨 (${rules.jailRadiusM!.round()}m)' : '미설정(—)';
     return GlowCard(
       glow: false,
       borderColor: readOnly ? AppColors.outlineLow : AppColors.borderCyan.withOpacity(0.35),
@@ -305,6 +314,8 @@ class _RulesSummaryCard extends StatelessWidget {
           _ruleRow(label: '맵', value: rules.mapName),
           const SizedBox(height: 10),
           _ruleRow(label: '구역', value: zoneText),
+          const SizedBox(height: 10),
+          _ruleRow(label: '감옥', value: jailText),
           if (readOnly) ...[
             const SizedBox(height: 12),
             Text(
@@ -339,10 +350,12 @@ class _RulesSummaryCard extends StatelessWidget {
 class _EditRulesSheet extends StatefulWidget {
   final MatchRulesState initial;
   final ValueChanged<MatchRulesState> onSave;
+  final VoidCallback onEditZone;
 
   const _EditRulesSheet({
     required this.initial,
     required this.onSave,
+    required this.onEditZone,
   });
 
   @override
@@ -453,6 +466,13 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                 ],
               ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                key: const Key('lobbyZoneEditButton'),
+                onPressed: widget.onEditZone,
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('구역 설정'),
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(

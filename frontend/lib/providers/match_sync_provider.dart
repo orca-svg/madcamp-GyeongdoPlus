@@ -72,12 +72,21 @@ class MatchSyncController extends Notifier<MatchSyncState> {
 
   void setMatchState(WsEnvelope<MatchStateDto> env) {
     _maybeCapture95(env.payload);
-    final polygon = env.payload.arena?.polygon;
+    final arena = env.payload.arena;
+    final polygon = arena?.polygon;
     if (polygon == null || polygon.isEmpty) {
       ref.read(matchRulesProvider.notifier).setZonePolygon(null);
     } else {
-      ref.read(matchRulesProvider.notifier).setZonePolygon(
-            polygon.map((p) => GeoPointDto(lat: p.lat, lng: p.lng)).toList(),
+      ref.read(matchRulesProvider.notifier).setZonePolygon(polygon.map((p) => GeoPointDto(lat: p.lat, lng: p.lng)).toList());
+    }
+
+    final jail = arena?.jail;
+    if (jail?.center == null || jail?.radiusM == null) {
+      ref.read(matchRulesProvider.notifier).setJail(center: null, radiusM: null);
+    } else {
+      ref.read(matchRulesProvider.notifier).setJail(
+            center: GeoPointDto(lat: jail!.center!.lat, lng: jail.center!.lng),
+            radiusM: jail.radiusM,
           );
     }
     state = state.copyWith(
