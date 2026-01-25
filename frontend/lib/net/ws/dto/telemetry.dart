@@ -1,7 +1,7 @@
 class TelemetryBatchPayload {
   final String matchId;
   final String playerId;
-  final String device;
+  final TelemetryDevice device;
   final List<TelemetrySample> samples;
 
   const TelemetryBatchPayload({
@@ -14,7 +14,7 @@ class TelemetryBatchPayload {
   Map<String, dynamic> toJson() => {
         'matchId': matchId,
         'playerId': playerId,
-        'device': device,
+        'device': device.toJson(),
         'samples': samples.map((e) => e.toJson()).toList(),
       };
 
@@ -22,7 +22,7 @@ class TelemetryBatchPayload {
     return TelemetryBatchPayload(
       matchId: (json['matchId'] ?? '').toString(),
       playerId: (json['playerId'] ?? '').toString(),
-      device: (json['device'] ?? '').toString(),
+      device: TelemetryDevice.fromJson((json['device'] as Map? ?? const {}).cast<String, dynamic>()),
       samples: (json['samples'] as List? ?? const [])
           .whereType<Map>()
           .map((e) => TelemetrySample.fromJson(e.cast<String, dynamic>()))
@@ -30,6 +30,30 @@ class TelemetryBatchPayload {
     );
   }
 }
+
+
+class TelemetryDevice {
+  final String platform;
+  final String model;
+
+  const TelemetryDevice({
+    required this.platform,
+    required this.model,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'platform': platform,
+        'model': model,
+      };
+
+  factory TelemetryDevice.fromJson(Map<String, dynamic> json) {
+    return TelemetryDevice(
+      platform: (json['platform'] ?? '').toString(),
+      model: (json['model'] ?? '').toString(),
+    );
+  }
+}
+
 
 class TelemetrySample {
   final int tMs;
@@ -63,16 +87,19 @@ class TelemetrySample {
 
 class TelemetryMotion {
   final double? headingDeg;
+  final int? stepCount;
 
-  const TelemetryMotion({required this.headingDeg});
+  const TelemetryMotion({this.headingDeg, this.stepCount});
 
   Map<String, dynamic> toJson() => {
         if (headingDeg != null) 'headingDeg': headingDeg,
+        if (stepCount != null) 'stepCount': stepCount,
       };
 
   factory TelemetryMotion.fromJson(Map<String, dynamic> json) {
     return TelemetryMotion(
       headingDeg: (json['headingDeg'] as num?)?.toDouble(),
+      stepCount: (json['stepCount'] as num?)?.toInt(),
     );
   }
 }
@@ -80,7 +107,8 @@ class TelemetryMotion {
 class TelemetryHeart {
   final int? bpm;
 
-  const TelemetryHeart({required this.bpm});
+  const TelemetryHeart({this.bpm});
+  
 
   Map<String, dynamic> toJson() => {
         if (bpm != null) 'bpm': bpm,
@@ -95,16 +123,22 @@ class TelemetryHeart {
 
 class TelemetryContext {
   final String? mode;
+  final bool? isInJailZone;
+  final bool? isOutOfBounds;
 
-  const TelemetryContext({required this.mode});
+  const TelemetryContext({this.mode, this.isInJailZone, this.isOutOfBounds});
 
   Map<String, dynamic> toJson() => {
         if (mode != null) 'mode': mode,
+        if (isInJailZone != null) 'isInJailZone': isInJailZone,
+        if (isOutOfBounds != null) 'isOutOfBounds': isOutOfBounds,
       };
 
   factory TelemetryContext.fromJson(Map<String, dynamic> json) {
     return TelemetryContext(
       mode: json['mode']?.toString(),
+      isInJailZone: json['isInJailZone'] as bool?,
+      isOutOfBounds: json['isOutOfBounds'] as bool?,
     );
   }
 }

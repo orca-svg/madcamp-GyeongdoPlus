@@ -139,7 +139,10 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
       final payload = TelemetryBatchPayload(
         matchId: matchId,
         playerId: playerId,
-        device: 'phone',
+        device: const TelemetryDevice(
+          platform: 'mobile',
+          model: 'phone',
+        ),
         samples: List.of(_buffer),
       );
       _buffer.clear();
