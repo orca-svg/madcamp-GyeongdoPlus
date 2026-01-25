@@ -60,13 +60,25 @@ void main() {
     await tester.tap(find.text('만들기'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('준비 완료'));
+    final readyBtnFinder = find.byKey(const Key('lobbyReadyButton'));
+    final startBtnFinder = find.byKey(const Key('lobbyStartButton'));
+
+    // Sanity: keys should be unique.
+    expect(readyBtnFinder.evaluate().length, 1);
+    expect(startBtnFinder.evaluate().length, 1);
+
+    final readyBtn = readyBtnFinder;
+    final startBtn = startBtnFinder;
+
+    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -500));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('경기 시작'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(readyBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(startBtn);
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
     await tester.tap(find.text('설정'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
     await tester.scrollUntilVisible(find.text('경기 종료(테스트)'), 200);
     await tester.pump(const Duration(milliseconds: 200));

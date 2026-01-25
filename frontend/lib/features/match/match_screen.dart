@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/ws_status_pill.dart';
@@ -74,7 +73,7 @@ class MatchScreen extends ConsumerWidget {
                 Text('경기 설정', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 6),
                 Text(
-                  '방장만 세부 항목을 설정할 수 있습니다.',
+                  '방장만 게임 시간을 변경할 수 있습니다.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 14),
@@ -112,86 +111,36 @@ class MatchScreen extends ConsumerWidget {
                 const SizedBox(height: 22),
                 Row(
                   children: [
-                    Expanded(child: Text('경기 규칙', style: Theme.of(context).textTheme.titleMedium)),
-                    if (!isHost) ...[
-                      const SizedBox(width: 10),
-                      const Icon(Icons.lock_rounded, color: AppColors.textMuted, size: 18),
-                    ],
+                    Expanded(child: Text('시간 조절', style: Theme.of(context).textTheme.titleMedium)),
+                    if (!isHost)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface2.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: AppColors.outlineLow),
+                        ),
+                        child: const Text(
+                          'READ ONLY',
+                          style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w800),
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _RuleTile(
-                  title: '경기 시간',
-                  value: '${rules.durationMin}분',
-                  accent: AppColors.borderCyan,
+                _TimeControlCard(
                   enabled: isHost,
-                  onTap: isHost
-                      ? () async {
-                          final v = await _editInt(
-                            context: context,
-                            title: '경기 시간(분)',
-                            initial: rules.durationMin,
-                            min: 1,
-                            max: 60,
-                          );
-                          if (v != null) ref.read(matchRulesProvider.notifier).setDurationMin(v);
-                        }
-                      : null,
+                  durationMin: rules.durationMin,
+                  onChanged: (v) {
+                    ref.read(matchRulesProvider.notifier).setDurationMin(v);
+                    // TODO: 서버 시간 변경 메시지 스키마 확정 후 WS(action/patch 등)로 전송.
+                  },
                 ),
+                const SizedBox(height: 22),
+                Text('규칙 요약', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _RuleTile(
-                  title: '경기장',
-                  value: rules.mapName,
-                  accent: AppColors.borderCyan,
-                  enabled: isHost,
-                  onTap: isHost
-                      ? () async {
-                          final v = await _editText(
-                            context: context,
-                            title: '경기장',
-                            hint: '예) 도심',
-                            initial: rules.mapName,
-                          );
-                          if (v != null && v.trim().isNotEmpty) {
-                            ref.read(matchRulesProvider.notifier).setMapName(v.trim());
-                          }
-                        }
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                _RuleTile(
-                  title: '경기 참여 인원',
-                  value: '최대 ${rules.maxPlayers}명',
-                  accent: AppColors.borderCyan,
-                  enabled: isHost,
-                  onTap: isHost
-                      ? () async {
-                          final v = await _editInt(
-                            context: context,
-                            title: '최대 인원(명)',
-                            initial: rules.maxPlayers,
-                            min: 2,
-                            max: 10,
-                          );
-                          if (v != null) ref.read(matchRulesProvider.notifier).setMaxPlayers(v);
-                        }
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                _RuleTile(
-                  title: '해방 방식',
-                  value: rules.releaseMode,
-                  accent: AppColors.borderCyan,
-                  enabled: isHost,
-                  onTap: isHost
-                      ? () async {
-                          final v = await _editReleaseMode(
-                            context: context,
-                            current: rules.releaseMode,
-                          );
-                          if (v != null) ref.read(matchRulesProvider.notifier).setReleaseMode(v);
-                        }
-                      : null,
+                _RulesSummaryCard(
+                  rules: rules,
                 ),
                 const SizedBox(height: 22),
                 Text('테스트', style: Theme.of(context).textTheme.titleMedium),
@@ -209,145 +158,140 @@ class MatchScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Future<String?> _editText({
-    required BuildContext context,
-    required String title,
-    required String hint,
-    required String initial,
-  }) {
-    final controller = TextEditingController(text: initial);
-    return showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: bottom),
-          child: _EditSheet(
-            title: title,
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: const TextStyle(color: AppColors.textMuted),
-                filled: true,
-                fillColor: AppColors.surface2.withOpacity(0.45),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: AppColors.outlineLow.withOpacity(0.9)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: AppColors.outlineLow.withOpacity(0.9)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: AppColors.borderCyan.withOpacity(0.8)),
-                ),
-              ),
-            ),
-            onSave: () => Navigator.of(context).pop(controller.text),
-          ),
-        );
-      },
-    );
-  }
+class _TimeControlCard extends StatelessWidget {
+  final bool enabled;
+  final int durationMin;
+  final ValueChanged<int> onChanged;
 
-  Future<int?> _editInt({
-    required BuildContext context,
-    required String title,
-    required int initial,
-    required int min,
-    required int max,
-  }) {
-    final controller = TextEditingController(text: '$initial');
-    return showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: bottom),
-          child: _EditSheet(
-            title: title,
-            helper: '$min ~ $max',
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: '$initial',
-                hintStyle: const TextStyle(color: AppColors.textMuted),
-                filled: true,
-                fillColor: AppColors.surface2.withOpacity(0.45),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: AppColors.outlineLow.withOpacity(0.9)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: AppColors.outlineLow.withOpacity(0.9)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: AppColors.borderCyan.withOpacity(0.8)),
-                ),
-              ),
-            ),
-            onSave: () {
-              final v = int.tryParse(controller.text.trim());
-              if (v == null) return Navigator.of(context).pop(null);
-              final clamped = v.clamp(min, max);
-              Navigator.of(context).pop(clamped);
-            },
-          ),
-        );
-      },
-    );
-  }
+  const _TimeControlCard({
+    required this.enabled,
+    required this.durationMin,
+    required this.onChanged,
+  });
 
-  Future<String?> _editReleaseMode({required BuildContext context, required String current}) {
-    final options = const ['터치/근접', '키 해제', '시간 해제'];
-    return showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        var selected = current;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return _EditSheet(
-              title: '해방 방식',
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final o in options)
-                    ChoiceChip(
-                      selected: selected == o,
-                      onSelected: (_) => setState(() => selected = o),
-                      label: Text(o),
-                      labelStyle: TextStyle(
-                        color: selected == o ? Colors.black : AppColors.textSecondary,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      selectedColor: AppColors.borderCyan,
-                      backgroundColor: AppColors.surface2.withOpacity(0.35),
-                      side: BorderSide(color: AppColors.outlineLow.withOpacity(0.9)),
+  @override
+  Widget build(BuildContext context) {
+    final v = durationMin.clamp(1, 60);
+    return GlowCard(
+      glow: false,
+      borderColor: enabled ? AppColors.borderCyan.withOpacity(0.35) : AppColors.outlineLow,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.85,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('게임 시간', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  key: const Key('matchTimeMinus'),
+                  onPressed: enabled && v > 1 ? () => onChanged(v - 1) : null,
+                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                  color: AppColors.textSecondary,
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '$v분',
+                      key: const Key('matchTimeValue'),
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w900),
                     ),
-                ],
+                  ),
+                ),
+                IconButton(
+                  key: const Key('matchTimePlus'),
+                  onPressed: enabled && v < 60 ? () => onChanged(v + 1) : null,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            AbsorbPointer(
+              absorbing: !enabled,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: AppColors.borderCyan,
+                  inactiveTrackColor: AppColors.outlineLow.withOpacity(0.9),
+                  thumbColor: AppColors.borderCyan,
+                  overlayColor: AppColors.borderCyan.withOpacity(0.12),
+                ),
+                child: Slider(
+                  key: const Key('matchTimeSlider'),
+                  min: 1,
+                  max: 60,
+                  divisions: 59,
+                  value: v.toDouble(),
+                  onChanged: (d) => onChanged(d.round()),
+                ),
               ),
-              onSave: () => Navigator.of(context).pop(selected),
-            );
-          },
-        );
-      },
+            ),
+            if (!enabled) ...[
+              const SizedBox(height: 6),
+              Text(
+                '방장만 변경할 수 있습니다.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RulesSummaryCard extends StatelessWidget {
+  final MatchRulesState rules;
+
+  const _RulesSummaryCard({
+    required this.rules,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final poly = rules.zonePolygon;
+    final zoneText = (poly != null && poly.length >= 3) ? '${poly.length}점 설정됨' : '미설정(—)';
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row(label: '모드', value: rules.gameMode.label),
+          const SizedBox(height: 10),
+          _row(label: '인원', value: '${rules.maxPlayers}명'),
+          const SizedBox(height: 10),
+          _row(label: '해방', value: rules.releaseMode),
+          const SizedBox(height: 10),
+          _row(label: '맵', value: rules.mapName),
+          const SizedBox(height: 10),
+          _row(label: '구역', value: zoneText),
+        ],
+      ),
+    );
+  }
+
+  Widget _row({required String label, required String value}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -522,125 +466,6 @@ class _SideCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RuleTile extends StatelessWidget {
-  final String title;
-  final String value;
-  final Color accent;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  const _RuleTile({
-    required this.title,
-    required this.value,
-    required this.accent,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final opacity = enabled ? 1.0 : 0.85;
-    return Opacity(
-      opacity: opacity,
-      child: GlowCard(
-        glow: false,
-        borderColor: enabled ? accent.withOpacity(0.25) : AppColors.outlineLow,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 6),
-                      Text(value, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-                if (!enabled) ...[
-                  const SizedBox(width: 8),
-                  const Text('READ ONLY', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w800)),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.lock_rounded, color: AppColors.textMuted),
-                ] else ...[
-                  const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EditSheet extends StatelessWidget {
-  final String title;
-  final String? helper;
-  final Widget child;
-  final VoidCallback onSave;
-
-  const _EditSheet({required this.title, required this.child, required this.onSave, this.helper});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: GlowCard(
-          glow: true,
-          glowColor: AppColors.borderCyan.withOpacity(0.12),
-          borderColor: AppColors.borderCyan.withOpacity(0.35),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
-                  if (helper != null)
-                    Text(
-                      helper!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              child,
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('취소'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: GradientButton(
-                      variant: GradientButtonVariant.createRoom,
-                      title: '저장',
-                      onPressed: onSave,
-                      leading: const Icon(Icons.check_rounded, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );
