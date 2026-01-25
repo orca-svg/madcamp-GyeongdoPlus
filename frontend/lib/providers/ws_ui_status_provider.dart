@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_colors.dart';
@@ -30,11 +30,11 @@ class WsUiStatusModel {
   bool get isSynced => status == WsUiStatus.synced;
 }
 
-final wsUiStatusProvider = Provider<WsUiStatusModel>((ref) {
-  final wsConn = ref.watch(wsConnectionProvider);
-  final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
-  final hasSnapshot = ref.watch(matchSyncProvider).lastMatchState != null;
-
+WsUiStatusModel deriveWsUiStatus({
+  required WsConnectionState wsConn,
+  required int serverHelloEpoch,
+  required bool hasSnapshot,
+}) {
   switch (wsConn.status) {
     case WsConnStatus.disconnected:
       return const WsUiStatusModel(
@@ -75,5 +75,18 @@ final wsUiStatusProvider = Provider<WsUiStatusModel>((ref) {
         showReconnect: false,
       );
   }
+}
+
+
+final wsUiStatusProvider = Provider<WsUiStatusModel>((ref) {
+  final wsConn = ref.watch(wsConnectionProvider);
+  final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
+  final hasSnapshot = ref.watch(matchSyncProvider).lastMatchState != null;
+
+return deriveWsUiStatus(
+    wsConn: wsConn,
+    serverHelloEpoch: serverHelloEpoch,
+    hasSnapshot: hasSnapshot,
+  );
 });
 

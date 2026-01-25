@@ -12,7 +12,7 @@ class WsStatusPill extends StatefulWidget {
   const WsStatusPill({
     super.key,
     required this.model,
-    required this.onReconnect,
+    this.onReconnect,
   });
 
   @override
@@ -88,7 +88,7 @@ class _WsStatusPillState extends State<WsStatusPill> {
                 Text(
                   '재연결',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.borderCyan,
+                        color: m.dotColor,
                         fontWeight: FontWeight.w700,
                       ),
                 ),
