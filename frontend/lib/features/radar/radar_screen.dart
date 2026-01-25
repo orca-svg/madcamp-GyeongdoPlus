@@ -546,6 +546,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
           sinceMs: 0,
         ),
       ),
+      arena: null,
     );
   }
 

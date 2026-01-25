@@ -7,6 +7,7 @@ class MatchStateDto {
   final MatchTeamsDto teams;
   final Map<String, MatchPlayerDto> players;
   final MatchLiveDto live;
+  final MatchArenaDto? arena;
 
   const MatchStateDto({
     required this.matchId,
@@ -17,6 +18,7 @@ class MatchStateDto {
     required this.teams,
     required this.players,
     required this.live,
+    required this.arena,
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,6 +30,7 @@ class MatchStateDto {
         'teams': teams.toJson(),
         'players': {for (final e in players.entries) e.key: e.value.toJson()},
         'live': live.toJson(),
+        if (arena != null) 'arena': arena!.toJson(),
       };
 
   factory MatchStateDto.fromJson(Map<String, dynamic> json) {
@@ -44,6 +47,7 @@ class MatchStateDto {
           e.key: MatchPlayerDto.fromJson((e.value as Map? ?? const {}).cast<String, dynamic>()),
       },
       live: MatchLiveDto.fromJson((json['live'] as Map? ?? const {}).cast<String, dynamic>()),
+      arena: (json['arena'] is Map) ? MatchArenaDto.fromJson((json['arena'] as Map).cast<String, dynamic>()) : null,
     );
   }
 }
@@ -295,6 +299,46 @@ class RescueProgressDto {
       byThiefId: json['byThiefId']?.toString(),
       progress01: (json['progress01'] as num?)?.toDouble(),
       sinceMs: (json['sinceMs'] as num?)?.toInt(),
+    );
+  }
+}
+
+class MatchArenaDto {
+  final List<ArenaPointDto>? polygon;
+
+  const MatchArenaDto({required this.polygon});
+
+  Map<String, dynamic> toJson() => {
+        if (polygon != null) 'polygon': polygon!.map((e) => e.toJson()).toList(),
+      };
+
+  factory MatchArenaDto.fromJson(Map<String, dynamic> json) {
+    final raw = (json['polygon'] as List?) ?? const [];
+    final parsed = raw
+        .whereType<Map>()
+        .map((e) => ArenaPointDto.fromJson(e.cast<String, dynamic>()))
+        .toList();
+    return MatchArenaDto(polygon: parsed.isEmpty ? null : parsed);
+  }
+}
+
+class ArenaPointDto {
+  final double lat;
+  final double lng;
+
+  const ArenaPointDto({required this.lat, required this.lng});
+
+  Map<String, dynamic> toJson() => {
+        'lat': lat,
+        'lng': lng,
+      };
+
+  factory ArenaPointDto.fromJson(Map<String, dynamic> json) {
+    final lat = (json['lat'] as num?)?.toDouble() ?? 0.0;
+    final lng = (json['lng'] as num?)?.toDouble() ?? 0.0;
+    return ArenaPointDto(
+      lat: lat.clamp(-90.0, 90.0),
+      lng: lng.clamp(-180.0, 180.0),
     );
   }
 }

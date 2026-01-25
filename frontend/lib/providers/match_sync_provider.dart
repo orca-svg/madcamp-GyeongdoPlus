@@ -8,6 +8,7 @@ import '../net/ws/dto/radar_ping.dart';
 import '../net/ws/ws_envelope.dart';
 import '../net/ws/ws_types.dart';
 import 'game_phase_provider.dart';
+import 'match_rules_provider.dart';
 import '../watch/watch_bridge.dart';
 
 class MatchSyncState {
@@ -71,6 +72,14 @@ class MatchSyncController extends Notifier<MatchSyncState> {
 
   void setMatchState(WsEnvelope<MatchStateDto> env) {
     _maybeCapture95(env.payload);
+    final polygon = env.payload.arena?.polygon;
+    if (polygon == null || polygon.isEmpty) {
+      ref.read(matchRulesProvider.notifier).setZonePolygon(null);
+    } else {
+      ref.read(matchRulesProvider.notifier).setZonePolygon(
+            polygon.map((p) => GeoPointDto(lat: p.lat, lng: p.lng)).toList(),
+          );
+    }
     state = state.copyWith(
       lastMatchState: env,
       lastJsonPreview: jsonEncode(env.toJson((p) => p.toJson())),

@@ -35,6 +35,7 @@ void main() {
         captureProgress: null,
         rescueProgress: null,
       ),
+      arena: null,
     );
     container.read(matchSyncProvider.notifier).setMatchState(
           WsEnvelope<MatchStateDto>(
@@ -65,4 +66,3 @@ void main() {
     expect(minus.onPressed, isNull);
   });
 }
-

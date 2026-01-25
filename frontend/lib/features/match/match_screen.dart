@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import '../../core/widgets/ws_status_pill.dart';
 import '../../core/app_dimens.dart';
@@ -14,7 +15,6 @@ import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
 import '../../providers/ws_ui_status_provider.dart';
-
 
 class MatchScreen extends ConsumerWidget {
   const MatchScreen({super.key});
@@ -141,6 +141,12 @@ class MatchScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _RulesSummaryCard(
                   rules: rules,
+                ),
+                const SizedBox(height: 22),
+                Text('지도 미리보기', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _ArenaMapPreviewCard(
+                  polygon: rules.zonePolygon,
                 ),
                 const SizedBox(height: 22),
                 Text('테스트', style: Theme.of(context).textTheme.titleMedium),
@@ -293,6 +299,118 @@ class _RulesSummaryCard extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _ArenaMapPreviewCard extends StatelessWidget {
+  final List<GeoPointDto>? polygon;
+
+  const _ArenaMapPreviewCard({required this.polygon});
+
+  @override
+  Widget build(BuildContext context) {
+    final poly = polygon;
+
+    if (poly == null || poly.isEmpty) {
+      return _noticeCard(context, '구역이 미설정입니다.');
+    }
+
+    if (poly.length < 3) {
+      return _noticeCard(context, '점이 ${poly.length}개입니다. (최소 3개 필요)');
+    }
+
+    const isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
+    if (isFlutterTest) {
+      return _noticeCard(context, '테스트 환경에서는 지도 미리보기가 비활성화됩니다.');
+    }
+
+    const kakaoJsAppKey = String.fromEnvironment('KAKAO_JS_APP_KEY', defaultValue: '');
+    if (kakaoJsAppKey.isEmpty) {
+      return _noticeCard(
+        context,
+        'Kakao JS AppKey가 설정되지 않았습니다.\n'
+        'TODO: `--dart-define=KAKAO_JS_APP_KEY=...`로 주입 후 확인하세요.',
+      );
+    }
+
+    AuthRepository.initialize(appKey: kakaoJsAppKey);
+
+    final points = poly.map((p) => LatLng(p.lat, p.lng)).toList(growable: false);
+    final center = _centroid(points);
+
+    final polygonOverlay = Polygon(
+      polygonId: 'arena_polygon',
+      points: points,
+      strokeWidth: 3,
+      strokeColor: AppColors.borderCyan,
+      strokeOpacity: 0.9,
+      fillColor: AppColors.borderCyan,
+      fillOpacity: 0.12,
+      zIndex: 1,
+    );
+
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDimens.radiusCard),
+        child: SizedBox(
+          height: 220,
+          child: Stack(
+            children: [
+              KakaoMap(
+                center: center,
+                currentLevel: 4,
+                zoomControl: false,
+                mapTypeControl: false,
+                polygons: [polygonOverlay],
+                onMapCreated: (controller) {
+                  controller.fitBounds(points);
+                },
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface2.withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.outlineLow),
+                  ),
+                  child: const Text(
+                    'READ ONLY',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _noticeCard(BuildContext context, String message) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      child: Text(
+        message,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+      ),
+    );
+  }
+
+  LatLng _centroid(List<LatLng> points) {
+    var lat = 0.0;
+    var lng = 0.0;
+    for (final p in points) {
+      lat += p.latitude;
+      lng += p.longitude;
+    }
+    return LatLng(lat / points.length, lng / points.length);
   }
 }
 
