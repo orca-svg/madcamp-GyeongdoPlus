@@ -12,6 +12,7 @@ import '../../providers/game_phase_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
+import '../../providers/ws_ui_status_provider.dart';
 
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
@@ -20,11 +21,7 @@ class LobbyScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final room = ref.watch(roomProvider);
     final me = room.me;
-    final wsConn = ref.watch(wsConnectionProvider);
-    final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
-    final sync = ref.watch(matchSyncProvider);
-
-    final status = wsConnectionStatusText(wsConn: wsConn, serverHelloEpoch: serverHelloEpoch, hasSnapshot: sync.lastMatchState != null);
+    final wsUi = ref.watch(wsUiStatusProvider);
 
 
     return Scaffold(
@@ -52,7 +49,13 @@ class LobbyScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Align(alignment: Alignment.centerLeft, child: WsStatusPill(text: status)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: WsStatusPill(
+                    model: wsUi,
+                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).connect() : null,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 _RoomCodeCard(
                   roomCode: room.roomCode,

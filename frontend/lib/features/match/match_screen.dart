@@ -14,6 +14,7 @@ import '../../providers/match_rules_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
+import '../../providers/ws_ui_status_provider.dart';
 
 
 class MatchScreen extends ConsumerWidget {
@@ -24,14 +25,11 @@ class MatchScreen extends ConsumerWidget {
     final room = ref.watch(roomProvider);
     final rules = ref.watch(matchRulesProvider);
     final sync = ref.watch(matchSyncProvider);
-    final wsConn = ref.watch(wsConnectionProvider);
-    final serverHelloEpoch = ref.watch(wsServerHelloEpochProvider);
+    final wsUi = ref.watch(wsUiStatusProvider);
     final isHost = room.amIHost;
     final lastState = sync.lastMatchState?.payload;
 
     if (lastState == null) {
-      final status = wsConnectionStatusText(wsConn: wsConn, serverHelloEpoch: serverHelloEpoch, hasSnapshot: false);
-
       return Scaffold(
         backgroundColor: Colors.transparent,
         extendBody: true,
@@ -45,7 +43,10 @@ class MatchScreen extends ConsumerWidget {
                 children: [
                   Text('경기 설정', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
-                  WsStatusPill(text: status),
+                  WsStatusPill(
+                    model: wsUi,
+                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).connect() : null,
+                  ),
                   const SizedBox(height: 14),
                   _ServerSyncCard(
                     state: null,
@@ -78,11 +79,8 @@ class MatchScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 14),
                 WsStatusPill(
-                  text: wsConnectionStatusText(
-                    wsConn: wsConn,
-                    serverHelloEpoch: serverHelloEpoch,
-                    hasSnapshot: true,
-                  ),
+                  model: wsUi,
+                  onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).connect() : null,
                 ),
                 const SizedBox(height: 10),
                 _ServerSyncCard(
