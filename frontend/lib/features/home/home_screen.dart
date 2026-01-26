@@ -22,6 +22,7 @@ class HomeScreen extends ConsumerWidget {
     final bottomPad = (phase == GamePhase.offGame)
         ? AppDimens.bottomBarHOff
         : AppDimens.bottomBarHIn;
+    final bottomInset = bottomPad + 18;
     final rankItems = _stubRanks();
 
     return Scaffold(
@@ -31,74 +32,76 @@ class HomeScreen extends ConsumerWidget {
         child: SafeArea(
           bottom: true,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
             child: Column(
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    GlowCard(
-                      glow: false,
-                      borderColor: AppColors.outlineLow,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                GlowCard(
+                  glow: false,
+                  borderColor: AppColors.outlineLow,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '환영합니다',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        auth.displayName ?? '김선수',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '시즌 12',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
                         children: [
-                          Text(
-                            '환영합니다',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.textMuted),
+                          Expanded(
+                            child: _rankTile(
+                              icon: Icons.shield_rounded,
+                              label: '경찰 랭크',
+                              value: rankItems[0].displayText,
+                            ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            auth.displayName ?? '김선수',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '시즌 12 • 다이아몬드 II',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _rankTile(
-                                  icon: Icons.shield_rounded,
-                                  label: '경찰 랭크',
-                                  value: rankItems[0].displayText,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _rankTile(
-                                  icon: Icons.lock_rounded,
-                                  label: '도둑 랭크',
-                                  value: rankItems[1].displayText,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _rankTile(
+                              icon: Icons.lock_rounded,
+                              label: '도둑 랭크',
+                              value: rankItems[1].displayText,
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    Positioned(
-                      right: 4,
-                      bottom: -8,
-                      child: Transform.translate(
-                        offset: const Offset(0, 8),
-                        child: _watchIndicatorCompact(watchConnected),
+                      const SizedBox(height: 12),
+                      const Divider(height: 1, color: AppColors.outlineLow),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            _watchIndicatorCompact(watchConnected),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -106,8 +109,8 @@ class HomeScreen extends ConsumerWidget {
                       GradientButton(
                         variant: GradientButtonVariant.createRoom,
                         title: '방 만들기',
-                        height: 64,
-                        borderRadius: 18,
+                        height: 76,
+                        borderRadius: 20,
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -120,12 +123,12 @@ class HomeScreen extends ConsumerWidget {
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       GradientButton(
                         variant: GradientButtonVariant.joinRoom,
                         title: '방 참여하기',
-                        height: 64,
-                        borderRadius: 18,
+                        height: 76,
+                        borderRadius: 20,
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
@@ -152,7 +155,8 @@ class HomeScreen extends ConsumerWidget {
   Widget _watchIndicatorCompact(bool connected) {
     final color = connected ? AppColors.lime : AppColors.textMuted;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface2.withOpacity(0.35),
         borderRadius: BorderRadius.circular(12),
@@ -182,40 +186,42 @@ class HomeScreen extends ConsumerWidget {
     required String value,
   }) {
     return Container(
-      height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface2.withOpacity(0.35),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.outlineLow.withOpacity(0.9)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AppColors.borderCyan),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              Icon(icon, size: 16, color: AppColors.borderCyan),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

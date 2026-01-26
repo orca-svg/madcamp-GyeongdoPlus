@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../features/history/match_history_model.dart';
+import '../../providers/game_phase_provider.dart';
 import '../../providers/match_history_provider.dart';
 
 class RecentGamePlaceholderScreen extends ConsumerWidget {
@@ -12,13 +14,18 @@ class RecentGamePlaceholderScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(matchHistoryProvider);
+    final phase = ref.watch(gamePhaseProvider);
+    final bottomInset = (phase == GamePhase.offGame
+        ? AppDimens.bottomBarHOff
+        : AppDimens.bottomBarHIn) +
+        18;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -73,15 +80,20 @@ class RecentGamePlaceholderScreen extends ConsumerWidget {
   Widget _historyCard(BuildContext context, MatchHistoryItem item) {
     final isPolice = item.myTeam == 'POLICE';
     final isWin = item.result == 'WIN';
-    final accent = isWin ? AppColors.lime : AppColors.red;
+    const winNeon = Color(0xFF39FF14);
+    const loseNeon = Color(0xFFFF2D55);
+    const policeTag = Color(0xFF00B7FF);
+    const thiefTag = Color(0xFFFF3B30);
+    final accent = isWin ? winNeon : loseNeon;
     final modeColor = AppColors.purple.withOpacity(0.7);
     final modeLabel = item.mode;
     final teamLabel = isPolice ? '경찰' : '도둑';
     final mainStatLabel = isPolice ? '체포' : '해방';
 
     return GlowCard(
-      glow: false,
-      borderColor: AppColors.outlineLow,
+      glow: true,
+      glowColor: accent,
+      borderColor: accent.withOpacity(0.7),
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,7 +102,7 @@ class RecentGamePlaceholderScreen extends ConsumerWidget {
             children: [
               _modeTag(modeLabel, modeColor),
               const SizedBox(width: 8),
-              _chip('내 팀: $teamLabel'),
+              _teamTag(teamLabel, isPolice ? policeTag : thiefTag),
               const Spacer(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -160,20 +172,20 @@ class RecentGamePlaceholderScreen extends ConsumerWidget {
     );
   }
 
-  Widget _chip(String label) {
+  Widget _teamTag(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface2.withOpacity(0.4),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.outlineLow),
+        border: Border.all(color: color.withOpacity(0.55)),
       ),
       child: Text(
         label,
         style: const TextStyle(
-          color: AppColors.textSecondary,
+          color: AppColors.textPrimary,
           fontSize: 11,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

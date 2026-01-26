@@ -43,10 +43,16 @@ Future<void> main() async {
 
     // ✅ Kakao Map plugin init (필수)
     if (kakaoKey.isNotEmpty) {
+      // ignore: avoid_print
+      print('[KAKAO] init start');
       AuthRepository.initialize(appKey: kakaoKey);
+      // ignore: avoid_print
+      print('[KAKAO] init done');
     } else {
       // ignore: avoid_print
-      print('[KAKAO] WARN: KAKAO_JS_APP_KEY is empty. Map will be disabled.');
+      print(
+        '[KAKAO] WARN: KAKAO_JS_APP_KEY is empty. ZoneEditor showMap=false.',
+      );
     }
 
     _probeNetworkIfDebug();
@@ -90,6 +96,8 @@ void _probeNetworkIfDebug() {
     } catch (e) {
       // ignore: avoid_print
       print('[NET] https://dapi.kakao.com/ failed: $e');
+      // ignore: avoid_print
+      print('[NET] Hint: ATS/Network/Domain allowlist may block WebView tiles.');
     }
   });
 }

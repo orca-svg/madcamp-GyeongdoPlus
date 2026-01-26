@@ -8,7 +8,7 @@ import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
-import '../zone/zone_setup_placeholder_screen.dart';
+import '../zone/zone_editor_screen.dart';
 import 'room_create_payload.dart';
 
 class RoomCreateScreen extends ConsumerStatefulWidget {
@@ -36,17 +36,20 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
       setState(() => _form = _form.copyWith(releaseOrder: v));
 
   Future<void> _openZoneSetup() async {
-    final result = await Navigator.of(context).push<ZoneSetupResult?>(
-      MaterialPageRoute<ZoneSetupResult?>(
-        builder: (_) => const ZoneSetupPlaceholderScreen(),
+    debugPrint(
+      '[KAKAO] If map is black, ensure Web platform domain includes localhost/127.0.0.1',
+    );
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const ZoneEditorScreen(),
       ),
     );
-    if (result == null) return;
+    final rules = ref.read(matchRulesProvider);
     setState(
       () => _form = _form.copyWith(
-        polygon: result.polygon,
-        jailCenter: result.jailCenter,
-        jailRadiusM: result.jailRadiusM,
+        polygon: rules.zonePolygon,
+        jailCenter: rules.jailCenter,
+        jailRadiusM: rules.jailRadiusM,
       ),
     );
   }

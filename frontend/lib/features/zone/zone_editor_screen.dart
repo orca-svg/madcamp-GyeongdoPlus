@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -28,6 +30,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   double? _jailRadiusM;
   _EditMode _mode = _EditMode.polygonPoint;
   KakaoMapController? _mapController;
+  bool _mapBuilt = false;
+  String? _mapDiag;
+  bool _mapDiagScheduled = false;
+  Timer? _mapDiagTimer;
 
   static const bool _mapRenderDisabledThisStage = false;
   static const double _defaultJailRadiusM = 15.0;
@@ -50,6 +56,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
 
   @override
   void dispose() {
+    _mapDiagTimer?.cancel();
     // ignore: avoid_print
     print('[ZoneEditor ${DateTime.now().toIso8601String()}] dispose');
     super.dispose();
@@ -73,11 +80,12 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     );
 
     final showMap = !_mapRenderDisabledThisStage && _mapEnabled;
+    _scheduleMapDiag(showMap);
 
     // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
     const debugZoneEditor = bool.fromEnvironment('DEBUG_START_ZONE_EDITOR');
     final room = ref.watch(roomProvider);
-    if (!debugZoneEditor && !room.amIHost) {
+    if (!debugZoneEditor && room.inRoom && !room.amIHost) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) Navigator.of(context).pop();
       });
@@ -125,7 +133,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (showMap)
-                  _buildMapCard(context)
+                  _buildMapCard(context, showMap: showMap)
                 else
                   Stack(
                     children: [
@@ -139,7 +147,8 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                                     .trim()
                                     .isNotEmpty
                               : false),
-                          built: false,
+                          built: _mapBuilt,
+                          showMap: showMap,
                         ),
                       ),
                     ],
@@ -165,6 +174,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     final next = (base + delta).clamp(1.0, 200.0).toDouble();
                     setState(() => _jailRadiusM = next);
                   },
+                  onRadiusChanged: (value) {
+                    setState(() => _jailRadiusM = value);
+                  },
+                  radiusEnabled: _jailCenter != null,
                   onAddPointFallback: showMap ? null : _addPointFallback,
                   onSetJailCenterFallback: showMap ? null : _setJailCenterFallback,
                 ),
@@ -191,7 +204,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     );
   }
 
-  Widget _buildMapCard(BuildContext context) {
+  Widget _buildMapCard(BuildContext context, {required bool showMap}) {
     // ignore: avoid_print
     print('[MAP] ZoneEditor: _buildMapCard called, _mapEnabled=$_mapEnabled');
     final points = _points
@@ -267,6 +280,12 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   // ignore: avoid_print
                   print('[MAP] ZoneEditor: onMapCreated called');
                   _mapController = controller;
+                  if (mounted) {
+                    setState(() {
+                      _mapBuilt = true;
+                      _mapDiag = 'onMapCreated OK';
+                    });
+                  }
                 },
                 onMapTap: (latLng) {
                   final p = GeoPointDto(
@@ -282,6 +301,19 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     });
                   }
                 },
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: _DebugPill(
+                  keyOk: (dotenv.isInitialized
+                      ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '')
+                            .trim()
+                            .isNotEmpty
+                      : false),
+                  built: _mapBuilt,
+                  showMap: showMap,
+                ),
               ),
               Positioned(
                 top: 10,
@@ -306,11 +338,65 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   ),
                 ),
               ),
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: IconButton(
+                  tooltip: '서울 시청으로 이동',
+                  onPressed: () {
+                    _mapController?.panTo(LatLng(37.5665, 126.9780));
+                  },
+                  icon: const Icon(
+                    Icons.my_location_rounded,
+                    color: AppColors.textPrimary,
+                  ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.surface2.withOpacity(0.7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: AppColors.outlineLow),
+                    ),
+                  ),
+                ),
+              ),
+              if (_mapDiag != null)
+                Positioned(
+                  left: 10,
+                  bottom: 10,
+                  right: 60,
+                  child: Text(
+                    _mapDiag!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _scheduleMapDiag(bool showMap) {
+    if (!showMap) return;
+    if (_mapBuilt) return;
+    if (_mapDiagScheduled) return;
+    _mapDiagScheduled = true;
+    _mapDiag ??= 'Map loading...';
+    _mapDiagTimer?.cancel();
+    _mapDiagTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      if (_mapBuilt) return;
+      setState(() {
+        _mapDiag =
+            'Map not created yet. Check Kakao Web domain (localhost/127.0.0.1) & key.';
+      });
+    });
   }
 
   Widget _buildFallbackCard(BuildContext context) {
@@ -383,8 +469,13 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
 class _DebugPill extends StatelessWidget {
   final bool keyOk;
   final bool built;
+  final bool showMap;
 
-  const _DebugPill({required this.keyOk, required this.built});
+  const _DebugPill({
+    required this.keyOk,
+    required this.built,
+    required this.showMap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -396,7 +487,7 @@ class _DebugPill extends StatelessWidget {
         border: Border.all(color: AppColors.outlineLow),
       ),
       child: Text(
-        'KAKAO_KEY:${keyOk ? 'OK' : 'EMPTY'} MAP_BUILT:${built ? 'YES' : 'NO'}',
+        'SHOW_MAP:${showMap ? 'YES' : 'NO'} KEY:${keyOk ? 'OK' : 'EMPTY'} MAP:${built ? 'YES' : 'NO'}',
         style: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 10,
@@ -521,6 +612,8 @@ class _ControlsCard extends StatelessWidget {
   final VoidCallback? onUndo;
   final VoidCallback onClear;
   final ValueChanged<double> onRadiusDelta;
+  final ValueChanged<double> onRadiusChanged;
+  final bool radiusEnabled;
   final VoidCallback? onAddPointFallback;
   final VoidCallback? onSetJailCenterFallback;
 
@@ -531,6 +624,8 @@ class _ControlsCard extends StatelessWidget {
     required this.onUndo,
     required this.onClear,
     required this.onRadiusDelta,
+    required this.onRadiusChanged,
+    required this.radiusEnabled,
     required this.onAddPointFallback,
     required this.onSetJailCenterFallback,
   });
@@ -646,6 +741,21 @@ class _ControlsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
+          Opacity(
+            opacity: radiusEnabled ? 1 : 0.4,
+            child: IgnorePointer(
+              ignoring: !radiusEnabled,
+              child: Slider(
+                min: 1,
+                max: 200,
+                divisions: 199,
+                value: (jailRadiusM ?? 15.0)
+                    .clamp(1.0, 200.0),
+                onChanged: onRadiusChanged,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
           Text(
             '폴리곤은 최소 3점이 필요합니다.',
             style: Theme.of(

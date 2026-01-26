@@ -11,6 +11,7 @@ class ZoneSetupPlaceholderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // TODO: Remove once all flows use ZoneEditorScreen directly.
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,

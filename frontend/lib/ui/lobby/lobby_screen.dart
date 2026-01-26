@@ -4,12 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../features/zone/zone_editor_screen.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
-import '../../providers/watch_provider.dart';
+
+const bool _devBot = bool.fromEnvironment('DEV_BOT');
 
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
@@ -17,10 +21,16 @@ class LobbyScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final room = ref.watch(roomProvider);
+    final rules = ref.watch(matchRulesProvider);
+    final phase = ref.watch(gamePhaseProvider);
+    final bottomInset = (phase == GamePhase.offGame
+        ? AppDimens.bottomBarHOff
+        : AppDimens.bottomBarHIn) +
+        18;
+
     final me = room.me;
-    final watchConnected = ref.watch(watchConnectedProvider);
-    final allReady = room.allReady;
     final isHost = room.amIHost;
+    final allReady = room.allReady;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -28,150 +38,28 @@ class LobbyScreen extends ConsumerWidget {
         child: SafeArea(
           bottom: true,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
             child: Column(
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    GlowCard(
-                      glow: false,
-                      borderColor: AppColors.outlineLow,
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            '환영합니다',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: AppColors.textMuted),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            me?.name ?? '김선수',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '시즌 12 • 다이아몬드 II',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      right: 4,
-                      bottom: -8,
-                      child: Transform.translate(
-                        offset: const Offset(0, 8),
-                        child: _watchIndicatorCompact(watchConnected),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                GlowCard(
-                  glow: false,
-                  borderColor: AppColors.outlineLow,
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.meeting_room_rounded, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '로비',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '방 코드: ${room.roomCode.isEmpty ? '—' : room.roomCode}',
-                              key: const Key('roomCodeText'),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '복사',
-                        onPressed: room.roomCode.isEmpty
-                            ? null
-                            : () async {
-                                await Clipboard.setData(
-                                  ClipboardData(text: room.roomCode),
-                                );
-                              },
-                        icon: const Icon(Icons.copy_rounded, size: 18),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Expanded(
-                  child: GlowCard(
-                    glow: false,
-                    borderColor: AppColors.outlineLow,
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '멤버',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                  child: ListView(
+                    children: [
+                      _roomInfoCard(context, room, rules.maxPlayers),
+                      const SizedBox(height: 12),
+                      _rulesSummaryCard(context, rules),
+                      const SizedBox(height: 12),
+                      if (isHost) ...[
+                        _rulesEditCard(context, ref, rules),
                         const SizedBox(height: 12),
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: room.members.length,
-                            separatorBuilder: (_, __) => const Divider(
-                              color: AppColors.outlineLow,
-                              height: 16,
-                            ),
-                            itemBuilder: (context, i) {
-                              final m = room.members[i];
-                              final isMe = m.id == room.myId;
-                              return SizedBox(
-                                height: 52,
-                                child: _MemberRow(
-                                  member: m,
-                                  isMe: isMe,
-                                  onToggleReady: isMe
-                                      ? () => ref
-                                            .read(roomProvider.notifier)
-                                            .toggleReady()
-                                      : null,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '팀 선택',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 10),
-                        _TeamSelector(
-                          team: me?.team ?? Team.police,
-                          enabled: !(me?.ready ?? false),
-                          onChanged: (t) =>
-                              ref.read(roomProvider.notifier).setMyTeam(t),
-                        ),
                       ],
-                    ),
+                      if (_devBot) ...[
+                        _devBotCard(context),
+                        const SizedBox(height: 12),
+                      ],
+                      _membersCard(context, ref, room, me),
+                      const SizedBox(height: 12),
+                      _teamSection(context, ref, me),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -238,6 +126,542 @@ class LobbyScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _roomInfoCard(
+    BuildContext context,
+    RoomState room,
+    int maxPlayers,
+  ) {
+    RoomMember? host;
+    for (final m in room.members) {
+      if (m.isHost) {
+        host = m;
+        break;
+      }
+    }
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const Icon(Icons.meeting_room_rounded, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '로비',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '방 코드: ${room.roomCode.isEmpty ? '—' : room.roomCode}',
+                  key: const Key('roomCodeText'),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '인원: ${room.members.length} / $maxPlayers',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '방장: ${host?.name ?? '—'}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: '복사',
+            onPressed: room.roomCode.isEmpty
+                ? null
+                : () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: room.roomCode),
+                    );
+                    if (context.mounted) {
+                      showAppSnackBar(context, message: '방 코드 복사 완료');
+                    }
+                  },
+            icon: const Icon(Icons.copy_rounded, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rulesSummaryCard(BuildContext context, MatchRulesState rules) {
+    final polygonCount = rules.zonePolygon?.length ?? 0;
+    final hasJailCenter = rules.jailCenter != null;
+    final jailRadiusText = rules.jailRadiusM == null
+        ? '미설정'
+        : '${rules.jailRadiusM!.toStringAsFixed(0)}m';
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('규칙 요약', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 10),
+          _ruleRow('모드', rules.gameMode.label),
+          _ruleRow('시간 제한', '${(rules.timeLimitSec / 60).round()}분'),
+          _ruleRow('접촉 방식', _contactLabel(rules.contactMode)),
+          _ruleRow(
+            '해방 규칙',
+            '${_releaseScopeLabel(rules.rescueReleaseScope)}'
+            '${rules.rescueReleaseScope == 'PARTIAL' ? ' · ${_releaseOrderLabel(rules.rescueReleaseOrder)}' : ''}',
+          ),
+          _ruleRow('경찰 수', '${rules.policeCount} / ${rules.maxPlayers}'),
+          _ruleRow('구역 점', polygonCount == 0 ? '미설정' : '$polygonCount개'),
+          _ruleRow('감옥 중심', hasJailCenter ? '설정됨' : '미설정'),
+          _ruleRow('감옥 반경', jailRadiusText),
+        ],
+      ),
+    );
+  }
+
+  Widget _rulesEditCard(
+    BuildContext context,
+    WidgetRef ref,
+    MatchRulesState rules,
+  ) {
+    final timeMin = 300.0;
+    final timeMax = 1800.0;
+    final timeSpan = ((timeMax - timeMin) / 60).round();
+    final timeDivisions = timeSpan >= 1 ? timeSpan : null;
+    final timeValue =
+        rules.timeLimitSec.clamp(timeMin.toInt(), timeMax.toInt()).toDouble();
+
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('규칙 수정', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 12),
+          Text(
+            '시간 제한',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Slider(
+            min: timeMin,
+            max: timeMax,
+            divisions: timeDivisions,
+            value: timeValue,
+            onChanged: (v) =>
+                ref.read(matchRulesProvider.notifier).setTimeLimitSec(v.round()),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${(rules.timeLimitSec / 60).round()}분',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 14),
+          Text('모드', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _modeChip(context, ref, rules, GameMode.normal),
+              const SizedBox(width: 8),
+              _modeChip(context, ref, rules, GameMode.item),
+              const SizedBox(width: 8),
+              _modeChip(context, ref, rules, GameMode.ability),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text('접촉 방식', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _contactChip(context, ref, rules, 'NON_CONTACT', '비접촉'),
+              const SizedBox(width: 8),
+              _contactChip(context, ref, rules, 'CONTACT', '접촉'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text('해방 범위', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _releaseScopeChip(context, rules, 'PARTIAL', '일부 해방'),
+              const SizedBox(width: 8),
+              _releaseScopeChip(context, rules, 'ALL', '전체 해방'),
+            ],
+          ),
+          if (rules.rescueReleaseScope == 'PARTIAL') ...[
+            const SizedBox(height: 10),
+            Text('해방 순서', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _releaseOrderChip(context, rules, 'FIFO', '선착순 해방'),
+                const SizedBox(width: 8),
+                _releaseOrderChip(context, rules, 'LIFO', '후착순 해방'),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ZoneEditorScreen(),
+                ),
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              side: const BorderSide(color: AppColors.outlineLow),
+            ),
+            icon: const Icon(Icons.map_rounded, size: 18),
+            label: const Text('구역 수정'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _membersCard(
+    BuildContext context,
+    WidgetRef ref,
+    RoomState room,
+    RoomMember? me,
+  ) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('멤버', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: room.members.length,
+            separatorBuilder: (_, __) => const Divider(
+              color: AppColors.outlineLow,
+              height: 16,
+            ),
+            itemBuilder: (context, i) {
+              final m = room.members[i];
+              final isMe = m.id == room.myId;
+              return SizedBox(
+                height: 52,
+                child: _MemberRow(
+                  member: m,
+                  isMe: isMe,
+                  onToggleReady: isMe
+                      ? () => ref.read(roomProvider.notifier).toggleReady()
+                      : null,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _teamSection(BuildContext context, WidgetRef ref, RoomMember? me) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('팀 선택', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 10),
+          _TeamSelector(
+            team: me?.team ?? Team.police,
+            enabled: !(me?.ready ?? false),
+            onChanged: (t) => ref.read(roomProvider.notifier).setMyTeam(t),
+          ),
+          if (me?.ready ?? false) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Ready 해제 후 변경 가능',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _devBotCard(BuildContext context) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Developer', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _devButton(context, '봇 +1'),
+              _devButton(context, '봇 +3'),
+              _devButton(context, '봇 전원 READY'),
+              _devButton(context, '봇 전원 UNREADY'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'TODO: roomProvider.notifier.addBots({required int count})\n'
+            'TODO: roomProvider.notifier.setBotsReady({required bool ready})',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _devButton(BuildContext context, String label) {
+    return OutlinedButton(
+      onPressed: () {
+        showAppSnackBar(
+          context,
+          message: 'TODO: roomProvider.notifier.addBot() 연결 필요',
+        );
+      },
+      style: OutlinedButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        side: const BorderSide(color: AppColors.outlineLow),
+      ),
+      child: Text(label),
+    );
+  }
+
+  Widget _modeChip(
+    BuildContext context,
+    WidgetRef ref,
+    MatchRulesState rules,
+    GameMode mode,
+  ) {
+    final selected = rules.gameMode == mode;
+    return Expanded(
+      child: InkWell(
+        onTap: () => ref.read(matchRulesProvider.notifier).setGameMode(mode),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.borderCyan.withOpacity(0.18)
+                : AppColors.surface2.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  selected ? AppColors.borderCyan : AppColors.outlineLow,
+            ),
+          ),
+          child: Text(
+            mode.label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _contactChip(
+    BuildContext context,
+    WidgetRef ref,
+    MatchRulesState rules,
+    String value,
+    String label,
+  ) {
+    final selected = rules.contactMode == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () => ref.read(matchRulesProvider.notifier).setContactMode(value),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.borderCyan.withOpacity(0.18)
+                : AppColors.surface2.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  selected ? AppColors.borderCyan : AppColors.outlineLow,
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _releaseScopeChip(
+    BuildContext context,
+    MatchRulesState rules,
+    String value,
+    String label,
+  ) {
+    final selected = rules.rescueReleaseScope == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          showAppSnackBar(
+            context,
+            message:
+                'TODO: matchRulesProvider.notifier.setRescueReleaseScope() 연결 필요',
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.borderCyan.withOpacity(0.18)
+                : AppColors.surface2.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  selected ? AppColors.borderCyan : AppColors.outlineLow,
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _releaseOrderChip(
+    BuildContext context,
+    MatchRulesState rules,
+    String value,
+    String label,
+  ) {
+    final selected = rules.rescueReleaseOrder == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          showAppSnackBar(
+            context,
+            message:
+                'TODO: matchRulesProvider.notifier.setRescueReleaseOrder() 연결 필요',
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.borderCyan.withOpacity(0.18)
+                : AppColors.surface2.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color:
+                  selected ? AppColors.borderCyan : AppColors.outlineLow,
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _ruleRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _contactLabel(String raw) => raw == 'CONTACT' ? '접촉' : '비접촉';
+  String _releaseScopeLabel(String raw) => raw == 'ALL' ? '전체 해방' : '일부 해방';
+  String _releaseOrderLabel(String raw) => raw == 'LIFO' ? '후착순' : '선착순';
 }
 
 class _MemberRow extends StatelessWidget {
@@ -381,7 +805,7 @@ class _TeamSelector extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
@@ -405,31 +829,4 @@ class _TeamSelector extends StatelessWidget {
       ),
     );
   }
-}
-
-Widget _watchIndicatorCompact(bool connected) {
-  final color = connected ? AppColors.lime : AppColors.textMuted;
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: AppColors.surface2.withOpacity(0.35),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: color.withOpacity(0.4)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.watch_rounded, size: 14, color: color),
-        const SizedBox(width: 6),
-        Text(
-          connected ? 'Connected' : 'Off',
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    ),
-  );
 }

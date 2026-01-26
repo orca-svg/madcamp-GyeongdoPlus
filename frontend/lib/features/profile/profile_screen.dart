@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../providers/game_phase_provider.dart';
 import '../../providers/profile_stats_provider.dart';
 import '../../providers/room_provider.dart';
+
+const neonCyan = Color(0xFF00E5FF);
+const neonPurple = Color(0xFFB026FF);
+const neonLime = Color(0xFF39FF14);
+const neonAmber = Color(0xFFFFD60A);
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -15,14 +22,19 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(profileStatsProvider);
     final room = ref.watch(roomProvider);
+    final phase = ref.watch(gamePhaseProvider);
     final nickname = room.me?.name ?? '김선수';
+    final bottomInset = (phase == GamePhase.offGame
+        ? AppDimens.bottomBarHOff
+        : AppDimens.bottomBarHIn) +
+        18;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -47,7 +59,7 @@ class ProfileScreen extends ConsumerWidget {
                         title: '경찰',
                         rank: '${stats.policeRank} · ${stats.policeScore}',
                         icon: Icons.shield_rounded,
-                        accent: AppColors.borderCyan,
+                        accent: neonCyan,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -56,7 +68,7 @@ class ProfileScreen extends ConsumerWidget {
                         title: '도둑',
                         rank: '${stats.thiefRank} · ${stats.thiefScore}',
                         icon: Icons.lock_rounded,
-                        accent: AppColors.purple,
+                        accent: neonPurple,
                       ),
                     ),
                   ],
@@ -77,8 +89,9 @@ class ProfileScreen extends ConsumerWidget {
                 Text('총 플레이 시간', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 GlowCard(
-                  glow: false,
-                  borderColor: AppColors.outlineLow,
+                  glow: true,
+                  glowColor: neonCyan,
+                  borderColor: neonCyan.withOpacity(0.6),
                   child: Text(
                     _formatDuration(stats.totalPlaySec),
                     style: const TextStyle(
@@ -98,8 +111,9 @@ class ProfileScreen extends ConsumerWidget {
 
   Widget _profileHeader(BuildContext context, String nickname) {
     return GlowCard(
-      glow: false,
-      borderColor: AppColors.outlineLow,
+      glow: true,
+      glowColor: neonCyan,
+      borderColor: neonCyan.withOpacity(0.55),
       child: Row(
         children: [
           Container(
@@ -108,7 +122,7 @@ class ProfileScreen extends ConsumerWidget {
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors: [AppColors.borderCyan, AppColors.purple],
+                colors: [neonCyan, neonPurple],
               ),
             ),
             alignment: Alignment.center,
@@ -154,8 +168,9 @@ class ProfileScreen extends ConsumerWidget {
     required Color accent,
   }) {
     return GlowCard(
-      glow: false,
-      borderColor: AppColors.outlineLow,
+      glow: true,
+      glowColor: accent,
+      borderColor: accent.withOpacity(0.7),
       child: Row(
         children: [
           Container(
@@ -221,8 +236,9 @@ class ProfileScreen extends ConsumerWidget {
 
   Widget _statCard(String label, String value) {
     return GlowCard(
-      glow: false,
-      borderColor: AppColors.outlineLow,
+      glow: true,
+      glowColor: neonCyan,
+      borderColor: neonCyan.withOpacity(0.45),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,8 +276,9 @@ class ProfileScreen extends ConsumerWidget {
   Widget _mannerCard(ProfileStats stats) {
     final progress = stats.mannerScore / 100.0;
     return GlowCard(
-      glow: false,
-      borderColor: AppColors.outlineLow,
+      glow: true,
+      glowColor: neonLime,
+      borderColor: neonLime.withOpacity(0.55),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -280,7 +297,7 @@ class ProfileScreen extends ConsumerWidget {
               value: progress.clamp(0.0, 1.0),
               minHeight: 8,
               backgroundColor: AppColors.surface2.withOpacity(0.4),
-              color: AppColors.lime,
+              color: neonLime,
             ),
           ),
           const SizedBox(height: 6),
@@ -306,13 +323,14 @@ class ProfileScreen extends ConsumerWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final item = achievements[index];
-          final accent = item.unlocked ? AppColors.borderCyan : AppColors.outlineLow;
+          final accent = item.unlocked ? neonAmber : AppColors.outlineLow;
           return GestureDetector(
             onTap: () {
               showAppSnackBar(context, message: '다음 단계에서 상세 제공');
             },
             child: GlowCard(
-              glow: false,
+              glow: item.unlocked,
+              glowColor: accent,
               borderColor: accent.withOpacity(item.unlocked ? 0.8 : 0.4),
               child: SizedBox(
                 width: 140,
@@ -321,7 +339,7 @@ class ProfileScreen extends ConsumerWidget {
                   children: [
                     Icon(
                       item.unlocked ? Icons.emoji_events_rounded : Icons.lock_rounded,
-                      color: item.unlocked ? AppColors.lime : AppColors.textMuted,
+                      color: item.unlocked ? neonAmber : AppColors.textMuted,
                     ),
                     const SizedBox(height: 8),
                     Text(
