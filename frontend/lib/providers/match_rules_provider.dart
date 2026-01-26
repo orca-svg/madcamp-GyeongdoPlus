@@ -1,4 +1,3 @@
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GeoPointDto {
@@ -8,10 +7,7 @@ class GeoPointDto {
   const GeoPointDto({required this.lat, required this.lng});
 
   GeoPointDto copyWith({double? lat, double? lng}) {
-    return GeoPointDto(
-      lat: lat ?? this.lat,
-      lng: lng ?? this.lng,
-    );
+    return GeoPointDto(lat: lat ?? this.lat, lng: lng ?? this.lng);
   }
 
   GeoPointDto clamp() {
@@ -22,9 +18,9 @@ class GeoPointDto {
   }
 
   Map<String, dynamic> toJson() => {
-        'lat': lat.clamp(-90.0, 90.0),
-        'lng': lng.clamp(-180.0, 180.0),
-      };
+    'lat': lat.clamp(-90.0, 90.0),
+    'lng': lng.clamp(-180.0, 180.0),
+  };
 
   factory GeoPointDto.fromJson(Map<String, dynamic> json) {
     final lat = (json['lat'] as num?)?.toDouble() ?? 0.0;
@@ -37,12 +33,9 @@ extension GeoPolygonKakaoLikeX on List<GeoPointDto> {
   /// Step 5-2에서 KakaoMap 플러그인의 LatLng 타입으로 변환할 때 사용.
   /// (플러그인 import 없이 계약만 확정)
   List<Map<String, double>> toKakaoLatLngLike() => [
-        for (final p in this)
-          {
-            'lat': p.lat.clamp(-90.0, 90.0),
-            'lng': p.lng.clamp(-180.0, 180.0),
-          },
-      ];
+    for (final p in this)
+      {'lat': p.lat.clamp(-90.0, 90.0), 'lng': p.lng.clamp(-180.0, 180.0)},
+  ];
 }
 
 /// 게임 모드 enum
@@ -90,25 +83,41 @@ enum GameMode {
 
 class MatchRulesState {
   final int durationMin;
+  final int timeLimitSec;
   final String mapName;
   final int maxPlayers;
+  final int policeCount;
+  final bool policeCountCustomized;
   final String releaseMode;
+  final String contactMode;
+  final String rescueContactMode;
+  final String rescueReleaseScope;
+  final String rescueReleaseOrder;
   final GameMode gameMode;
 
   /// 구역 폴리곤(최소 3점 권장)
   final List<GeoPointDto>? zonePolygon;
 
   /// 감옥(원형) 중심/반경
+  final bool jailEnabled;
   final GeoPointDto? jailCenter;
   final double? jailRadiusM;
 
   const MatchRulesState({
     required this.durationMin,
+    required this.timeLimitSec,
     required this.mapName,
     required this.maxPlayers,
+    required this.policeCount,
+    required this.policeCountCustomized,
     required this.releaseMode,
+    required this.contactMode,
+    required this.rescueContactMode,
+    required this.rescueReleaseScope,
+    required this.rescueReleaseOrder,
     required this.gameMode,
     required this.zonePolygon,
+    required this.jailEnabled,
     required this.jailCenter,
     required this.jailRadiusM,
   });
@@ -118,51 +127,115 @@ class MatchRulesState {
   /// null 세팅도 가능하도록 sentinel 패턴 사용
   MatchRulesState copyWith({
     int? durationMin,
+    int? timeLimitSec,
     String? mapName,
     int? maxPlayers,
+    int? policeCount,
+    bool? policeCountCustomized,
     String? releaseMode,
+    String? contactMode,
+    String? rescueContactMode,
+    String? rescueReleaseScope,
+    String? rescueReleaseOrder,
     GameMode? gameMode,
     Object? zonePolygon = _unset,
+    bool? jailEnabled,
     Object? jailCenter = _unset,
     Object? jailRadiusM = _unset,
   }) {
     return MatchRulesState(
       durationMin: durationMin ?? this.durationMin,
+      timeLimitSec: timeLimitSec ?? this.timeLimitSec,
       mapName: mapName ?? this.mapName,
       maxPlayers: maxPlayers ?? this.maxPlayers,
+      policeCount: policeCount ?? this.policeCount,
+      policeCountCustomized:
+          policeCountCustomized ?? this.policeCountCustomized,
       releaseMode: releaseMode ?? this.releaseMode,
+      contactMode: contactMode ?? this.contactMode,
+      rescueContactMode: rescueContactMode ?? this.rescueContactMode,
+      rescueReleaseScope: rescueReleaseScope ?? this.rescueReleaseScope,
+      rescueReleaseOrder: rescueReleaseOrder ?? this.rescueReleaseOrder,
       gameMode: gameMode ?? this.gameMode,
-      zonePolygon: (zonePolygon == _unset) ? this.zonePolygon : zonePolygon as List<GeoPointDto>?,
-      jailCenter: (jailCenter == _unset) ? this.jailCenter : jailCenter as GeoPointDto?,
-      jailRadiusM: (jailRadiusM == _unset) ? this.jailRadiusM : jailRadiusM as double?,
+      zonePolygon: (zonePolygon == _unset)
+          ? this.zonePolygon
+          : zonePolygon as List<GeoPointDto>?,
+      jailEnabled: jailEnabled ?? this.jailEnabled,
+      jailCenter: (jailCenter == _unset)
+          ? this.jailCenter
+          : jailCenter as GeoPointDto?,
+      jailRadiusM: (jailRadiusM == _unset)
+          ? this.jailRadiusM
+          : jailRadiusM as double?,
     );
   }
 }
 
-final matchRulesProvider = NotifierProvider<MatchRulesController, MatchRulesState>(MatchRulesController.new);
+final matchRulesProvider =
+    NotifierProvider<MatchRulesController, MatchRulesState>(
+      MatchRulesController.new,
+    );
 
 class MatchRulesController extends Notifier<MatchRulesState> {
   static const double _minJailRadiusM = 1.0;
   static const double _maxJailRadiusM = 200.0;
+  static const double _defaultPoliceRatio = 0.4;
 
   @override
   MatchRulesState build() => const MatchRulesState(
-        durationMin: 10,
-        mapName: '도심',
-        maxPlayers: 5,
-        releaseMode: '터치/근접',
-        gameMode: GameMode.normal,
-        zonePolygon: null,
-        jailCenter: null,
-        jailRadiusM: null,
-      );
+    durationMin: 10,
+    timeLimitSec: 600,
+    mapName: '도심',
+    maxPlayers: 5,
+    policeCount: 2,
+    policeCountCustomized: false,
+    releaseMode: '터치/근접',
+    contactMode: 'NON_CONTACT',
+    rescueContactMode: 'NON_CONTACT',
+    rescueReleaseScope: 'PARTIAL',
+    rescueReleaseOrder: 'FIFO',
+    gameMode: GameMode.normal,
+    zonePolygon: null,
+    jailEnabled: true,
+    jailCenter: null,
+    jailRadiusM: null,
+  );
 
   void reset() => state = build();
 
-  void setDurationMin(int v) => state = state.copyWith(durationMin: v);
+  void setDurationMin(int v) {
+    final min = v.clamp(1, 60);
+    state = state.copyWith(durationMin: min, timeLimitSec: min * 60);
+  }
+
+  void setTimeLimitSec(int sec) {
+    final s = (sec / 60).round() * 60;
+    final clamped = s.clamp(300, 1800);
+    state = state.copyWith(
+      timeLimitSec: clamped,
+      durationMin: (clamped / 60).round(),
+    );
+  }
+
   void setMapName(String v) => state = state.copyWith(mapName: v);
-  void setMaxPlayers(int v) => state = state.copyWith(maxPlayers: v);
+  void setMaxPlayers(int v) {
+    final nextMax = v.clamp(3, 50);
+    final nextPolice = _derivePoliceCount(
+      maxPlayers: nextMax,
+      preferExisting: state.policeCount,
+      keepExisting: state.policeCountCustomized,
+    );
+    state = state.copyWith(maxPlayers: nextMax, policeCount: nextPolice);
+  }
+
+  void setPoliceCount(int v) {
+    final max = state.maxPlayers;
+    final clamped = v.clamp(1, max - 1);
+    state = state.copyWith(policeCount: clamped, policeCountCustomized: true);
+  }
+
   void setReleaseMode(String v) => state = state.copyWith(releaseMode: v);
+  void setContactMode(String v) => state = state.copyWith(contactMode: v);
   void setGameMode(GameMode v) => state = state.copyWith(gameMode: v);
 
   void setZonePolygon(List<GeoPointDto>? polygon) {
@@ -176,16 +249,168 @@ class MatchRulesController extends Notifier<MatchRulesState> {
 
   /// center/radius 중 하나라도 유효하지 않으면 둘 다 null 처리(일관성)
   void setJail({GeoPointDto? center, double? radiusM}) {
-    final c = center?.clamp();
     final r = (radiusM == null || radiusM <= 0)
         ? null
         : radiusM.clamp(_minJailRadiusM, _maxJailRadiusM).toDouble();
-
-    if (c == null || r == null) {
-      state = state.copyWith(jailCenter: null, jailRadiusM: null);
+    if (r == null) {
+      state = state.copyWith(
+        jailEnabled: false,
+        jailCenter: null,
+        jailRadiusM: null,
+      );
       return;
     }
 
-    state = state.copyWith(jailCenter: c, jailRadiusM: r);
+    final c = center?.clamp();
+    state = state.copyWith(jailEnabled: true, jailCenter: c, jailRadiusM: r);
+  }
+
+  void setJailEnabled(bool enabled) =>
+      state = state.copyWith(jailEnabled: enabled);
+
+  /// Offline apply from a draft payload (no WS).
+  ///
+  /// Expected shape:
+  /// - mode, maxPlayers, timeLimit
+  /// - mapConfig.polygon, mapConfig.jail{lat,lng,radiusM}
+  /// - rules.contactMode
+  /// - rules.jailRule.rescue.queuePolicy/releaseCount
+  void applyOfflineRoomConfig(Map<String, dynamic> payload) {
+    final modeRaw = (payload['mode'] ?? '').toString();
+    final maxPlayersRaw = payload['maxPlayers'];
+    final timeLimitRaw = payload['timeLimit'] ?? payload['timeLimitSec'];
+
+    final rules = (payload['rules'] is Map)
+        ? (payload['rules'] as Map)
+        : const {};
+    final rescueRule = (rules['jailRule'] is Map)
+        ? (rules['jailRule'] as Map)
+        : const {};
+    final rescue = (rescueRule['rescue'] is Map)
+        ? (rescueRule['rescue'] as Map)
+        : const {};
+    final mapConfig = (payload['mapConfig'] is Map)
+        ? (payload['mapConfig'] as Map)
+        : const {};
+
+    final contactRaw = (rules['contactMode'] ?? '').toString();
+    final releaseOrderRaw = (rescue['queuePolicy'] ?? '').toString();
+    final releaseCountRaw = rescue['releaseCount'];
+    final polygonRaw = mapConfig['polygon'];
+    final jailRaw = (mapConfig['jail'] is Map)
+        ? (mapConfig['jail'] as Map)
+        : const {};
+    final jailRadiusRaw = jailRaw['radiusM'];
+    final jailLatRaw = jailRaw['lat'];
+    final jailLngRaw = jailRaw['lng'];
+
+    final gm = GameMode.fromWire(modeRaw);
+    final mp = (maxPlayersRaw is num)
+        ? maxPlayersRaw.toInt()
+        : state.maxPlayers;
+    final tls = (timeLimitRaw is num)
+        ? timeLimitRaw.toInt()
+        : state.timeLimitSec;
+
+    final cm = contactRaw.isEmpty ? state.contactMode : contactRaw;
+    final ro = releaseOrderRaw.isEmpty
+        ? state.rescueReleaseOrder
+        : releaseOrderRaw;
+    final rc = (releaseCountRaw is num)
+        ? releaseCountRaw.toInt()
+        : null;
+    final rs = _deriveReleaseScope(
+      releaseCount: rc,
+      maxPlayers: mp,
+      fallback: state.rescueReleaseScope,
+    );
+    final jr = (jailRadiusRaw is num)
+        ? jailRadiusRaw.toDouble()
+        : state.jailRadiusM;
+    final jc = (jailLatRaw is num && jailLngRaw is num)
+        ? GeoPointDto(lat: jailLatRaw.toDouble(), lng: jailLngRaw.toDouble())
+            .clamp()
+        : state.jailCenter;
+    final polygon = _parsePolygon(polygonRaw) ?? state.zonePolygon;
+
+    final mpClamped = mp.clamp(3, 50);
+    final nextPolice = _derivePoliceCount(
+      maxPlayers: mpClamped,
+      preferExisting: state.policeCount,
+      keepExisting: state.policeCountCustomized,
+    );
+
+    state = state.copyWith(
+      gameMode: gm,
+      maxPlayers: mpClamped,
+      policeCount: nextPolice,
+      contactMode: cm,
+      rescueContactMode: cm,
+      rescueReleaseScope: rs,
+      rescueReleaseOrder: ro,
+      releaseMode: _formatRescueRuleLabel(
+        contactMode: cm,
+        releaseScope: rs,
+        releaseOrder: ro,
+      ),
+      timeLimitSec: tls.clamp(300, 1800),
+      durationMin: (tls.clamp(300, 1800) / 60).round(),
+      jailRadiusM: (jr == null)
+          ? null
+          : jr.clamp(_minJailRadiusM, _maxJailRadiusM).toDouble(),
+      jailCenter: jc,
+      jailEnabled: (jr ?? 0) > 0,
+      zonePolygon: polygon,
+    );
+  }
+
+  String _formatRescueRuleLabel({
+    required String contactMode,
+    required String releaseScope,
+    required String releaseOrder,
+  }) {
+    final contactLabel = contactMode == 'CONTACT' ? '접촉' : '비접촉';
+    final scopeLabel = releaseScope == 'ALL' ? '전체 해방' : '일부 해방';
+    if (releaseScope != 'PARTIAL') {
+      return '$contactLabel · $scopeLabel';
+    }
+    final orderLabel = releaseOrder == 'LIFO' ? '후착순' : '선착순';
+    return '$contactLabel · $scopeLabel · $orderLabel';
+  }
+
+  int _derivePoliceCount({
+    required int maxPlayers,
+    required int preferExisting,
+    required bool keepExisting,
+  }) {
+    final minP = 1;
+    final maxP = (maxPlayers - 1).clamp(1, 9999);
+    if (keepExisting) return preferExisting.clamp(minP, maxP);
+    final base = (maxPlayers * _defaultPoliceRatio).floor();
+    return base.clamp(minP, maxP);
+  }
+
+  String _deriveReleaseScope({
+    required int? releaseCount,
+    required int maxPlayers,
+    required String fallback,
+  }) {
+    if (releaseCount == null) return fallback;
+    if (releaseCount >= maxPlayers - 1) return 'ALL';
+    return 'PARTIAL';
+  }
+
+  List<GeoPointDto>? _parsePolygon(Object? raw) {
+    if (raw is! List) return null;
+    final points = <GeoPointDto>[];
+    for (final item in raw) {
+      if (item is Map) {
+        try {
+          final m = item.cast<String, dynamic>();
+          points.add(GeoPointDto.fromJson(m));
+        } catch (_) {}
+      }
+    }
+    return points.isEmpty ? null : points;
   }
 }

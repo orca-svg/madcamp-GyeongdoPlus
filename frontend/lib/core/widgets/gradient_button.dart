@@ -9,6 +9,8 @@ class GradientButton extends StatefulWidget {
   final String title;
   final VoidCallback? onPressed;
   final Widget? leading;
+  final double height;
+  final double borderRadius;
 
   const GradientButton({
     super.key,
@@ -16,6 +18,8 @@ class GradientButton extends StatefulWidget {
     required this.title,
     required this.onPressed,
     this.leading,
+    this.height = 68,
+    this.borderRadius = AppDimens.radiusButton,
   });
 
   @override
@@ -64,10 +68,10 @@ class _GradientButtonState extends State<GradientButton> {
           opacity: enabled ? 1 : 0.55,
           duration: const Duration(milliseconds: 150),
           child: Container(
-            height: 68,
+            height: widget.height,
             decoration: BoxDecoration(
               gradient: _gradient,
-              borderRadius: BorderRadius.circular(AppDimens.radiusButton),
+              borderRadius: BorderRadius.circular(widget.borderRadius),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.35),
@@ -77,7 +81,7 @@ class _GradientButtonState extends State<GradientButton> {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppDimens.radiusButton),
+              borderRadius: BorderRadius.circular(widget.borderRadius),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(_pressed ? 0.06 : 0.0),
@@ -111,4 +115,3 @@ class _GradientButtonState extends State<GradientButton> {
     );
   }
 }
-

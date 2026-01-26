@@ -1,3 +1,13 @@
+// Radar screen: remove overlapping HUD, simplify top row, and refine team status cards.
+// Why: avoid UI overlap, keep compact neon layout, and show time + watch indicator cleanly.
+// Removes WsStatusPill from the top row as requested.
+// Computes remaining time from match time payload (mm:ss) with safe fallback.
+// Keeps radar visuals intact while tightening paddings and font sizes.
+//
+// ✅ Patch for your version
+// - Avoid depending on GameMode enum value (GameMode.normal may not exist in your branch)
+// - Smooth countdown even when WS time.serverNowMs doesn't update frequently (local delta correction)
+// - Prevent setState after dispose
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -6,22 +16,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/connection_indicator.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../core/widgets/neon_card.dart';
 import '../../core/widgets/section_title.dart';
-import '../../core/widgets/ws_status_pill.dart';
 import '../../net/ws/dto/match_state.dart';
 import '../../net/ws/dto/radar_ping.dart';
 import '../../net/ws/ws_envelope.dart';
 import '../../net/ws/ws_client_provider.dart';
 import '../../net/ws/ws_types.dart';
 import '../../providers/match_mode_provider.dart';
-import '../../providers/match_rules_provider.dart';
+import '../../providers/match_state_sim_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/radar_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../providers/watch_provider.dart';
-import '../../providers/ws_ui_status_provider.dart';
 import 'widgets/radar_painter.dart';
 
 class RadarScreen extends ConsumerStatefulWidget {
@@ -35,19 +46,61 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   late final Timer _timer;
   double _sweep = 0;
 
+  late final ProviderSubscription<int?> _noticeSub;
+  late final ProviderSubscription<dynamic> _matchSub;
+
+  // ✅ countdown smoothing
+  int? _endsAtMs;
+  int? _lastServerNowMs;
+  int? _lastLocalNowMs;
+
   @override
   void initState() {
     super.initState();
+
     _timer = Timer.periodic(const Duration(milliseconds: 40), (_) {
+      if (!mounted) return;
       setState(() {
         _sweep += 0.008;
         if (_sweep > 1) _sweep -= 1;
       });
     });
+
+    _noticeSub = ref.listenManual<int?>(
+      matchStateSimProvider.select((s) => s?.noticeSeq),
+      (prev, next) {
+        if (!mounted) return;
+        if (next == null || next == prev) return;
+        final msg = ref.read(matchStateSimProvider)?.noticeMessage ?? '';
+        if (msg.isEmpty) return;
+        showAppSnackBar(context, message: msg);
+      },
+    );
+
+    // ✅ whenever matchState changes, refresh time anchors
+    _matchSub = ref.listenManual<dynamic>(
+      matchSyncProvider.select((s) => s.lastMatchState),
+      (prev, next) {
+        final match = next?.payload as MatchStateDto?;
+        final time = match?.time;
+        if (time == null) return;
+
+        final endsAt = time.endsAtMs;
+        if (endsAt == null) return;
+
+        _endsAtMs = endsAt;
+        _lastServerNowMs = time.serverNowMs;
+        _lastLocalNowMs = DateTime.now().millisecondsSinceEpoch;
+
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   @override
   void dispose() {
+    _noticeSub.close();
+    _matchSub.close();
     _timer.cancel();
     super.dispose();
   }
@@ -58,7 +111,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final sync = ref.watch(matchSyncProvider);
     final room = ref.watch(roomProvider);
     final wsConn = ref.watch(wsConnectionProvider);
-    final wsUiStatus = ref.watch(wsUiStatusProvider);
     final watchConnected = ref.watch(watchConnectedProvider);
     final gameMode = ref.watch(currentGameModeProvider);
 
@@ -66,9 +118,10 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final ping = sync.lastRadarPing?.payload;
 
     final myTeam = room.me?.team == Team.thief ? 'THIEF' : 'POLICE';
-
-    // 팀 현황 계산
     final teamStats = _computeTeamStats(match);
+
+    // ✅ your-branch-safe: don't rely on GameMode.normal existing
+    final isNormalMode = _isNormalMode(gameMode);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -77,12 +130,21 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         child: SafeArea(
           bottom: true,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
+            padding: const EdgeInsets.fromLTRB(
+              18,
+              14,
+              18,
+              AppDimens.bottomBarHIn + 12,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // A. 상단 타이틀 row: 전술 레이더 + Watch + WsStatusPill
-                _buildTitleRow(context, watchConnected, wsUiStatus),
+                // A. 상단 타이틀 row: 전술 레이더 + 시간 + Watch
+                _buildTitleRow(
+                  context,
+                  watchConnected,
+                  _remainingTimeText(match),
+                ),
                 const SizedBox(height: 12),
 
                 // B. 팀 현황 카드 3개 (레이더 캔버스 상단)
@@ -96,7 +158,10 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     child: Text(
                       _summaryLine(match: match, myTeam: myTeam, ping: ping),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.textSecondary),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -127,7 +192,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                           color: AppColors.surface2.withOpacity(0.25),
                           child: Padding(
                             padding: const EdgeInsets.all(18),
-                            child: CustomPaint(painter: RadarPainter(sweep01: _sweep, pings: ui.pings)),
+                            child: CustomPaint(
+                              painter: RadarPainter(sweep01: _sweep, pings: ui.pings),
+                            ),
                           ),
                         ),
                       ),
@@ -136,21 +203,70 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                if (ui.pings.any((p) => !p.hasBearing)) ...[
+                  GlowCard(
+                    glow: false,
+                    borderColor: AppColors.outlineLow,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '방향 미확인 신호',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        for (final p in ui.pings.where((p) => !p.hasBearing))
+                          Text(
+                            '${p.kind == RadarPingKind.ally ? '아군' : '적'}: ~${p.distanceM.round()}m',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.textMuted),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 // C/D. 일반 모드가 아닐 때만 위험 분석 섹션 표시
-                if (gameMode != GameMode.normal) ...[
-                  // 기존 미니 스탯 (아군/적/페이즈)
+                if (!isNormalMode) ...[
                   Row(
                     children: [
-                      Expanded(child: _miniStat(icon: Icons.group_rounded, value: '${ui.allyCount}', label: '아군', border: AppColors.borderCyan)),
+                      Expanded(
+                        child: _miniStat(
+                          icon: Icons.group_rounded,
+                          value: '${ui.allyCount}',
+                          label: '아군',
+                          border: AppColors.borderCyan,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _miniStat(icon: Icons.warning_rounded, value: '${ui.enemyCount}', label: '적', border: AppColors.red)),
+                      Expanded(
+                        child: _miniStat(
+                          icon: Icons.warning_rounded,
+                          value: '${ui.enemyCount}',
+                          label: '적',
+                          border: AppColors.red,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _miniStat(icon: Icons.shield_rounded, value: ui.safetyText, label: '페이즈', border: AppColors.lime)),
+                      Expanded(
+                        child: _miniStat(
+                          icon: Icons.shield_rounded,
+                          value: ui.safetyText,
+                          label: '페이즈',
+                          border: AppColors.lime,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // 위험 분석 섹션
                   const SectionTitle(title: '위험 분석'),
                   const SizedBox(height: 10),
                   GlowCard(
@@ -161,16 +277,29 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                       children: [
                         Row(
                           children: [
-                            Container(width: 10, height: 10, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.orange)),
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.orange,
+                              ),
+                            ),
                             const SizedBox(width: 10),
                             Text(
                               ui.dangerTitle,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: AppColors.orange),
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.orange,
+                                  ),
                             ),
                             const Spacer(),
                             Text(
                               ui.etaText,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.red, fontWeight: FontWeight.w800),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.red,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                           ],
                         ),
@@ -180,12 +309,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                             Expanded(
                               child: Text(
                                 ui.directionText,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.textSecondary),
                               ),
                             ),
                             Text(
                               ui.distanceText,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w800),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
                           ],
                         ),
@@ -204,48 +339,87 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 현재 상태 + 권장 행동 (아이템/능력 모드에서만)
-                  Row(
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    collapsedTextColor: AppColors.textSecondary,
+                    textColor: AppColors.textSecondary,
+                    iconColor: AppColors.textSecondary,
+                    collapsedIconColor: AppColors.textSecondary,
+                    title: Text(
+                      '추가 정보',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
                     children: [
-                      Expanded(
-                        child: GlowCard(
-                          glow: false,
-                          borderColor: AppColors.outlineLow,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('현재 상태', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                              const SizedBox(height: 10),
-                              Text(ui.safetyText, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                            ],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GlowCard(
+                              glow: false,
+                              borderColor: AppColors.outlineLow,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '현재 상태',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: AppColors.textMuted),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    ui.safetyText,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w800),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GlowCard(
-                          glow: false,
-                          borderColor: AppColors.outlineLow,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('권장 행동', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                              const SizedBox(height: 10),
-                              Text('엄폐물로 이동', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                            ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GlowCard(
+                              glow: false,
+                              borderColor: AppColors.outlineLow,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '권장 행동',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: AppColors.textMuted),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    '엄폐물로 이동',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w800),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ] else ...[
-                  // 일반 모드: 심박수만 표시
                   _buildHeartRateSection(context, watchConnected),
                 ],
 
                 const SizedBox(height: 14),
 
-                // 디버그 버튼들
                 Align(
                   alignment: Alignment.centerRight,
                   child: Wrap(
@@ -272,7 +446,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                           await ref.read(watchConnectedProvider.notifier).refresh();
                           final ok = ref.read(watchConnectedProvider);
                           if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Watch connected: $ok')));
+                          showAppSnackBar(context, message: 'Watch connected: $ok');
                         },
                         icon: const Icon(Icons.watch_rounded, size: 18),
                         label: const Text('연결 확인'),
@@ -289,7 +463,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   ),
                 ),
 
-                // 디버그 JSON
                 if (kDebugMode && (sync.lastJsonPreview ?? '').isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const SectionTitle(title: '디버그 JSON'),
@@ -299,7 +472,11 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     borderColor: AppColors.outlineLow,
                     child: SelectableText(
                       sync.lastJsonPreview!,
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.35),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ],
@@ -311,8 +488,12 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     );
   }
 
-  /// A. 상단 타이틀 row: 전술 레이더 + Watch indicator + WsStatusPill
-  Widget _buildTitleRow(BuildContext context, bool watchConnected, WsUiStatusModel wsUiStatus) {
+  /// A. 상단 타이틀 row: 전술 레이더 + 시간 + Watch indicator
+  Widget _buildTitleRow(
+    BuildContext context,
+    bool watchConnected,
+    String remainText,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -323,17 +504,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
             ],
           ),
         ),
-        // Watch 연결 indicator
-        _ConnectionIndicator(
+        Text(
+          remainText,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+        ),
+        const SizedBox(width: 10),
+        ConnectionIndicator(
           icon: Icons.watch_rounded,
           connected: watchConnected,
           label: '워치',
-        ),
-        const SizedBox(width: 10),
-        // WsStatusPill
-        WsStatusPill(
-          model: wsUiStatus,
-          onReconnect: wsUiStatus.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
         ),
       ],
     );
@@ -351,7 +533,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
             color: AppColors.borderCyan,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
           child: _TeamStatCard(
             icon: Icons.directions_run_rounded,
@@ -360,7 +542,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
             color: AppColors.lime,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
           child: _TeamStatCard(
             icon: Icons.lock_rounded,
@@ -390,7 +572,13 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('심박수', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+              Text(
+                '심박수',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: AppColors.textMuted),
+              ),
               const SizedBox(height: 4),
               Text(
                 watchConnected ? '-- BPM' : '워치 연결 필요',
@@ -432,7 +620,8 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   void _mockRadarPing({required WidgetRef ref}) {
     final room = ref.read(roomProvider);
     final now = DateTime.now().millisecondsSinceEpoch;
-    final matchId = ref.read(matchSyncProvider).lastMatchState?.payload.matchId ?? 'MATCH_DEMO';
+    final matchId =
+        ref.read(matchSyncProvider).lastMatchState?.payload.matchId ?? 'MATCH_DEMO';
 
     if (ref.read(matchSyncProvider).lastMatchState == null) {
       final ms = _buildMockMatchState(room: room, matchId: matchId, serverNowMs: now);
@@ -466,7 +655,14 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     );
     ref.read(matchSyncProvider.notifier).setRadarPing(env);
 
-    final capture = ref.read(matchSyncProvider).lastMatchState?.payload.live.captureProgress?.progress01;
+    final capture = ref
+        .read(matchSyncProvider)
+        .lastMatchState
+        ?.payload
+        .live
+        .captureProgress
+        ?.progress01;
+
     ref.read(watchRadarVectorProvider.notifier).setLastRadarVector(
           WatchRadarVector(
             headingDeg: 72,
@@ -499,6 +695,36 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     return 'matchId=$matchId / phase=$phase / team=$myTeam / pings=$pingCount / ttlMs=$ttl / capture=$capText';
   }
 
+  /// ✅ remaining time (mm:ss) with smoothing
+  String _remainingTimeText(MatchStateDto? match) {
+    // 1) anchor-based smoothing (preferred)
+    if (_endsAtMs != null && _lastServerNowMs != null && _lastLocalNowMs != null) {
+      final localNow = DateTime.now().millisecondsSinceEpoch;
+      final elapsedLocal = localNow - _lastLocalNowMs!;
+      final estServerNow = _lastServerNowMs! + elapsedLocal;
+      final remainMs = _endsAtMs! - estServerNow;
+      final remainSec = (remainMs / 1000).floor();
+      if (remainSec <= 0) return '00:00';
+      return _fmtMmSs(remainSec);
+    }
+
+    // 2) fallback: direct match payload
+    final time = match?.time;
+    final endsAtMs = time?.endsAtMs;
+    if (time == null || endsAtMs == null) return '--:--';
+    final nowMs = time.serverNowMs;
+    final remainMs = endsAtMs - nowMs;
+    final remainSec = (remainMs / 1000).floor();
+    if (remainSec <= 0) return '00:00';
+    return _fmtMmSs(remainSec);
+  }
+
+  String _fmtMmSs(int totalSec) {
+    final m = (totalSec ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSec % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   MatchStateDto _buildMockMatchState({
     required RoomState room,
     required String matchId,
@@ -512,10 +738,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
       final pid = m.id.isEmpty ? 'p_${m.name}' : m.id;
       if (m.team == Team.thief) {
         thief.add(pid);
-        players[pid] = MatchPlayerDto(team: 'THIEF', displayName: m.name, status: m.ready ? 'READY' : 'WAIT');
+        players[pid] = MatchPlayerDto(
+          team: 'THIEF',
+          displayName: m.name,
+          status: m.ready ? 'READY' : 'WAIT',
+        );
       } else {
         police.add(pid);
-        players[pid] = MatchPlayerDto(team: 'POLICE', displayName: m.name, status: m.ready ? 'READY' : 'WAIT');
+        players[pid] = MatchPlayerDto(
+          team: 'POLICE',
+          displayName: m.name,
+          status: m.ready ? 'READY' : 'WAIT',
+        );
       }
     }
 
@@ -523,9 +757,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
       matchId: matchId,
       state: 'RUNNING',
       mode: 'NORMAL',
-      rules: const MatchRulesDto(opponentReveal: OpponentRevealRulesDto(radarPingTtlMs: 7000)),
-      time: MatchTimeDto(serverNowMs: serverNowMs, prepEndsAtMs: null, endsAtMs: serverNowMs + 120000),
-      teams: MatchTeamsDto(police: TeamPlayersDto(playerIds: police), thief: TeamPlayersDto(playerIds: thief)),
+      rules: const MatchRulesDto(
+        opponentReveal: OpponentRevealRulesDto(radarPingTtlMs: 7000),
+      ),
+      time: MatchTimeDto(
+        serverNowMs: serverNowMs,
+        prepEndsAtMs: null,
+        endsAtMs: serverNowMs + 120000,
+      ),
+      teams: MatchTeamsDto(
+        police: TeamPlayersDto(playerIds: police),
+        thief: TeamPlayersDto(playerIds: thief),
+      ),
       players: players,
       live: MatchLiveDto(
         score: const MatchScoreDto(thiefFree: 1, thiefCaptured: 3),
@@ -553,14 +796,23 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   Widget _legendDot(Color color, String label) {
     return Row(
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        ),
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
       ],
     );
   }
 
-  Widget _miniStat({required IconData icon, required String value, required String label, required Color border}) {
+  Widget _miniStat({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color border,
+  }) {
     return GlowCard(
       borderColor: border.withOpacity(0.55),
       glowColor: border.withOpacity(0.10),
@@ -569,12 +821,30 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         children: [
           Icon(icon, color: border, size: 22),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
         ],
       ),
     );
+  }
+
+  /// ✅ enum/문자열/커스텀 타입 모두 대응: normal 여부만 안전하게 판단
+  bool _isNormalMode(dynamic modeAny) {
+    if (modeAny == null) return true;
+    final s = modeAny.toString().toLowerCase();
+    // ex) GameMode.normal / MatchMode.normal / 'NORMAL' / 'normal'
+    return s.contains('normal');
   }
 }
 
@@ -589,46 +859,6 @@ class _TeamStats {
     required this.thiefFree,
     required this.thiefCaptured,
   });
-}
-
-/// Watch 연결 지표
-class _ConnectionIndicator extends StatelessWidget {
-  final IconData icon;
-  final bool connected;
-  final String label;
-
-  const _ConnectionIndicator({
-    required this.icon,
-    required this.connected,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = connected ? AppColors.lime : AppColors.textMuted;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surface2.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          ),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
 }
 
 /// 팀 현황 카드 (3개 나란히)
@@ -647,26 +877,26 @@ class _TeamStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlowCard(
-      glow: false,
-      borderColor: color.withOpacity(0.4),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+    return NeonCard(
+      neonColor: color,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+      radius: 16,
       child: Column(
         children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 6),
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+              color: color,
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
             overflow: TextOverflow.ellipsis,
           ),
         ],

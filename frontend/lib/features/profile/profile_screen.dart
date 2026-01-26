@@ -1,75 +1,112 @@
+// Profile UI: compact neon ranks with consistent Home styling.
+// Why: unify rank cards, show explicit "랭크명 · 점수" text, and reduce overflow risk.
+// Uses RankNeonCard for police/thief with cyan/red neon borders.
+// Keeps existing stats/achievements layout intact.
+// Preserves neon header/gradients for profile identity.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/delta_chip.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../core/widgets/rank_neon_card.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/profile_stats_provider.dart';
+import '../../providers/room_provider.dart';
+
+const neonCyan = Color(0xFF00E5FF);
+const neonPurple = Color(0xFFB026FF);
+const neonLime = Color(0xFF39FF14);
+const neonAmber = Color(0xFFFFD60A);
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(profileStatsProvider);
+    final room = ref.watch(roomProvider);
     final phase = ref.watch(gamePhaseProvider);
-    final bottomPad = (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+    final nickname = room.me?.name ?? '김선수';
+    final bottomInset = (phase == GamePhase.offGame
+        ? AppDimens.bottomBarHOff
+        : AppDimens.bottomBarHIn) +
+        18;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      extendBody: true,
       body: GlassBackground(
         child: SafeArea(
-          bottom: true,
           child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('프로필', style: Theme.of(context).textTheme.titleLarge),
+                Text('내정보', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 6),
-                Text('계정 및 설정', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                Text(
+                  '프로필 및 통계',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.textMuted),
+                ),
                 const SizedBox(height: 14),
-                _topProfileCard(context),
+                _profileHeader(context, nickname),
                 const SizedBox(height: 16),
-                _statGrid(),
-                const SizedBox(height: 20),
-                Text('설정', style: Theme.of(context).textTheme.titleMedium),
+                Text('랭크', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _settingsTile(
-                  icon: Icons.notifications_active_rounded,
-                  title: '알림 설정',
-                  subtitle: '푸시 알림 관리',
-                  accent: AppColors.borderCyan,
-                ),
-                const SizedBox(height: 10),
-                _settingsTile(
-                  icon: Icons.shield_rounded,
-                  title: '개인정보',
-                  subtitle: '보안 및 프라이버시',
-                  accent: AppColors.lime,
-                ),
-                const SizedBox(height: 10),
-                _settingsTile(
-                  icon: Icons.settings_rounded,
-                  title: '게임 설정',
-                  subtitle: '그래픽, 사운드, 조작',
-                  accent: AppColors.borderCyan,
-                ),
-                const SizedBox(height: 10),
-                _settingsTile(
-                  icon: Icons.logout_rounded,
-                  title: '로그아웃',
-                  subtitle: '계정에서 로그아웃',
-                  accent: AppColors.red,
-                  destructive: true,
+                Row(
+                  children: [
+                    Expanded(
+                      child: RankNeonCard(
+                        title: '경찰',
+                        score: stats.policeScore,
+                        icon: Icons.shield_rounded,
+                        accent: AppColors.borderCyan,
+                        rankName: _rankNameFromScore(stats.policeScore),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: RankNeonCard(
+                        title: '도둑',
+                        score: stats.thiefScore,
+                        icon: Icons.lock_rounded,
+                        accent: AppColors.red,
+                        rankName: _rankNameFromScore(stats.thiefScore),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 18),
-                Center(
+                Text('스탯', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _statGrid(stats),
+                const SizedBox(height: 18),
+                Text('매너', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _mannerCard(stats),
+                const SizedBox(height: 18),
+                Text('업적', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _achievementRow(stats.achievements),
+                const SizedBox(height: 18),
+                Text('총 플레이 시간', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                GlowCard(
+                  glow: true,
+                  glowColor: neonCyan,
+                  borderColor: neonCyan.withOpacity(0.6),
                   child: Text(
-                    '버전 0.1.0 © 2026 GyeongdoPlus',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                    _formatDuration(stats.totalPlaySec),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
@@ -80,286 +117,215 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _topProfileCard(BuildContext context) {
+  Widget _profileHeader(BuildContext context, String nickname) {
     return GlowCard(
-      glowColor: AppColors.borderCyan.withOpacity(0.16),
-      borderColor: AppColors.borderCyan.withOpacity(0.55),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 68,
-                    height: 68,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(colors: [AppColors.borderCyan, AppColors.purple]),
-                    ),
-                    child: const Icon(Icons.person_rounded, color: Colors.white, size: 36),
-                  ),
-                  Positioned(
-                    right: -4,
-                    bottom: -4,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.orange,
-                        border: Border.all(color: AppColors.surface1, width: 2),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text('42', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('김선수', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                    SizedBox(height: 4),
-                    Text('@pro_player_kim', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    SizedBox(height: 8),
-                    _Badge(text: '다이아몬드 II', icon: Icons.stars_rounded, color: AppColors.purple),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GlowCard(
-                  padding: const EdgeInsets.all(12),
-                  glowColor: AppColors.purple.withOpacity(0.12),
-                  borderColor: AppColors.purple.withOpacity(0.40),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('랭킹', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                      const SizedBox(height: 6),
-                      const Text('#342', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 2),
-                      const Text('Global Rank', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                      const SizedBox(height: 8),
-                      const Align(alignment: Alignment.centerRight, child: DeltaChip(delta: 58.0)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: AppColors.outlineLow, height: 1),
-          const SizedBox(height: 16),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _MiniMetric(value: '1,247', label: '총 게임'),
-              _MiniMetric(value: '67.8%', label: '승률', valueColor: AppColors.borderCyan),
-              _MiniMetric(value: '2.63', label: 'K/D', valueColor: AppColors.lime),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.26,
-      children: const [
-        _StatCard(
-          title: '승률',
-          value: '67.8%',
-          subtitle: 'Win Rate',
-          accent: AppColors.lime,
-          delta: 2.3,
-          icon: Icons.emoji_events_rounded,
-        ),
-        _StatCard(
-          title: '킬',
-          value: '1,247',
-          subtitle: 'Total Kills',
-          accent: AppColors.borderCyan,
-          delta: 156,
-          icon: Icons.track_changes_rounded,
-        ),
-        _StatCard(
-          title: '플레이 기간',
-          value: '156일',
-          subtitle: 'Play Days',
-          accent: AppColors.lime,
-          icon: Icons.calendar_month_rounded,
-        ),
-        _StatCard(
-          title: '총 플레이',
-          value: '342시간',
-          subtitle: 'Play Time',
-          accent: AppColors.purple,
-          icon: Icons.timer_rounded,
-        ),
-      ],
-    );
-  }
-
-  Widget _settingsTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color accent,
-    bool destructive = false,
-  }) {
-    return GlowCard(
-      glow: false,
-      borderColor: destructive ? AppColors.red.withOpacity(0.35) : AppColors.outlineLow,
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+      glow: true,
+      glowColor: neonCyan,
+      borderColor: neonCyan.withOpacity(0.55),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accent.withOpacity(0.25)),
+            width: 62,
+            height: 62,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [neonCyan, neonPurple],
+              ),
             ),
-            child: Icon(icon, color: accent, size: 22),
+            alignment: Alignment.center,
+            child: const Icon(Icons.person_rounded, color: Colors.white, size: 32),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
-                  style: TextStyle(
-                    color: destructive ? AppColors.red : AppColors.textPrimary,
+                  nickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
+                    fontSize: 18,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                Text(
+                  '오늘도 안전하게!',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
         ],
       ),
     );
   }
-}
 
-class _Badge extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  final Color color;
-  const _Badge({required this.text, required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniMetric extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color? valueColor;
-
-  const _MiniMetric({required this.value, required this.label, this.valueColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
+  Widget _statGrid(ProfileStats stats) {
+    return GridView.count(
+      crossAxisCount: 2,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1.6,
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor ?? AppColors.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        _statCard('평균 체포 수', stats.avgCaught.toStringAsFixed(1)),
+        _statCard('평균 해방 수', stats.avgRescued.toStringAsFixed(1)),
+        _statCard('총 이동거리', '128.4 km'),
+        _statCard('총 플레이', _formatDuration(stats.totalPlaySec)),
       ],
     );
   }
-}
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final Color accent;
-  final double? delta;
-  final IconData icon;
-
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.accent,
-    required this.icon,
-    this.delta,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _statCard(String label, String value) {
     return GlowCard(
-      glowColor: accent.withOpacity(0.10),
-      borderColor: accent.withOpacity(0.30),
+      glow: true,
+      glowColor: neonCyan,
+      borderColor: neonCyan.withOpacity(0.45),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: accent.withOpacity(0.22)),
-                ),
-                child: Icon(icon, color: accent, size: 18),
-              ),
-              const Spacer(),
-              if (delta != null) DeltaChip(delta: delta!),
-            ],
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
           ),
-          const SizedBox(height: 12),
-          Text(value, style: TextStyle(color: accent, fontSize: 22, fontWeight: FontWeight.w900)),
           const SizedBox(height: 6),
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          const SizedBox(height: 2),
-          Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  Widget _mannerCard(ProfileStats stats) {
+    final progress = stats.mannerScore / 100.0;
+    return GlowCard(
+      glow: true,
+      glowColor: neonLime,
+      borderColor: neonLime.withOpacity(0.55),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${stats.mannerScore}점',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: AppColors.surface2.withOpacity(0.4),
+              color: neonLime,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '경고 0회',
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _achievementRow(List<AchievementSummary> achievements) {
+    return SizedBox(
+      height: 120,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: achievements.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final item = achievements[index];
+          final accent = item.unlocked ? neonAmber : AppColors.outlineLow;
+          return GestureDetector(
+            onTap: () {
+              showAppSnackBar(context, message: '다음 단계에서 상세 제공');
+            },
+            child: GlowCard(
+              glow: item.unlocked,
+              glowColor: accent,
+              borderColor: accent.withOpacity(item.unlocked ? 0.8 : 0.4),
+              child: SizedBox(
+                width: 140,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      item.unlocked ? Icons.emoji_events_rounded : Icons.lock_rounded,
+                      color: item.unlocked ? neonAmber : AppColors.textMuted,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: item.unlocked
+                            ? AppColors.textPrimary
+                            : AppColors.textMuted,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatDuration(int sec) {
+    final hours = sec ~/ 3600;
+    final minutes = (sec % 3600) ~/ 60;
+    if (hours <= 0) return '${minutes}분';
+    return '${hours}시간 ${minutes}분';
+  }
+}
+
+String _rankNameFromScore(int score) {
+  if (score >= 1500) return '전문가';
+  if (score >= 1000) return '숙련';
+  return '초보';
 }

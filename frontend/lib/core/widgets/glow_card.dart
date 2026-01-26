@@ -9,6 +9,9 @@ class GlowCard extends StatelessWidget {
   final Color? glowColor;
   final bool glow;
   final bool gradientSurface;
+  final double glowSigma;
+  final double glowSpread;
+  final double glowOpacity;
 
   const GlowCard({
     super.key,
@@ -18,6 +21,9 @@ class GlowCard extends StatelessWidget {
     this.glowColor,
     this.glow = true,
     this.gradientSurface = true,
+    this.glowSigma = 14,
+    this.glowSpread = 1.0,
+    this.glowOpacity = 0.28,
   });
 
   @override
@@ -36,13 +42,16 @@ class GlowCard extends StatelessWidget {
             : null,
         color: gradientSurface ? null : AppColors.surface1,
         borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-        border: Border.all(color: bc.withOpacity(0.85), width: AppDimens.border),
+        border: Border.all(
+          color: bc.withOpacity(0.85),
+          width: AppDimens.border,
+        ),
         boxShadow: glow
             ? [
                 BoxShadow(
-                  color: gc.withOpacity(AppDimens.glowOpacity),
-                  blurRadius: AppDimens.glowBlur,
-                  spreadRadius: 1,
+                  color: gc.withOpacity(glowOpacity),
+                  blurRadius: glowSigma,
+                  spreadRadius: glowSpread,
                   offset: const Offset(0, 10),
                 ),
                 BoxShadow(

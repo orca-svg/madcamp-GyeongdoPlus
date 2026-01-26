@@ -1,21 +1,34 @@
+// lib/features/home/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/connection_indicator.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
-import '../../core/widgets/delta_chip.dart';
+import '../../core/widgets/rank_neon_card.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
-import '../../providers/room_provider.dart';
+import '../../providers/watch_provider.dart';
+import '../room/room_create_screen.dart';
+import '../room/room_join_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
+    final watchConnected = ref.watch(watchConnectedProvider);
     final phase = ref.watch(gamePhaseProvider);
-    final bottomPad = (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+
+    final bottomPad =
+        (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+    final bottomInset = bottomPad + 18;
+
+    final rankItems = _stubRanks();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -23,62 +36,123 @@ class HomeScreen extends ConsumerWidget {
       body: GlassBackground(
         child: SafeArea(
           bottom: true,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GlowCard(
-                  glowColor: AppColors.purple.withOpacity(0.35),
-                  borderColor: AppColors.borderCyan.withOpacity(0.55),
+                  glow: false,
+                  borderColor: AppColors.outlineLow,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('환영합니다', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                      const SizedBox(height: 8),
-                      RichText(
-                        text: TextSpan(
-                          style: Theme.of(context).textTheme.titleLarge,
-                          children: const [
-                            TextSpan(text: '김선수'),
-                            TextSpan(text: ' 님', style: TextStyle(color: AppColors.borderCyan)),
-                          ],
-                        ),
+                      Text(
+                        '환영합니다',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppColors.textMuted),
                       ),
                       const SizedBox(height: 6),
-                      Text('시즌 12 • 다이아몬드 II', style: Theme.of(context).textTheme.bodySmall),
+
+                      // ✅ 이름 Row 우측에 워치 인디케이터 배치
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              auth.displayName ?? '김선수',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ConnectionIndicator(
+                            icon: Icons.watch_rounded,
+                            connected: watchConnected,
+                            label: watchConnected ? '워치' : '오프',
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 4),
+                      Text(
+                        '시즌 12',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ✅ 경찰/도둑 네온 랭크 카드 (cyan / red)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RankNeonCard(
+                              title: '경찰',
+                              score: rankItems[0].score,
+                              icon: Icons.shield_rounded,
+                              accent: AppColors.borderCyan,
+                              rankName: rankItems[0].rankName,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: RankNeonCard(
+                              title: '도둑',
+                              score: rankItems[1].score,
+                              icon: Icons.lock_rounded,
+                              accent: AppColors.red,
+                              rankName: rankItems[1].rankName,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                GradientButton(
-                  variant: GradientButtonVariant.createRoom,
-                  title: '방 만들기',
-                  onPressed: () => _showCreateRoomSheet(context: context, ref: ref),
-                  leading: const Icon(Icons.add_rounded, color: Colors.white),
-                ),
-                const SizedBox(height: 14),
-                GradientButton(
-                  variant: GradientButtonVariant.joinRoom,
-                  title: '방 참여하기',
-                  onPressed: () => _showJoinRoomSheet(context: context, ref: ref),
-                  leading: const Icon(Icons.login_rounded, color: Colors.white),
-                ),
-                const SizedBox(height: 26),
-                Text('최근 활동', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                _activityCard(
-                  title: '승리!',
-                  subtitle: '랭크 매치 • 2분 전',
-                  delta: 25,
-                  detail: 'K/D/A: 12/3/8',
-                ),
-                const SizedBox(height: 12),
-                _activityCard(
-                  title: '승리!',
-                  subtitle: '랭크 매치 • 2일 전',
-                  delta: 25,
-                  detail: 'K/D/A: 12/3/8',
+
+                const SizedBox(height: 24),
+
+                // ✅ 버튼 영역은 Expanded로 가운데 정렬 유지 (오버플로 방지)
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      GradientButton(
+                        variant: GradientButtonVariant.createRoom,
+                        title: '방 만들기',
+                        height: 76,
+                        borderRadius: 20,
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const RoomCreateScreen(),
+                            ),
+                          );
+                        },
+                        leading: const Icon(Icons.add_rounded, color: Colors.white),
+                      ),
+                      const SizedBox(height: 18),
+                      GradientButton(
+                        variant: GradientButtonVariant.joinRoom,
+                        title: '방 참여하기',
+                        height: 76,
+                        borderRadius: 20,
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const RoomJoinScreen(),
+                            ),
+                          );
+                        },
+                        leading: const Icon(Icons.login_rounded, color: Colors.white),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -88,211 +162,40 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showCreateRoomSheet({required BuildContext context, required WidgetRef ref}) async {
-    final controller = TextEditingController(text: '김선수');
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: bottom),
-          child: _RoomSheet(
-            title: '방 만들기',
-            primaryTitle: '만들기',
-            primaryVariant: GradientButtonVariant.createRoom,
-            onPrimary: () {
-              ref.read(roomProvider.notifier).createRoom(myName: controller.text);
-              Navigator.of(context).pop();
-              ref.read(gamePhaseProvider.notifier).toLobby();
-            },
-            child: TextField(
-              key: const Key('createRoomNameField'),
-              controller: controller,
-              autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
-                labelText: '닉네임',
-                labelStyle: TextStyle(color: AppColors.textSecondary),
-                border: InputBorder.none,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showJoinRoomSheet({required BuildContext context, required WidgetRef ref}) async {
-    final codeController = TextEditingController();
-    final nameController = TextEditingController(text: '김선수');
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
-        return Padding(
-          padding: EdgeInsets.only(bottom: bottom),
-          child: _RoomSheet(
-            title: '방 참여하기',
-            primaryTitle: '참여',
-            primaryVariant: GradientButtonVariant.joinRoom,
-            onPrimary: () {
-              ref
-                  .read(roomProvider.notifier)
-                  .joinRoom(myName: nameController.text, code: codeController.text.toUpperCase());
-              Navigator.of(context).pop();
-              ref.read(gamePhaseProvider.notifier).toLobby();
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  key: const Key('joinRoomCodeField'),
-                  controller: codeController,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.characters,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: '방 코드',
-                    labelStyle: TextStyle(color: AppColors.textSecondary),
-                    border: InputBorder.none,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('joinRoomNameField'),
-                  controller: nameController,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    labelText: '닉네임',
-                    labelStyle: TextStyle(color: AppColors.textSecondary),
-                    border: InputBorder.none,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _activityCard({
-    required String title,
-    required String subtitle,
-    required int delta,
-    required String detail,
-  }) {
-    return GlowCard(
-      glowColor: AppColors.borderCyan.withOpacity(0.12),
-      borderColor: AppColors.borderCyan.withOpacity(0.55),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.borderCyan.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.borderCyan.withOpacity(0.25)),
-            ),
-            child: const Icon(Icons.emoji_events_rounded, color: AppColors.lime),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              DeltaChip(delta: delta.toDouble(), suffix: ' LP'),
-              const SizedBox(height: 8),
-              Text(detail, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-            ],
-          ),
-        ],
-      ),
-    );
+  List<_RankInfo> _stubRanks() {
+    return const [
+      _RankInfo(role: 'POLICE', score: 1240),
+      _RankInfo(role: 'THIEF', score: 980),
+    ];
   }
 }
 
-class _RoomSheet extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final String primaryTitle;
-  final GradientButtonVariant primaryVariant;
-  final VoidCallback onPrimary;
+class _RankInfo {
+  final String role; // 'POLICE' | 'THIEF'
+  final int score;
 
-  const _RoomSheet({
-    required this.title,
-    required this.child,
-    required this.primaryTitle,
-    required this.primaryVariant,
-    required this.onPrimary,
+  const _RankInfo({
+    required this.role,
+    required this.score,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        child: GlowCard(
-          glow: true,
-          glowColor: AppColors.borderCyan.withOpacity(0.12),
-          borderColor: AppColors.borderCyan.withOpacity(0.35),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface2.withOpacity(0.45),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.outlineLow.withOpacity(0.9)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  child: child,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('취소'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: GradientButton(
-                      variant: primaryVariant,
-                      title: primaryTitle,
-                      onPressed: onPrimary,
-                      leading: const Icon(Icons.check_rounded, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  String get rankName {
+    final r = role.toUpperCase();
+
+    // ✅ “내 정보 탭에서처럼” 역할별 랭크명 제공 (필요하면 구간표를 더 확장 가능)
+    if (r == 'POLICE') {
+      if (score >= 3000) return '특수요원';
+      if (score >= 2000) return '강력반';
+      if (score >= 1200) return '경사';
+      if (score >= 600) return '순경';
+      return '훈련생';
+    }
+
+    // THIEF
+    if (score >= 3000) return '전설의 도둑';
+    if (score >= 2000) return '괴도';
+    if (score >= 1200) return '전문털이범';
+    if (score >= 600) return '소매치기';
+    return '연습생';
   }
 }

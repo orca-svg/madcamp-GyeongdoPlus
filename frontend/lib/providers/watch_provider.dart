@@ -1,19 +1,55 @@
+// Watch connection state provider with periodic refresh.
+// Why: avoid stale "connected" status when the watch disconnects later.
+// Adds a 5s timer that rechecks pairing/connection, with safe cleanup.
+// Ensures errors from the bridge do not crash UI; falls back to false.
+// Keeps init() and manual refresh() behavior intact for existing flows.
+// Maintains lightweight state (bool) to keep consumers simple.
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../watch/watch_bridge.dart';
 
-final watchConnectedProvider = NotifierProvider<WatchConnectedController, bool>(WatchConnectedController.new);
+final watchConnectedProvider =
+    NotifierProvider<WatchConnectedController, bool>(
+  WatchConnectedController.new,
+);
 
 class WatchConnectedController extends Notifier<bool> {
+  Timer? _timer;
+
   @override
-  bool build() => false;
+  bool build() {
+    _ensurePeriodicRefresh();
+    ref.onDispose(() {
+      _timer?.cancel();
+      _timer = null;
+    });
+    return false;
+  }
 
   Future<void> init() async {
-    await WatchBridge.init();
-    state = await WatchBridge.isPairedOrConnected();
+    try {
+      await WatchBridge.init();
+      state = await WatchBridge.isPairedOrConnected();
+    } catch (_) {
+      state = false;
+    }
   }
 
   Future<void> refresh() async {
-    state = await WatchBridge.isPairedOrConnected();
+    try {
+      state = await WatchBridge.isPairedOrConnected();
+    } catch (_) {
+      state = false;
+    }
+  }
+
+  void _ensurePeriodicRefresh() {
+    if (_timer != null) return;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      refresh();
+    });
   }
 }
 
@@ -59,7 +95,10 @@ class WatchRadarPing {
       };
 }
 
-final watchRadarVectorProvider = NotifierProvider<WatchRadarVectorController, WatchRadarVector?>(WatchRadarVectorController.new);
+final watchRadarVectorProvider =
+    NotifierProvider<WatchRadarVectorController, WatchRadarVector?>(
+  WatchRadarVectorController.new,
+);
 
 class WatchRadarVectorController extends Notifier<WatchRadarVector?> {
   @override

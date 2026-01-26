@@ -5,6 +5,7 @@ import '../../core/widgets/delta_chip.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/stat_ring.dart';
+import '../match/widgets/ingame_hud.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -17,11 +18,18 @@ class StatsScreen extends StatelessWidget {
       body: GlassBackground(
         child: SafeArea(
           bottom: true,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Stack(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  18,
+                  14 + 118,
+                  18,
+                  AppDimens.bottomBarHIn + 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 Text('성능 통계', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 6),
                 Text('시즌 12 퍼포먼스', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
@@ -97,8 +105,16 @@ class StatsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+              const Positioned(
+                left: 18,
+                right: 18,
+                top: 14,
+                child: IgnorePointer(child: IngameHud()),
+              ),
+            ],
           ),
         ),
       ),

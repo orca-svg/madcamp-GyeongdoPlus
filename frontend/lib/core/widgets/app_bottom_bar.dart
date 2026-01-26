@@ -65,8 +65,12 @@ class _AppBottomBarBase extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final totalHeight = (height + bottomInset).clamp(height, 72.0);
+    final safeInset = (totalHeight - height).clamp(0.0, bottomInset);
     return SafeArea(
       top: false,
+      bottom: false,
       child: Material(
         color: Colors.transparent,
         child: ClipRRect(
@@ -77,22 +81,25 @@ class _AppBottomBarBase extends StatelessWidget {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              height: height,
+              height: totalHeight,
               decoration: BoxDecoration(
                 color: AppColors.surface1.withOpacity(0.72),
                 border: const Border(top: BorderSide(color: AppColors.outlineLow, width: 1)),
               ),
-              child: Row(
-                children: [
-                  for (int i = 0; i < items.length; i++)
-                    Expanded(
-                      child: _BottomBarButton(
-                        item: items[i],
-                        selected: i == currentIndex,
-                        onTap: () => onTap(i),
+              child: Padding(
+                padding: EdgeInsets.only(bottom: safeInset),
+                child: Row(
+                  children: [
+                    for (int i = 0; i < items.length; i++)
+                      Expanded(
+                        child: _BottomBarButton(
+                          item: items[i],
+                          selected: i == currentIndex,
+                          onTap: () => onTap(i),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
