@@ -12,9 +12,9 @@ import '../../ui/lobby/lobby_screen.dart';
 import '../../ui/post_game/post_game_screen.dart';
 import '../home/home_screen.dart';
 import '../ingame/ingame_capture_screen.dart';
-import '../ingame/ingame_overview_screen.dart';
+import '../ingame/ingame_map_screen.dart';
 import '../ingame/ingame_settings_placeholder_screen.dart';
-import '../ingame/ingame_zone_placeholder_screen.dart';
+import '../radar/radar_screen.dart';
 import '../../ui/placeholders/recent_game_placeholder_screen.dart';
 import '../../features/profile/profile_screen.dart';
 
@@ -109,12 +109,12 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       InGameTabSpec(
         icon: Icons.sports_esports_rounded,
         label: '게임',
-        screen: InGameOverviewScreen(),
+        screen: RadarScreen(),
       ),
       InGameTabSpec(
         icon: Icons.map_rounded,
         label: '지도',
-        screen: InGameZonePlaceholderScreen(),
+        screen: InGameMapScreen(),
       ),
       InGameTabSpec(
         icon: Icons.lock_rounded,

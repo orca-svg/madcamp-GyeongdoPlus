@@ -13,10 +13,14 @@ class RadarPing {
   final RadarPingKind kind;
   final double angleRad; // 0..2pi
   final double radius01; // 0..1
+  final bool hasBearing;
+  final double distanceM;
   const RadarPing({
     required this.kind,
     required this.angleRad,
     required this.radius01,
+    required this.hasBearing,
+    required this.distanceM,
   });
 }
 
@@ -82,12 +86,19 @@ List<RadarPing> _buildUiPings(RadarPingPayload? payload) {
   const maxRangeM = 60.0;
   return [
     for (final p in payload.pings)
-      RadarPing(
-        kind: _kindFromServer(p.kind),
-        angleRad: _degToRad(p.bearingDeg),
-        radius01: (p.distanceM / maxRangeM).clamp(0.0, 1.0),
-      ),
+      _buildPing(p, maxRangeM),
   ];
+}
+
+RadarPing _buildPing(RadarPingVector p, double maxRangeM) {
+  final hasBearing = p.bearingDeg.isFinite;
+  return RadarPing(
+    kind: _kindFromServer(p.kind),
+    angleRad: hasBearing ? _degToRad(p.bearingDeg) : 0.0,
+    radius01: (p.distanceM / maxRangeM).clamp(0.0, 1.0),
+    hasBearing: hasBearing,
+    distanceM: p.distanceM,
+  );
 }
 
 RadarPingKind _kindFromServer(String kind) {

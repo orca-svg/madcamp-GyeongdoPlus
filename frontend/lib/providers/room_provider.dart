@@ -281,6 +281,18 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
+  void setMyReady(bool ready) {
+    final me = state.me;
+    if (me == null) return;
+    if (me.ready == ready) return;
+    state = state.copyWith(
+      members: [
+        for (final m in state.members)
+          if (m.id == state.myId) m.copyWith(ready: ready) else m,
+      ],
+    );
+  }
+
   void setMyTeam(Team team) {
     final me = state.me;
     if (me == null) return;
@@ -343,6 +355,23 @@ class RoomController extends Notifier<RoomState> {
       members: [
         for (final m in state.members)
           if (m.id == state.myId) m else m.copyWith(ready: shouldReady),
+      ],
+    );
+  }
+
+  void addBots({required int count}) {
+    for (var i = 0; i < count; i++) {
+      addFakeMember();
+    }
+  }
+
+  void setBotsReady({required bool ready}) {
+    if (!state.inRoom) return;
+    if (state.members.isEmpty) return;
+    state = state.copyWith(
+      members: [
+        for (final m in state.members)
+          if (m.id == state.myId) m else m.copyWith(ready: ready),
       ],
     );
   }

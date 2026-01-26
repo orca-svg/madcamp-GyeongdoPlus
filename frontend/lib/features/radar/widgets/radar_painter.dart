@@ -65,6 +65,7 @@ class RadarPainter extends CustomPainter {
 
     // Pings
     for (final p in pings) {
+      if (!p.hasBearing) continue;
       final pr = r * p.radius01;
       final pt = Offset(c.dx + cos(p.angleRad) * pr, c.dy + sin(p.angleRad) * pr);
 

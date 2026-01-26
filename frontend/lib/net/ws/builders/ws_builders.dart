@@ -62,6 +62,30 @@ WsEnvelope<Map<String, dynamic>> buildRequestSync({
   );
 }
 
+WsEnvelope<Map<String, dynamic>> buildConfirmCapture({
+  required String matchId,
+  required String playerId,
+  required String targetId,
+  String? reason,
+}) {
+  return WsEnvelope<Map<String, dynamic>>(
+    v: 1,
+    type: WsType.action,
+    matchId: matchId,
+    seq: null,
+    ts: DateTime.now().millisecondsSinceEpoch,
+    payload: {
+      'matchId': matchId,
+      'playerId': playerId,
+      'actionType': 'CONFIRM_CAPTURE',
+      'meta': {
+        'targetId': targetId,
+        if (reason != null) 'reason': reason,
+      },
+    },
+  );
+}
+
 WsEnvelope<TelemetryBatchPayload> buildTelemetryBatch({
   required TelemetryBatchPayload payload,
   required String matchId,

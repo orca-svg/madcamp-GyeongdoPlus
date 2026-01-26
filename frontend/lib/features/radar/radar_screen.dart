@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../core/widgets/neon_card.dart';
 import '../../core/widgets/section_title.dart';
 import '../../core/widgets/ws_status_pill.dart';
 import '../../net/ws/dto/match_state.dart';
@@ -158,6 +159,36 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                if (ui.pings.any((p) => !p.hasBearing)) ...[
+                  GlowCard(
+                    glow: false,
+                    borderColor: AppColors.outlineLow,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '방향 미확인 신호',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        for (final p in ui.pings.where((p) => !p.hasBearing))
+                          Text(
+                            '${p.kind == RadarPingKind.ally ? '아군' : '적'}: ~${p.distanceM.round()}m',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.textMuted),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // C/D. 일반 모드가 아닐 때만 위험 분석 섹션 표시
                 if (gameMode != GameMode.normal) ...[
@@ -680,9 +711,8 @@ class _TeamStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlowCard(
-      glow: false,
-      borderColor: color.withOpacity(0.4),
+    return NeonCard(
+      neonColor: color,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
       child: Column(
         children: [
@@ -691,9 +721,9 @@ class _TeamStatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
             ),
           ),
           const SizedBox(height: 2),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,12 +9,11 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../core/widgets/neon_radio_group.dart';
 import '../../features/zone/zone_editor_screen.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
-
-const bool _devBot = bool.fromEnvironment('DEV_BOT');
 
 class LobbyScreen extends ConsumerWidget {
   const LobbyScreen({super.key});
@@ -31,6 +31,8 @@ class LobbyScreen extends ConsumerWidget {
     final me = room.me;
     final isHost = room.amIHost;
     final allReady = room.allReady;
+    final totalPlayers = room.members.length;
+    final canStart = isHost && allReady && totalPlayers >= 2;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -46,13 +48,13 @@ class LobbyScreen extends ConsumerWidget {
                     children: [
                       _roomInfoCard(context, room, rules.maxPlayers),
                       const SizedBox(height: 12),
-                      _rulesSummaryCard(context, rules),
+                      _rulesSummaryCard(context, room, rules),
                       const SizedBox(height: 12),
                       if (isHost) ...[
                         _rulesEditCard(context, ref, rules),
                         const SizedBox(height: 12),
                       ],
-                      if (_devBot) ...[
+                      if (kDebugMode) ...[
                         _devBotCard(context),
                         const SizedBox(height: 12),
                       ],
@@ -89,7 +91,7 @@ class LobbyScreen extends ConsumerWidget {
                         title: '게임 시작',
                         height: 54,
                         borderRadius: 16,
-                        onPressed: (isHost && allReady)
+                        onPressed: canStart
                             ? () {
                                 ref.read(gamePhaseProvider.notifier).toInGame();
                               }
@@ -106,6 +108,14 @@ class LobbyScreen extends ConsumerWidget {
                 if (!isHost)
                   Text(
                     '게임 시작은 방장만 가능합니다.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.textMuted),
+                  )
+                else if (totalPlayers < 2)
+                  Text(
+                    '최소 2명 이상이어야 시작할 수 있습니다.',
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -202,12 +212,22 @@ class LobbyScreen extends ConsumerWidget {
     );
   }
 
-  Widget _rulesSummaryCard(BuildContext context, MatchRulesState rules) {
+  Widget _rulesSummaryCard(
+    BuildContext context,
+    RoomState room,
+    MatchRulesState rules,
+  ) {
     final polygonCount = rules.zonePolygon?.length ?? 0;
     final hasJailCenter = rules.jailCenter != null;
     final jailRadiusText = rules.jailRadiusM == null
         ? '미설정'
         : '${rules.jailRadiusM!.toStringAsFixed(0)}m';
+    final policeCount = room.members.isNotEmpty
+        ? room.policeCount
+        : rules.policeCount;
+    final thiefCount = room.members.isNotEmpty
+        ? room.thiefCount
+        : (rules.maxPlayers - rules.policeCount).clamp(0, 99);
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
@@ -225,7 +245,8 @@ class LobbyScreen extends ConsumerWidget {
             '${_releaseScopeLabel(rules.rescueReleaseScope)}'
             '${rules.rescueReleaseScope == 'PARTIAL' ? ' · ${_releaseOrderLabel(rules.rescueReleaseOrder)}' : ''}',
           ),
-          _ruleRow('경찰 수', '${rules.policeCount} / ${rules.maxPlayers}'),
+          _ruleRow('경찰 수', '$policeCount'),
+          _ruleRow('도둑 수', '$thiefCount'),
           _ruleRow('구역 점', polygonCount == 0 ? '미설정' : '$polygonCount개'),
           _ruleRow('감옥 중심', hasJailCenter ? '설정됨' : '미설정'),
           _ruleRow('감옥 반경', jailRadiusText),
@@ -368,15 +389,12 @@ class LobbyScreen extends ConsumerWidget {
             itemBuilder: (context, i) {
               final m = room.members[i];
               final isMe = m.id == room.myId;
-              return SizedBox(
-                height: 52,
-                child: _MemberRow(
-                  member: m,
-                  isMe: isMe,
-                  onToggleReady: isMe
-                      ? () => ref.read(roomProvider.notifier).toggleReady()
-                      : null,
-                ),
+              return _MemberRow(
+                member: m,
+                isMe: isMe,
+                onReadyChanged: isMe
+                    ? (v) => ref.read(roomProvider.notifier).setMyReady(v)
+                    : null,
               );
             },
           ),
@@ -429,34 +447,32 @@ class LobbyScreen extends ConsumerWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _devButton(context, '봇 +1'),
-              _devButton(context, '봇 +3'),
-              _devButton(context, '봇 전원 READY'),
-              _devButton(context, '봇 전원 UNREADY'),
+              _devButton(context, '봇 +1', () {
+                final ref = ProviderScope.containerOf(context);
+                ref.read(roomProvider.notifier).addBots(count: 1);
+              }),
+              _devButton(context, '봇 +3', () {
+                final ref = ProviderScope.containerOf(context);
+                ref.read(roomProvider.notifier).addBots(count: 3);
+              }),
+              _devButton(context, '봇 전원 READY', () {
+                final ref = ProviderScope.containerOf(context);
+                ref.read(roomProvider.notifier).setBotsReady(ready: true);
+              }),
+              _devButton(context, '봇 전원 UNREADY', () {
+                final ref = ProviderScope.containerOf(context);
+                ref.read(roomProvider.notifier).setBotsReady(ready: false);
+              }),
             ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'TODO: roomProvider.notifier.addBots({required int count})\n'
-            'TODO: roomProvider.notifier.setBotsReady({required bool ready})',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.textMuted),
           ),
         ],
       ),
     );
   }
 
-  Widget _devButton(BuildContext context, String label) {
+  Widget _devButton(BuildContext context, String label, VoidCallback onTap) {
     return OutlinedButton(
-      onPressed: () {
-        showAppSnackBar(
-          context,
-          message: 'TODO: roomProvider.notifier.addBot() 연결 필요',
-        );
-      },
+      onPressed: onTap,
       style: OutlinedButton.styleFrom(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         side: const BorderSide(color: AppColors.outlineLow),
@@ -667,12 +683,12 @@ class LobbyScreen extends ConsumerWidget {
 class _MemberRow extends StatelessWidget {
   final RoomMember member;
   final bool isMe;
-  final VoidCallback? onToggleReady;
+  final ValueChanged<bool>? onReadyChanged;
 
   const _MemberRow({
     required this.member,
     required this.isMe,
-    required this.onToggleReady,
+    required this.onReadyChanged,
   });
 
   @override
@@ -683,55 +699,71 @@ class _MemberRow extends StatelessWidget {
         member.team == Team.police ? AppColors.borderCyan : AppColors.orange;
     final readyText = member.ready ? 'READY' : 'WAIT';
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(teamIcon, size: 18, color: teamColor),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  member.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (member.isHost) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface2.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.outlineLow),
-                  ),
-                  child: const Text(
-                    'HOST',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
+        Row(
+          children: [
+            Icon(teamIcon, size: 18, color: teamColor),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      member.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
+                  if (member.isHost) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface2.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.outlineLow),
+                      ),
+                      child: const Text(
+                        'HOST',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _ReadyPill(text: readyText),
+          ],
         ),
-        const SizedBox(width: 8),
-        _ReadyPill(text: readyText),
-        if (isMe) ...[
-          const SizedBox(width: 8),
-          TextButton(
-            key: const Key('lobbyReadyButton'),
-            onPressed: onToggleReady,
-            child: Text(member.ready ? '해제' : '준비'),
+        if (isMe && onReadyChanged != null) ...[
+          const SizedBox(height: 8),
+          NeonRadioGroup<bool>(
+            value: member.ready,
+            onChanged: onReadyChanged!,
+            options: const [
+              NeonRadioOption(
+                value: false,
+                label: 'NOT READY',
+                color: AppColors.textMuted,
+              ),
+              NeonRadioOption(
+                value: true,
+                label: 'READY',
+                color: AppColors.lime,
+              ),
+            ],
           ),
         ],
       ],

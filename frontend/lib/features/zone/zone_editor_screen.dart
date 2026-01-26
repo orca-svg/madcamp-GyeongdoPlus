@@ -25,7 +25,8 @@ enum _EditMode { polygonPoint, jailCenter }
 const double _radiusStepM = 5.0;
 
 class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
-  late List<GeoPointDto> _points;
+  late List<GeoPointDto> _pointsConfirmed;
+  GeoPointDto? _pointPreview;
   GeoPointDto? _jailCenter;
   double? _jailRadiusM;
   _EditMode _mode = _EditMode.polygonPoint;
@@ -43,7 +44,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   void initState() {
     super.initState();
     final rules = ref.read(matchRulesProvider);
-    _points = List<GeoPointDto>.from(
+    _pointsConfirmed = List<GeoPointDto>.from(
       rules.zonePolygon ?? const <GeoPointDto>[],
     );
     _jailCenter = rules.jailCenter;
@@ -59,7 +60,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     final showMap = !_mapRenderDisabledThisStage && kakaoJsAppKey.isNotEmpty;
     // ignore: avoid_print
     print(
-      '[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_points.length}',
+      '[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_pointsConfirmed.length}',
     );
     // ignore: avoid_print
     print(
@@ -150,7 +151,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 ),
                 const SizedBox(height: 12),
                 _SummaryCard(
-                  pointCount: _points.length,
+                  pointCount: _pointsConfirmed.length,
                   jailRadiusM: _jailRadiusM,
                 ),
                 const SizedBox(height: 14),
@@ -183,17 +184,25 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   ),
                 const SizedBox(height: 14),
                 _ControlsCard(
-                  points: _points,
+                  points: _pointsConfirmed,
                   jailCenter: _jailCenter,
                   jailRadiusM: _jailRadiusM,
-                  onUndo: _points.isEmpty
+                  onUndo: (_pointPreview == null &&
+                          _pointsConfirmed.isEmpty)
                       ? null
-                      : () => setState(
-                          () =>
-                              _points = _points.sublist(0, _points.length - 1),
-                        ),
+                      : () => setState(() {
+                        if (_pointPreview != null) {
+                          _pointPreview = null;
+                        } else if (_pointsConfirmed.isNotEmpty) {
+                          _pointsConfirmed = _pointsConfirmed.sublist(
+                            0,
+                            _pointsConfirmed.length - 1,
+                          );
+                        }
+                      }),
                   onClear: () => setState(() {
-                    _points = [];
+                    _pointsConfirmed = [];
+                    _pointPreview = null;
                     _jailCenter = null;
                     _jailRadiusM = null;
                   }),
@@ -214,7 +223,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   key: const Key('zoneSave'),
                   variant: GradientButtonVariant.createRoom,
                   title: '저장',
-                  onPressed: _points.length >= 3 ? _save : null,
+                  onPressed: _pointsConfirmed.length >= 3 ? _save : null,
                   leading: const Icon(Icons.save_rounded, color: Colors.white),
                 ),
                 const SizedBox(height: 10),
@@ -235,12 +244,16 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   Widget _buildMapCard(BuildContext context, {required bool showMap}) {
     // ignore: avoid_print
     print('[MAP] ZoneEditor: _buildMapCard called, _mapEnabled=$_mapEnabled');
-    final points = _points
+    final confirmed = _pointsConfirmed
         .map((p) => LatLng(p.lat, p.lng))
         .toList(growable: false);
+    final preview = _pointPreview == null
+        ? const <LatLng>[]
+        : [LatLng(_pointPreview!.lat, _pointPreview!.lng)];
+    final points = [...confirmed, ...preview];
     final center = _previewCenter(points, _jailCenter);
 
-    final polygonOverlay = (_points.length >= 3)
+    final polygonOverlay = (_pointsConfirmed.length >= 3)
         ? Polygon(
             polygonId: 'edit_polygon',
             points: points,
@@ -268,13 +281,21 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
         : null;
 
     final markers = <Marker>[
-      for (var i = 0; i < points.length; i++)
+      for (var i = 0; i < confirmed.length; i++)
         Marker(
           markerId: 'p_$i',
-          latLng: points[i],
+          latLng: confirmed[i],
           width: 20,
           height: 24,
           zIndex: 3,
+        ),
+      if (_pointPreview != null)
+        Marker(
+          markerId: 'preview',
+          latLng: LatLng(_pointPreview!.lat, _pointPreview!.lng),
+          width: 18,
+          height: 22,
+          zIndex: 2,
         ),
       if (_jailCenter != null)
         Marker(
@@ -321,7 +342,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     lng: latLng.longitude,
                   ).clamp();
                   if (_mode == _EditMode.polygonPoint) {
-                    setState(() => _points = [..._points, p]);
+                    setState(() => _pointPreview = p);
                   } else {
                     setState(() {
                       _jailCenter = p;
@@ -403,6 +424,30 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     ),
                   ),
                 ),
+              if (_mode == _EditMode.polygonPoint && _pointPreview != null)
+                Positioned(
+                  bottom: 10,
+                  left: 10,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final p = _pointPreview;
+                      if (p == null) return;
+                      setState(() {
+                        _pointsConfirmed = [..._pointsConfirmed, p];
+                        _pointPreview = null;
+                      });
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 16),
+                    label: const Text('점 확정'),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.surface2.withOpacity(0.75),
+                      side: const BorderSide(color: AppColors.outlineLow),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -472,23 +517,26 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
 
   void _addPointFallback() {
     final base = const GeoPointDto(lat: 37.5665, lng: 126.9780);
-    final i = _points.length;
+    final i = _pointsConfirmed.length;
     final p = GeoPointDto(
       lat: base.lat + (i * 0.0007),
       lng: base.lng + (i * 0.0009),
     ).clamp();
-    setState(() => _points = [..._points, p]);
+    setState(() {
+      _pointsConfirmed = [..._pointsConfirmed, p];
+      _pointPreview = null;
+    });
   }
 
   void _setJailCenterFallback() {
-    final center = (_points.isNotEmpty)
-        ? _points.first
+    final center = (_pointsConfirmed.isNotEmpty)
+        ? _pointsConfirmed.first
         : const GeoPointDto(lat: 37.5665, lng: 126.9780);
     setState(() => _jailCenter = center.clamp());
   }
 
   void _save() {
-    ref.read(matchRulesProvider.notifier).setZonePolygon(_points);
+    ref.read(matchRulesProvider.notifier).setZonePolygon(_pointsConfirmed);
     ref
         .read(matchRulesProvider.notifier)
         .setJail(center: _jailCenter, radiusM: _jailRadiusM);
