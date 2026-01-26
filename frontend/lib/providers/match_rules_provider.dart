@@ -270,30 +270,39 @@ class MatchRulesController extends Notifier<MatchRulesState> {
 
   /// Offline apply from a draft payload (no WS).
   ///
-  /// Expected shape (mapping-friendly):
-  /// - mode, maxPlayers, timeLimitSec
-  /// - rules.capture.contactMode
-  /// - rules.rescueRule.contactMode/releaseScope/releaseOrder
-  /// - rules.zone.polygon
+  /// Expected shape:
+  /// - mode, maxPlayers, timeLimit
+  /// - mapConfig.polygon, mapConfig.jail{lat,lng,radiusM}
+  /// - rules.contactMode
+  /// - rules.jailRule.rescue.queuePolicy/releaseCount
   void applyOfflineRoomConfig(Map<String, dynamic> payload) {
     final modeRaw = (payload['mode'] ?? '').toString();
     final maxPlayersRaw = payload['maxPlayers'];
-    final timeLimitRaw = payload['timeLimitSec'];
+    final timeLimitRaw = payload['timeLimit'] ?? payload['timeLimitSec'];
 
     final rules = (payload['rules'] is Map)
         ? (payload['rules'] as Map)
         : const {};
-    final rescueRule = (rules['rescueRule'] is Map)
-        ? (rules['rescueRule'] as Map)
+    final rescueRule = (rules['jailRule'] is Map)
+        ? (rules['jailRule'] as Map)
         : const {};
-    final zone = (rules['zone'] is Map) ? (rules['zone'] as Map) : const {};
-    final jail = (zone['jail'] is Map) ? (zone['jail'] as Map) : const {};
+    final rescue = (rescueRule['rescue'] is Map)
+        ? (rescueRule['rescue'] as Map)
+        : const {};
+    final mapConfig = (payload['mapConfig'] is Map)
+        ? (payload['mapConfig'] as Map)
+        : const {};
 
-    final contactRaw = (rescueRule['contactMode'] ?? '').toString();
-    final releaseScopeRaw = (rescueRule['releaseScope'] ?? '').toString();
-    final releaseOrderRaw = (rescueRule['releaseOrder'] ?? '').toString();
-    final jailRadiusRaw = jail['radiusM'];
-    final jailCenterRaw = jail['center'];
+    final contactRaw = (rules['contactMode'] ?? '').toString();
+    final releaseOrderRaw = (rescue['queuePolicy'] ?? '').toString();
+    final releaseCountRaw = rescue['releaseCount'];
+    final polygonRaw = mapConfig['polygon'];
+    final jailRaw = (mapConfig['jail'] is Map)
+        ? (mapConfig['jail'] as Map)
+        : const {};
+    final jailRadiusRaw = jailRaw['radiusM'];
+    final jailLatRaw = jailRaw['lat'];
+    final jailLngRaw = jailRaw['lng'];
 
     final gm = GameMode.fromWire(modeRaw);
     final mp = (maxPlayersRaw is num)
@@ -304,24 +313,25 @@ class MatchRulesController extends Notifier<MatchRulesState> {
         : state.timeLimitSec;
 
     final cm = contactRaw.isEmpty ? state.contactMode : contactRaw;
-    final rs = releaseScopeRaw.isEmpty
-        ? state.rescueReleaseScope
-        : releaseScopeRaw;
     final ro = releaseOrderRaw.isEmpty
         ? state.rescueReleaseOrder
         : releaseOrderRaw;
+    final rc = (releaseCountRaw is num)
+        ? releaseCountRaw.toInt()
+        : null;
+    final rs = _deriveReleaseScope(
+      releaseCount: rc,
+      maxPlayers: mp,
+      fallback: state.rescueReleaseScope,
+    );
     final jr = (jailRadiusRaw is num)
         ? jailRadiusRaw.toDouble()
         : state.jailRadiusM;
-    GeoPointDto? jc;
-    if (jailCenterRaw is Map) {
-      try {
-        final m = jailCenterRaw.cast<String, dynamic>();
-        jc = GeoPointDto.fromJson(m);
-      } catch (_) {
-        jc = null;
-      }
-    }
+    final jc = (jailLatRaw is num && jailLngRaw is num)
+        ? GeoPointDto(lat: jailLatRaw.toDouble(), lng: jailLngRaw.toDouble())
+            .clamp()
+        : state.jailCenter;
+    final polygon = _parsePolygon(polygonRaw) ?? state.zonePolygon;
 
     final mpClamped = mp.clamp(3, 50);
     final nextPolice = _derivePoliceCount(
@@ -349,7 +359,8 @@ class MatchRulesController extends Notifier<MatchRulesState> {
           ? null
           : jr.clamp(_minJailRadiusM, _maxJailRadiusM).toDouble(),
       jailCenter: jc,
-      zonePolygon: null,
+      jailEnabled: (jr ?? 0) > 0,
+      zonePolygon: polygon,
     );
   }
 
@@ -377,5 +388,29 @@ class MatchRulesController extends Notifier<MatchRulesState> {
     if (keepExisting) return preferExisting.clamp(minP, maxP);
     final base = (maxPlayers * _defaultPoliceRatio).floor();
     return base.clamp(minP, maxP);
+  }
+
+  String _deriveReleaseScope({
+    required int? releaseCount,
+    required int maxPlayers,
+    required String fallback,
+  }) {
+    if (releaseCount == null) return fallback;
+    if (releaseCount >= maxPlayers - 1) return 'ALL';
+    return 'PARTIAL';
+  }
+
+  List<GeoPointDto>? _parsePolygon(Object? raw) {
+    if (raw is! List) return null;
+    final points = <GeoPointDto>[];
+    for (final item in raw) {
+      if (item is Map) {
+        try {
+          final m = item.cast<String, dynamic>();
+          points.add(GeoPointDto.fromJson(m));
+        } catch (_) {}
+      }
+    }
+    return points.isEmpty ? null : points;
   }
 }

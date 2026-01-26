@@ -8,6 +8,7 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
 
 class InGameOverviewScreen extends ConsumerStatefulWidget {
@@ -21,12 +22,12 @@ class InGameOverviewScreen extends ConsumerStatefulWidget {
 class _InGameOverviewScreenState extends ConsumerState<InGameOverviewScreen> {
   Timer? _timer;
   int _remainSec = 600;
-  int _policeScore = 0;
-  int _thiefScore = 0;
 
   @override
   void initState() {
     super.initState();
+    final rules = ref.read(matchRulesProvider);
+    _remainSec = rules.timeLimitSec;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_remainSec <= 0) return;
       setState(() => _remainSec -= 1);
@@ -41,7 +42,10 @@ class _InGameOverviewScreenState extends ConsumerState<InGameOverviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final rules = ref.watch(matchRulesProvider);
+    final room = ref.watch(roomProvider);
     final timeText = _fmtTime(_remainSec);
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
@@ -60,10 +64,12 @@ class _InGameOverviewScreenState extends ConsumerState<InGameOverviewScreen> {
                       const Icon(Icons.timer_rounded, size: 18),
                       const SizedBox(width: 10),
                       Text(
-                        '타이머',
+                        '남은 시간',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const Spacer(),
+                      _modeChip(rules.gameMode.label),
+                      const SizedBox(width: 10),
                       Text(
                         timeText,
                         style: const TextStyle(
@@ -83,32 +89,39 @@ class _InGameOverviewScreenState extends ConsumerState<InGameOverviewScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '점수',
-                        style: Theme.of(context).textTheme.titleSmall,
+                      Text('상태', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statusTile(
+                              label: '남은 도둑',
+                              value: '${room.thiefCount}',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _statusTile(
+                              label: '체포됨',
+                              value: '${room.policeCount}',
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
-                            child: _scoreCard(
-                              label: '경찰',
-                              value: _policeScore,
-                              onAdd: () => setState(() => _policeScore += 1),
-                              onSub: () => setState(() {
-                                if (_policeScore > 0) _policeScore -= 1;
-                              }),
+                            child: _statusTile(
+                              label: '참가자',
+                              value: '${room.members.length}',
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _scoreCard(
-                              label: '도둑',
-                              value: _thiefScore,
-                              onAdd: () => setState(() => _thiefScore += 1),
-                              onSub: () => setState(() {
-                                if (_thiefScore > 0) _thiefScore -= 1;
-                              }),
+                            child: _statusTile(
+                              label: '준비됨',
+                              value: '${room.members.where((m) => m.ready).length}',
                             ),
                           ),
                         ],
@@ -119,7 +132,7 @@ class _InGameOverviewScreenState extends ConsumerState<InGameOverviewScreen> {
                 const Spacer(),
                 GradientButton(
                   variant: GradientButtonVariant.createRoom,
-                  title: '게임 종료(디버그)',
+                  title: '게임 종료(테스트)',
                   height: 54,
                   borderRadius: 16,
                   onPressed: () {
@@ -138,56 +151,57 @@ class _InGameOverviewScreenState extends ConsumerState<InGameOverviewScreen> {
       ),
     );
   }
-}
 
-Widget _scoreCard({
-  required String label,
-  required int value,
-  required VoidCallback onAdd,
-  required VoidCallback onSub,
-}) {
-  return Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: AppColors.surface2.withOpacity(0.4),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.outlineLow),
-    ),
-    child: Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w700,
-          ),
+  Widget _modeChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.purple.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.purple.withOpacity(0.6)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
         ),
-        const SizedBox(height: 8),
-        Text(
-          '$value',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w900,
-            fontSize: 20,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              onPressed: onSub,
-              icon: const Icon(Icons.remove_circle_outline_rounded),
+      ),
+    );
+  }
+
+  Widget _statusTile({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outlineLow),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
             ),
-            IconButton(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add_circle_outline_rounded),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
             ),
-          ],
-        ),
-      ],
-    ),
-  );
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 String _fmtTime(int sec) {

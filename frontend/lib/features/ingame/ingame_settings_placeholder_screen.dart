@@ -6,6 +6,7 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
 
 class InGameSettingsPlaceholderScreen extends ConsumerWidget {
@@ -13,6 +14,14 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final rules = ref.watch(matchRulesProvider);
+    final room = ref.watch(roomProvider);
+    final isHost = room.amIHost;
+    final min = 300.0;
+    final max = 1800.0;
+    final span = (max - min).round();
+    final divisions = span >= 1 ? span : null;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
@@ -28,17 +37,52 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '설정',
+                        '게임 시간',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '게임 설정은 다음 단계에서 연결됩니다.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.textSecondary),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${(rules.timeLimitSec / 60).round()}분 (${rules.timeLimitSec}s)',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ),
+                          if (!isHost)
+                            Text(
+                              '방장만 변경',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: AppColors.textMuted),
+                            ),
+                        ],
                       ),
+                      Slider(
+                        min: min,
+                        max: max,
+                        divisions: divisions,
+                        value: rules.timeLimitSec
+                            .clamp(min.toInt(), max.toInt())
+                            .toDouble(),
+                        onChanged: isHost
+                            ? (v) => ref
+                                .read(matchRulesProvider.notifier)
+                                .setTimeLimitSec(v.round())
+                            : null,
+                      ),
+                      if (!isHost)
+                        Text(
+                          '시간 조절은 방장만 가능합니다.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.textMuted),
+                        ),
                     ],
                   ),
                 ),

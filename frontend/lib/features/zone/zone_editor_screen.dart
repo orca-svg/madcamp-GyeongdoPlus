@@ -27,8 +27,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   GeoPointDto? _jailCenter;
   double? _jailRadiusM;
   _EditMode _mode = _EditMode.polygonPoint;
+  KakaoMapController? _mapController;
 
-  static const bool _mapRenderDisabledThisStage = true;
+  static const bool _mapRenderDisabledThisStage = false;
+  static const double _defaultJailRadiusM = 15.0;
 
   @override
   void initState() {
@@ -70,9 +72,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
       '[ZoneEditor ${DateTime.now().toIso8601String()}] build mapRenderDisabled=$_mapRenderDisabledThisStage key=${dotenv.isInitialized ? 'loaded' : 'not_loaded'}',
     );
 
-    if (DateTime.now().millisecondsSinceEpoch < 0) {
-      _buildMapCard(context);
-    }
+    final showMap = !_mapRenderDisabledThisStage && _mapEnabled;
 
     // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
     const debugZoneEditor = bool.fromEnvironment('DEBUG_START_ZONE_EDITOR');
@@ -121,26 +121,29 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 _ModeToggle(
                   mode: _mode,
                   onChanged: (m) => setState(() => _mode = m),
-                  enabled: false,
+                  enabled: showMap,
                 ),
                 const SizedBox(height: 12),
-                Stack(
-                  children: [
-                    _buildFallbackCard(context),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: _DebugPill(
-                        keyOk: (dotenv.isInitialized
-                            ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '')
-                                  .trim()
-                                  .isNotEmpty
-                            : false),
-                        built: false,
+                if (showMap)
+                  _buildMapCard(context)
+                else
+                  Stack(
+                    children: [
+                      _buildFallbackCard(context),
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: _DebugPill(
+                          keyOk: (dotenv.isInitialized
+                              ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '')
+                                    .trim()
+                                    .isNotEmpty
+                              : false),
+                          built: false,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: 14),
                 _ControlsCard(
                   points: _points,
@@ -162,8 +165,8 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     final next = (base + delta).clamp(1.0, 200.0).toDouble();
                     setState(() => _jailRadiusM = next);
                   },
-                  onAddPointFallback: _addPointFallback,
-                  onSetJailCenterFallback: _setJailCenterFallback,
+                  onAddPointFallback: showMap ? null : _addPointFallback,
+                  onSetJailCenterFallback: showMap ? null : _setJailCenterFallback,
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
@@ -263,6 +266,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 onMapCreated: (controller) {
                   // ignore: avoid_print
                   print('[MAP] ZoneEditor: onMapCreated called');
+                  _mapController = controller;
                 },
                 onMapTap: (latLng) {
                   final p = GeoPointDto(
@@ -272,7 +276,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   if (_mode == _EditMode.polygonPoint) {
                     setState(() => _points = [..._points, p]);
                   } else {
-                    setState(() => _jailCenter = p);
+                    setState(() {
+                      _jailCenter = p;
+                      _jailRadiusM ??= _defaultJailRadiusM;
+                    });
                   }
                 },
               ),

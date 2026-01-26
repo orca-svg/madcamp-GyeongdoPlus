@@ -36,9 +36,17 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
       setState(() => _form = _form.copyWith(releaseOrder: v));
 
   Future<void> _openZoneSetup() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final result = await Navigator.of(context).push<ZoneSetupResult?>(
+      MaterialPageRoute<ZoneSetupResult?>(
         builder: (_) => const ZoneSetupPlaceholderScreen(),
+      ),
+    );
+    if (result == null) return;
+    setState(
+      () => _form = _form.copyWith(
+        polygon: result.polygon,
+        jailCenter: result.jailCenter,
+        jailRadiusM: result.jailRadiusM,
       ),
     );
   }
@@ -67,7 +75,6 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
     }
     setState(() => _submitting = false);
 
-    // TODO(Step next): connect to WS + transition to lobby with real roomCode.
     _createRoomHook(payload);
   }
 
@@ -79,6 +86,10 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final polygonCount = _form.polygon?.length ?? 0;
+    final jailCenter = _form.jailCenter;
+    final jailRadius = _form.jailRadiusM ?? 12;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,
@@ -141,7 +152,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                             Slider(
                               min: 300,
                               max: 1800,
-                              divisions: 25, // 60s step
+                              divisions: 25,
                               value: _form.timeLimitSec.toDouble(),
                               onChanged: (v) =>
                                   _setTimeLimitSec((v / 60).round() * 60),
@@ -156,13 +167,23 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '폴리곤: 미설정',
+                              polygonCount >= 3
+                                  ? '폴리곤: ${polygonCount}점'
+                                  : '폴리곤: 미설정',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '감옥 반경: 12m',
+                              jailCenter == null
+                                  ? '감옥: 미설정'
+                                  : '감옥: ${jailCenter.lat.toStringAsFixed(4)}, ${jailCenter.lng.toStringAsFixed(4)}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '감옥 반경: ${jailRadius.round()}m',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.textSecondary),
                             ),
@@ -329,59 +350,12 @@ class _LabeledRow extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textMuted,
-              fontWeight: FontWeight.w800,
-            ),
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
         ),
         trailing,
-      ],
-    );
-  }
-}
-
-class _ModeSelector extends StatelessWidget {
-  final RoomCreateMode mode;
-  final ValueChanged<RoomCreateMode> onChanged;
-
-  const _ModeSelector({required this.mode, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget chip({required RoomCreateMode value, required String label}) {
-      final selected = mode == value;
-      return InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: () => onChanged(value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface2.withOpacity(selected ? 0.45 : 0.25),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: (selected ? AppColors.borderCyan : AppColors.outlineLow)
-                  .withOpacity(0.9),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? AppColors.textPrimary : AppColors.textSecondary,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        chip(value: RoomCreateMode.normal, label: 'NORMAL'),
-        chip(value: RoomCreateMode.item, label: 'ITEM'),
-        chip(value: RoomCreateMode.ability, label: 'ABILITY'),
       ],
     );
   }
