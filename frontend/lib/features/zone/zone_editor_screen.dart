@@ -28,16 +28,22 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   double? _jailRadiusM;
   _EditMode _mode = _EditMode.polygonPoint;
 
+  static const bool _mapRenderDisabledThisStage = true;
+
   @override
   void initState() {
     super.initState();
     final rules = ref.read(matchRulesProvider);
-    _points = List<GeoPointDto>.from(rules.zonePolygon ?? const <GeoPointDto>[]);
+    _points = List<GeoPointDto>.from(
+      rules.zonePolygon ?? const <GeoPointDto>[],
+    );
     _jailCenter = rules.jailCenter;
     _jailRadiusM = rules.jailRadiusM;
 
     // ignore: avoid_print
-    print('[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_points.length}');
+    print(
+      '[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_points.length}',
+    );
   }
 
   @override
@@ -50,7 +56,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   bool get _mapEnabled {
     const isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
     if (isFlutterTest) return false;
-    final kakaoJsAppKey = (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)?.trim() ?? '';
+    final kakaoJsAppKey =
+        (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
+            ?.trim() ??
+        '';
     return kakaoJsAppKey.isNotEmpty;
   }
 
@@ -58,8 +67,12 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   Widget build(BuildContext context) {
     // ignore: avoid_print
     print(
-      '[ZoneEditor ${DateTime.now().toIso8601String()}] build mapEnabled=$_mapEnabled key=${dotenv.isInitialized ? 'loaded' : 'not_loaded'}',
+      '[ZoneEditor ${DateTime.now().toIso8601String()}] build mapRenderDisabled=$_mapRenderDisabledThisStage key=${dotenv.isInitialized ? 'loaded' : 'not_loaded'}',
     );
+
+    if (DateTime.now().millisecondsSinceEpoch < 0) {
+      _buildMapCard(context);
+    }
 
     // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
     const debugZoneEditor = bool.fromEnvironment('DEBUG_START_ZONE_EDITOR');
@@ -84,12 +97,18 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
               children: [
                 Row(
                   children: [
-                    Text('구역 설정', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      '구역 설정',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const Spacer(),
                     IconButton(
                       tooltip: '닫기',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -102,18 +121,22 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 _ModeToggle(
                   mode: _mode,
                   onChanged: (m) => setState(() => _mode = m),
-                  enabled: _mapEnabled,
+                  enabled: false,
                 ),
                 const SizedBox(height: 12),
                 Stack(
                   children: [
-                    _mapEnabled ? _buildMapCard(context) : _buildFallbackCard(context),
+                    _buildFallbackCard(context),
                     Positioned(
                       top: 10,
                       right: 10,
                       child: _DebugPill(
-                        keyOk: (dotenv.isInitialized ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty : false),
-                        built: true,
+                        keyOk: (dotenv.isInitialized
+                            ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '')
+                                  .trim()
+                                  .isNotEmpty
+                            : false),
+                        built: false,
                       ),
                     ),
                   ],
@@ -123,7 +146,12 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   points: _points,
                   jailCenter: _jailCenter,
                   jailRadiusM: _jailRadiusM,
-                  onUndo: _points.isEmpty ? null : () => setState(() => _points = _points.sublist(0, _points.length - 1)),
+                  onUndo: _points.isEmpty
+                      ? null
+                      : () => setState(
+                          () =>
+                              _points = _points.sublist(0, _points.length - 1),
+                        ),
                   onClear: () => setState(() {
                     _points = [];
                     _jailCenter = null;
@@ -134,8 +162,8 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     final next = (base + delta).clamp(1.0, 200.0).toDouble();
                     setState(() => _jailRadiusM = next);
                   },
-                  onAddPointFallback: _mapEnabled ? null : _addPointFallback,
-                  onSetJailCenterFallback: _mapEnabled ? null : _setJailCenterFallback,
+                  onAddPointFallback: _addPointFallback,
+                  onSetJailCenterFallback: _setJailCenterFallback,
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
@@ -148,7 +176,9 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 const SizedBox(height: 10),
                 Text(
                   'TODO: zone_update / rules_update 스키마 확정 후 WS로 전송',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -161,7 +191,9 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   Widget _buildMapCard(BuildContext context) {
     // ignore: avoid_print
     print('[MAP] ZoneEditor: _buildMapCard called, _mapEnabled=$_mapEnabled');
-    final points = _points.map((p) => LatLng(p.lat, p.lng)).toList(growable: false);
+    final points = _points
+        .map((p) => LatLng(p.lat, p.lng))
+        .toList(growable: false);
     final center = _previewCenter(points, _jailCenter);
 
     final polygonOverlay = (_points.length >= 3)
@@ -233,7 +265,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   print('[MAP] ZoneEditor: onMapCreated called');
                 },
                 onMapTap: (latLng) {
-                  final p = GeoPointDto(lat: latLng.latitude, lng: latLng.longitude).clamp();
+                  final p = GeoPointDto(
+                    lat: latLng.latitude,
+                    lng: latLng.longitude,
+                  ).clamp();
                   if (_mode == _EditMode.polygonPoint) {
                     setState(() => _points = [..._points, p]);
                   } else {
@@ -245,7 +280,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 top: 10,
                 left: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface2.withOpacity(0.75),
                     borderRadius: BorderRadius.circular(999),
@@ -253,7 +291,11 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   ),
                   child: Text(
                     _mode == _EditMode.polygonPoint ? '탭: 점 추가' : '탭: 감옥 중심',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w800),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -272,14 +314,17 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'KAKAO_JS_APP_KEY가 설정되지 않아 지도를 표시할 수 없습니다.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            '이번 단계에서는 지도 렌더를 비활성화했습니다.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 6),
           Text(
-            'frontend/.env에 키를 넣으면 지도에서 편집할 수 있습니다.\n'
-            '지금은 아래 버튼으로 점을 추가/삭제할 수 있습니다.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+            "점 추가/감옥 중심은 아래 버튼으로 설정하세요.",
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
           ),
         ],
       ),
@@ -305,18 +350,25 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   void _addPointFallback() {
     final base = const GeoPointDto(lat: 37.5665, lng: 126.9780);
     final i = _points.length;
-    final p = GeoPointDto(lat: base.lat + (i * 0.0007), lng: base.lng + (i * 0.0009)).clamp();
+    final p = GeoPointDto(
+      lat: base.lat + (i * 0.0007),
+      lng: base.lng + (i * 0.0009),
+    ).clamp();
     setState(() => _points = [..._points, p]);
   }
 
   void _setJailCenterFallback() {
-    final center = (_points.isNotEmpty) ? _points.first : const GeoPointDto(lat: 37.5665, lng: 126.9780);
+    final center = (_points.isNotEmpty)
+        ? _points.first
+        : const GeoPointDto(lat: 37.5665, lng: 126.9780);
     setState(() => _jailCenter = center.clamp());
   }
 
   void _save() {
     ref.read(matchRulesProvider.notifier).setZonePolygon(_points);
-    ref.read(matchRulesProvider.notifier).setJail(center: _jailCenter, radiusM: _jailRadiusM);
+    ref
+        .read(matchRulesProvider.notifier)
+        .setJail(center: _jailCenter, radiusM: _jailRadiusM);
     if (context.mounted) Navigator.of(context).pop();
   }
 }
@@ -338,7 +390,11 @@ class _DebugPill extends StatelessWidget {
       ),
       child: Text(
         'KAKAO_KEY:${keyOk ? 'OK' : 'EMPTY'} MAP_BUILT:${built ? 'YES' : 'NO'}',
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w800),
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -352,7 +408,9 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radiusText = (jailRadiusM == null) ? '미설정' : '${jailRadiusM!.round()}m';
+    final radiusText = (jailRadiusM == null)
+        ? '미설정'
+        : '${jailRadiusM!.round()}m';
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
@@ -361,13 +419,19 @@ class _SummaryCard extends StatelessWidget {
           Expanded(
             child: Text(
               '폴리곤 점: $pointCount / 최소 3',
-              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w900),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Text(
             '감옥: $radiusText',
-            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -380,7 +444,11 @@ class _ModeToggle extends StatelessWidget {
   final ValueChanged<_EditMode> onChanged;
   final bool enabled;
 
-  const _ModeToggle({required this.mode, required this.onChanged, required this.enabled});
+  const _ModeToggle({
+    required this.mode,
+    required this.onChanged,
+    required this.enabled,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -407,9 +475,15 @@ class _ModeToggle extends StatelessWidget {
     );
   }
 
-  Widget _chip({required bool selected, required String label, required VoidCallback onTap}) {
+  Widget _chip({
+    required bool selected,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     final color = selected ? AppColors.borderCyan : AppColors.outlineLow;
-    final textColor = selected ? AppColors.textPrimary : AppColors.textSecondary;
+    final textColor = selected
+        ? AppColors.textPrimary
+        : AppColors.textSecondary;
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
@@ -420,7 +494,14 @@ class _ModeToggle extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: color.withOpacity(selected ? 0.6 : 0.9)),
         ),
-        child: Text(label, style: TextStyle(color: textColor, fontWeight: FontWeight.w800, fontSize: 12)),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }
@@ -458,9 +539,20 @@ class _ControlsCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('컨트롤', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.textPrimary)),
+                child: Text(
+                  '컨트롤',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
               ),
-              Text('${points.length}점', style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w800)),
+              Text(
+                '${points.length}점',
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -485,7 +577,8 @@ class _ControlsCard extends StatelessWidget {
               ),
             ],
           ),
-          if (onAddPointFallback != null || onSetJailCenterFallback != null) ...[
+          if (onAddPointFallback != null ||
+              onSetJailCenterFallback != null) ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -510,36 +603,47 @@ class _ControlsCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Text('감옥 반경', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+          Text(
+            '감옥 반경',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
-                IconButton(
-                  tooltip: '-',
-                  onPressed: () => onRadiusDelta(-_radiusStepM),
-                  icon: const Icon(Icons.remove_circle_outline_rounded),
-                  color: AppColors.textSecondary,
-                ),
+              IconButton(
+                tooltip: '-',
+                onPressed: () => onRadiusDelta(-_radiusStepM),
+                icon: const Icon(Icons.remove_circle_outline_rounded),
+                color: AppColors.textSecondary,
+              ),
               Expanded(
                 child: Center(
                   child: Text(
                     (jailRadiusM == null) ? '—' : '${jailRadiusM!.round()}m',
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
-                IconButton(
-                  tooltip: '+',
-                  onPressed: () => onRadiusDelta(_radiusStepM),
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  color: AppColors.textSecondary,
-                ),
+              IconButton(
+                tooltip: '+',
+                onPressed: () => onRadiusDelta(_radiusStepM),
+                icon: const Icon(Icons.add_circle_outline_rounded),
+                color: AppColors.textSecondary,
+              ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
             '폴리곤은 최소 3점이 필요합니다.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
           ),
         ],
       ),

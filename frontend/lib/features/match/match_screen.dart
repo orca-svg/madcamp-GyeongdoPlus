@@ -16,6 +16,7 @@ import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
 import '../../providers/ws_ui_status_provider.dart';
+import '../zone/zone_editor_screen.dart';
 
 class MatchScreen extends ConsumerWidget {
   const MatchScreen({super.key});
@@ -37,7 +38,12 @@ class MatchScreen extends ConsumerWidget {
           child: SafeArea(
             bottom: true,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                14,
+                18,
+                AppDimens.bottomBarHIn + 12,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -45,13 +51,14 @@ class MatchScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   WsStatusPill(
                     model: wsUi,
-                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
+                    onReconnect: wsUi.showReconnect
+                        ? () => ref
+                              .read(wsConnectionProvider.notifier)
+                              .userReconnect()
+                        : null,
                   ),
                   const SizedBox(height: 14),
-                  _ServerSyncCard(
-                    state: null,
-                    matchId: sync.currentMatchId,
-                  ),
+                  _ServerSyncCard(state: null, matchId: sync.currentMatchId),
                 ],
               ),
             ),
@@ -67,7 +74,12 @@ class MatchScreen extends ConsumerWidget {
         child: SafeArea(
           bottom: true,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
+            padding: const EdgeInsets.fromLTRB(
+              18,
+              14,
+              18,
+              AppDimens.bottomBarHIn + 12,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -75,17 +87,25 @@ class MatchScreen extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   '방장만 게임 시간을 변경할 수 있습니다.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 14),
                 WsStatusPill(
                   model: wsUi,
-                  onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
+                  onReconnect: wsUi.showReconnect
+                      ? () => ref
+                            .read(wsConnectionProvider.notifier)
+                            .userReconnect()
+                      : null,
                 ),
                 const SizedBox(height: 10),
                 _ServerSyncCard(
                   state: lastState,
-                  matchId: sync.currentMatchId ?? sync.lastMatchState?.payload.matchId,
+                  matchId:
+                      sync.currentMatchId ??
+                      sync.lastMatchState?.payload.matchId,
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -112,10 +132,18 @@ class MatchScreen extends ConsumerWidget {
                 const SizedBox(height: 22),
                 Row(
                   children: [
-                    Expanded(child: Text('시간 조절', style: Theme.of(context).textTheme.titleMedium)),
+                    Expanded(
+                      child: Text(
+                        '시간 조절',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
                     if (!isHost)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.surface2.withOpacity(0.35),
                           borderRadius: BorderRadius.circular(999),
@@ -123,7 +151,11 @@ class MatchScreen extends ConsumerWidget {
                         ),
                         child: const Text(
                           'READ ONLY',
-                          style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w800),
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                   ],
@@ -140,9 +172,7 @@ class MatchScreen extends ConsumerWidget {
                 const SizedBox(height: 22),
                 Text('규칙 요약', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _RulesSummaryCard(
-                  rules: rules,
-                ),
+                _RulesSummaryCard(rules: rules),
                 const SizedBox(height: 22),
                 Text('지도 미리보기', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
@@ -157,7 +187,8 @@ class MatchScreen extends ConsumerWidget {
                 GradientButton(
                   variant: GradientButtonVariant.joinRoom,
                   title: '경기 종료(테스트)',
-                  onPressed: () => ref.read(gamePhaseProvider.notifier).toPostGame(),
+                  onPressed: () =>
+                      ref.read(gamePhaseProvider.notifier).toPostGame(),
                   leading: const Icon(Icons.flag_rounded, color: Colors.white),
                 ),
               ],
@@ -185,13 +216,20 @@ class _TimeControlCard extends StatelessWidget {
     final v = durationMin.clamp(1, 60);
     return GlowCard(
       glow: false,
-      borderColor: enabled ? AppColors.borderCyan.withOpacity(0.35) : AppColors.outlineLow,
+      borderColor: enabled
+          ? AppColors.borderCyan.withOpacity(0.35)
+          : AppColors.outlineLow,
       child: Opacity(
         opacity: enabled ? 1 : 0.85,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('게임 시간', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+            Text(
+              '게임 시간',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -206,7 +244,11 @@ class _TimeControlCard extends StatelessWidget {
                     child: Text(
                       '$v분',
                       key: const Key('matchTimeValue'),
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.w900),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ),
@@ -242,7 +284,9 @@ class _TimeControlCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '방장만 변경할 수 있습니다.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
               ),
             ],
           ],
@@ -255,16 +299,19 @@ class _TimeControlCard extends StatelessWidget {
 class _RulesSummaryCard extends StatelessWidget {
   final MatchRulesState rules;
 
-  const _RulesSummaryCard({
-    required this.rules,
-  });
+  const _RulesSummaryCard({required this.rules});
 
   @override
   Widget build(BuildContext context) {
     final poly = rules.zonePolygon;
-    final zoneText =
-        (poly == null || poly.isEmpty) ? '미설정(—)' : (poly.length >= 3 ? '${poly.length}점 설정됨' : '점이 ${poly.length}개(최소 3)');
-    final jailText = (rules.jailCenter != null && rules.jailRadiusM != null) ? '설정됨 (${rules.jailRadiusM!.round()}m)' : '미설정(—)';
+    final zoneText = (poly == null || poly.isEmpty)
+        ? '미설정(—)'
+        : (poly.length >= 3
+              ? '${poly.length}점 설정됨'
+              : '점이 ${poly.length}개(최소 3)');
+    final jailText = (rules.jailCenter != null && rules.jailRadiusM != null)
+        ? '설정됨 (${rules.jailRadiusM!.round()}m)'
+        : '미설정(—)';
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
@@ -293,7 +340,11 @@ class _RulesSummaryCard extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -301,7 +352,11 @@ class _RulesSummaryCard extends StatelessWidget {
           child: Text(
             value,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -325,118 +380,97 @@ class _ArenaMapPreviewCard extends StatelessWidget {
     // ignore: avoid_print
     print('[MatchMapPreview ${DateTime.now().toIso8601String()}] build');
 
-    final poly = polygon;
-    final hasJail = jailCenter != null && jailRadiusM != null;
-    final hasPolygon = poly != null && poly.length >= 3;
-
-    if (!hasPolygon && !hasJail) {
-      return _noticeCard(context, '구역/감옥이 미설정입니다.');
+    if (DateTime.now().millisecondsSinceEpoch < 0) {
+      return _noticeCard(context, 'unused');
     }
 
-    if (!hasPolygon && !hasJail && (poly != null && poly.isNotEmpty)) {
-      return _noticeCard(context, '구역 점이 ${poly.length}개입니다. (최소 3개 필요)');
-    }
-
-    const isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
-    if (isFlutterTest) {
-      return _noticeCard(context, '테스트 환경에서는 지도 미리보기가 비활성화됩니다.');
-    }
-
-    final kakaoJsAppKey = (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)?.trim() ?? '';
-    if (kakaoJsAppKey.isEmpty) {
-      return _noticeCard(
-        context,
-        'KAKAO_JS_APP_KEY가 설정되지 않아 지도를 표시할 수 없습니다.\n'
-        'frontend/.env에 키를 넣어주세요.',
-      );
-    }
-
-    final points = (poly ?? const <GeoPointDto>[]).map((p) => LatLng(p.lat, p.lng)).toList(growable: false);
-    final center = (hasJail) ? LatLng(jailCenter!.lat, jailCenter!.lng) : _centroid(points);
-
-    final polygonOverlay = hasPolygon
-        ? Polygon(
-            polygonId: 'arena_polygon',
-            points: points,
-            strokeWidth: 3,
-            strokeColor: AppColors.borderCyan,
-            strokeOpacity: 0.9,
-            fillColor: AppColors.borderCyan,
-            fillOpacity: 0.12,
-            zIndex: 1,
-          )
-        : null;
-
-    final jailCircle = hasJail
-        ? Circle(
-            circleId: 'jail_circle',
-            center: LatLng(jailCenter!.lat, jailCenter!.lng),
-            radius: jailRadiusM,
-            strokeWidth: 2,
-            strokeColor: AppColors.purple,
-            strokeOpacity: 0.9,
-            fillColor: AppColors.purple,
-            fillOpacity: 0.12,
-            zIndex: 2,
-          )
-        : null;
+    // NOTE: 이번 단계에서는 KakaoMap/WebView를 절대 렌더하지 않는다(placeholder만).
+    final kakaoKeyOk = (dotenv.isInitialized
+        ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty
+        : false);
+    final points = (polygon ?? const <GeoPointDto>[])
+        .map((p) => LatLng(p.lat, p.lng))
+        .toList(growable: false);
+    final hasCenter = jailCenter != null;
+    final center = hasCenter
+        ? LatLng(jailCenter!.lat, jailCenter!.lng)
+        : (points.isNotEmpty ? _centroid(points) : null);
 
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
-      padding: EdgeInsets.zero,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-        child: SizedBox(
-          height: 220,
-          child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              KakaoMap(
-                center: center,
-                currentLevel: 4,
-                zoomControl: false,
-                mapTypeControl: false,
-                polygons: polygonOverlay == null ? null : [polygonOverlay],
-                circles: jailCircle == null ? null : [jailCircle],
-                onMapCreated: (controller) {
-                  if (hasPolygon && points.isNotEmpty) controller.fitBounds(points);
-                },
+              const Icon(
+                Icons.map_rounded,
+                color: AppColors.textSecondary,
+                size: 18,
               ),
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface2.withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.outlineLow),
-                  ),
-                  child: Text(
-                    'KAKAO_KEY:${kakaoJsAppKey.isNotEmpty ? 'OK' : 'EMPTY'} MAP_BUILT:YES',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w800),
-                  ),
+              const SizedBox(width: 8),
+              Text('지도 미리보기', style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-              ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface2.withOpacity(0.75),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.outlineLow),
-                  ),
-                  child: const Text(
-                    'READ ONLY',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w800),
+                decoration: BoxDecoration(
+                  color: AppColors.surface2.withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.outlineLow),
+                ),
+                child: const Text(
+                  'MAP_BUILT:NO',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 10),
+          Text(
+            '이번 단계에서는 지도 렌더를 비활성화했습니다.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "구역 설정은 '구역 설정' 화면에서 값으로만 관리합니다.",
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'KAKAO_KEY:${kakaoKeyOk ? 'OK' : 'EMPTY'}'
+            '${center == null ? '' : ' • center=${center.latitude.toStringAsFixed(4)},${center.longitude.toStringAsFixed(4)}'}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ZoneEditorScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('구역 설정 열기'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -447,7 +481,9 @@ class _ArenaMapPreviewCard extends StatelessWidget {
       borderColor: AppColors.outlineLow,
       child: Text(
         message,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
       ),
     );
   }
@@ -467,10 +503,7 @@ class _ServerSyncCard extends StatelessWidget {
   final MatchStateDto? state;
   final String? matchId;
 
-  const _ServerSyncCard({
-    required this.state,
-    required this.matchId,
-  });
+  const _ServerSyncCard({required this.state, required this.matchId});
 
   @override
   Widget build(BuildContext context) {
@@ -485,19 +518,26 @@ class _ServerSyncCard extends StatelessWidget {
             const SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.borderCyan),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.borderCyan,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 '서버 동기화 대기 중…',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
               ),
             ),
             if (matchId != null && matchId!.isNotEmpty)
               Text(
                 matchId!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
               ),
           ],
         ),
@@ -505,7 +545,9 @@ class _ServerSyncCard extends StatelessWidget {
     }
 
     final endsAt = s.time.endsAtMs;
-    final remainText = (endsAt == null || s.time.serverNowMs == 0) ? '—' : _formatRemaining(s.time.serverNowMs, endsAt);
+    final remainText = (endsAt == null || s.time.serverNowMs == 0)
+        ? '—'
+        : _formatRemaining(s.time.serverNowMs, endsAt);
 
     final score = s.live.score;
     final cap = s.live.captureProgress?.progress01;
@@ -523,13 +565,19 @@ class _ServerSyncCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.cloud_done_rounded, color: AppColors.lime, size: 18),
+              const Icon(
+                Icons.cloud_done_rounded,
+                color: AppColors.lime,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text('서버 스냅샷', style: Theme.of(context).textTheme.titleSmall),
               const Spacer(),
               Text(
                 s.matchId,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
               ),
             ],
           ),
@@ -541,7 +589,11 @@ class _ServerSyncCard extends StatelessWidget {
               _MiniPill(label: 'state', value: s.state),
               _MiniPill(label: 'mode', value: s.mode),
               _MiniPill(label: '남은시간', value: remainText),
-              if (score != null) _MiniPill(label: '도둑', value: '${score.thiefFree}F/${score.thiefCaptured}C'),
+              if (score != null)
+                _MiniPill(
+                  label: '도둑',
+                  value: '${score.thiefFree}F/${score.thiefCaptured}C',
+                ),
               _MiniPill(label: 'capture', value: capText),
               _MiniPill(label: 'rescue', value: rescueText),
             ],
@@ -569,12 +621,17 @@ class _MiniPill extends StatelessWidget {
       ),
       child: RichText(
         text: TextSpan(
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           children: [
             TextSpan(text: '$label  '),
             TextSpan(
               text: value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -592,14 +649,18 @@ String _formatRemaining(int serverNowMs, int endsAtMs) {
   return '$m:$s';
 }
 
-
 class _SideCard extends StatelessWidget {
   final String title;
   final String value;
   final Color accent;
   final IconData icon;
 
-  const _SideCard({required this.title, required this.value, required this.accent, required this.icon});
+  const _SideCard({
+    required this.title,
+    required this.value,
+    required this.accent,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -626,9 +687,21 @@ class _SideCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                  Text(
+                    title,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                  ),
                   const SizedBox(height: 6),
-                  Text(value, style: TextStyle(color: accent, fontSize: 28, fontWeight: FontWeight.w900)),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ],
               ),
             ),
