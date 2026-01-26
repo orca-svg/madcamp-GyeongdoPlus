@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../providers/game_phase_provider.dart';
+import '../../providers/match_rules_provider.dart';
+import '../../providers/room_provider.dart';
 import '../zone/zone_setup_placeholder_screen.dart';
 import 'room_create_payload.dart';
 
-class RoomCreateScreen extends StatefulWidget {
+class RoomCreateScreen extends ConsumerStatefulWidget {
   const RoomCreateScreen({super.key});
 
   @override
-  State<RoomCreateScreen> createState() => _RoomCreateScreenState();
+  ConsumerState<RoomCreateScreen> createState() => _RoomCreateScreenState();
 }
 
-class _RoomCreateScreenState extends State<RoomCreateScreen> {
+class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
   RoomCreateFormState _form = RoomCreateFormState.initial();
 
   void _setMode(RoomCreateMode mode) =>
@@ -39,7 +43,14 @@ class _RoomCreateScreenState extends State<RoomCreateScreen> {
     final payload = buildRoomCreatePayload(_form);
     debugPrint('[ROOM_CREATE] payload=$payload');
 
-    // TODO(Step next): connect to providers + transition to lobby after WS handshake.
+    ref.read(matchRulesProvider.notifier).applyOfflineRoomConfig(payload);
+    ref.read(roomProvider.notifier).enterLobbyOffline(myName: '김선수');
+    ref.read(gamePhaseProvider.notifier).toLobby();
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    // TODO(Step next): connect to WS + transition to lobby with real roomCode.
     _createRoomHook(payload);
   }
 

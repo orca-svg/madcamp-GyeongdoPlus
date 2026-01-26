@@ -21,43 +21,61 @@ void main() {
   testWidgets('App boots to OFF_GAME home', (WidgetTester tester) async {
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
-    await tester.pumpWidget(ProviderScope(overrides: [wsClientProvider.overrideWithValue(ws)], child: const GyeongdoPlusApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [wsClientProvider.overrideWithValue(ws)],
+        child: const GyeongdoPlusApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('환영합니다'), findsOneWidget);
+    expect(find.text('방 시작하기'), findsOneWidget);
   });
 
-  testWidgets('Create room -> Lobby shows room code', (WidgetTester tester) async {
+  testWidgets('Create room -> Lobby shows room code', (
+    WidgetTester tester,
+  ) async {
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
-    await tester.pumpWidget(ProviderScope(overrides: [wsClientProvider.overrideWithValue(ws)], child: const GyeongdoPlusApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [wsClientProvider.overrideWithValue(ws)],
+        child: const GyeongdoPlusApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('방 만들기'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('createRoomNameField')), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('createRoomNameField')), '테스터');
-    await tester.tap(find.text('만들기'));
+    await tester.tap(find.text('방 생성'));
     await tester.pumpAndSettle();
 
     expect(find.text('로비'), findsOneWidget);
     expect(find.byKey(const Key('roomCodeText')), findsOneWidget);
 
-    final codeText = tester.widget<Text>(find.byKey(const Key('roomCodeText'))).data ?? '';
+    final codeText =
+        tester.widget<Text>(find.byKey(const Key('roomCodeText'))).data ?? '';
     expect(codeText, isNotEmpty);
-    expect(RegExp(r'^[A-Z0-9]{4,6}$').hasMatch(codeText), isTrue);
+    expect(codeText, 'OFFLINE');
   });
 
-  testWidgets('PostGame 전적 보기 -> OFF_GAME 전적 탭 포커스', (WidgetTester tester) async {
+  testWidgets('Lobby: ready locks team change, start shows dialog', (
+    WidgetTester tester,
+  ) async {
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
-    await tester.pumpWidget(ProviderScope(overrides: [wsClientProvider.overrideWithValue(ws)], child: const GyeongdoPlusApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [wsClientProvider.overrideWithValue(ws)],
+        child: const GyeongdoPlusApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('방 만들기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('만들기'));
+    await tester.tap(find.text('방 생성'));
     await tester.pumpAndSettle();
 
     final readyBtnFinder = find.byKey(const Key('lobbyReadyButton'));
@@ -70,32 +88,31 @@ void main() {
     final readyBtn = readyBtnFinder;
     final startBtn = startBtnFinder;
 
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -500));
+    await tester.ensureVisible(readyBtnFinder);
     await tester.pumpAndSettle();
     await tester.tap(readyBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ready 해제 후 팀 변경 가능'), findsOneWidget);
+
+    await tester.ensureVisible(startBtnFinder);
     await tester.pumpAndSettle();
     await tester.tap(startBtn);
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
-    await tester.tap(find.text('설정'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
-
-    await tester.scrollUntilVisible(find.text('경기 종료(테스트)'), 200);
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('경기 종료(테스트)'));
+    expect(find.text('준비 중'), findsOneWidget);
+    await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
 
-    expect(find.text('경기 종료'), findsOneWidget);
-    await tester.tap(find.text('전적 보기'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('최근 경기 기록'), findsOneWidget);
+    expect(find.text('로비'), findsOneWidget);
   });
 }
 
 class _NoopWsClient extends WsClient {
-  final StreamController<WsEnvelope<Object?>> _envCtrl = StreamController.broadcast();
-  final StreamController<WsConnectionState> _connCtrl = StreamController.broadcast();
+  final StreamController<WsEnvelope<Object?>> _envCtrl =
+      StreamController.broadcast();
+  final StreamController<WsConnectionState> _connCtrl =
+      StreamController.broadcast();
 
   WsConnectionState _state = WsConnectionState.initial();
   int _epoch = 0;
@@ -137,7 +154,10 @@ class _NoopWsClient extends WsClient {
   }
 
   @override
-  void sendEnvelope<T>(WsEnvelope<T> env, Map<String, dynamic> Function(T) payloadToJson) {
+  void sendEnvelope<T>(
+    WsEnvelope<T> env,
+    Map<String, dynamic> Function(T) payloadToJson,
+  ) {
     if (env.type == WsType.joinMatch) {
       final p = env.payload;
       if (p is Map) {
@@ -156,7 +176,7 @@ class _NoopWsClient extends WsClient {
             'state': 'RUNNING',
             'mode': 'NORMAL',
             'rules': {
-              'opponentReveal': {'radarPingTtlMs': 7000}
+              'opponentReveal': {'radarPingTtlMs': 7000},
             },
             'time': {
               'serverNowMs': DateTime.now().millisecondsSinceEpoch,

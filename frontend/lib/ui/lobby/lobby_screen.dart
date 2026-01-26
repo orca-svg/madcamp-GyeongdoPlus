@@ -10,9 +10,7 @@ import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
-import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
-import '../../net/ws/ws_client_provider.dart';
 import '../../providers/ws_ui_status_provider.dart';
 import '../../features/zone/zone_editor_screen.dart';
 
@@ -25,7 +23,6 @@ class LobbyScreen extends ConsumerWidget {
     final me = room.me;
     final wsUi = ref.watch(wsUiStatusProvider);
     final rules = ref.watch(matchRulesProvider);
-
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -47,7 +44,10 @@ class LobbyScreen extends ConsumerWidget {
                         ref.read(roomProvider.notifier).leaveRoom();
                         ref.read(gamePhaseProvider.notifier).toOffGame();
                       },
-                      icon: const Icon(Icons.exit_to_app_rounded, color: AppColors.textSecondary),
+                      icon: const Icon(
+                        Icons.exit_to_app_rounded,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -56,7 +56,8 @@ class LobbyScreen extends ConsumerWidget {
                   alignment: Alignment.centerLeft,
                   child: WsStatusPill(
                     model: wsUi,
-                    onReconnect: wsUi.showReconnect ? () => ref.read(wsConnectionProvider.notifier).userReconnect() : null,
+                    // Offline stage: do not allow WS reconnect actions.
+                    onReconnect: null,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -65,13 +66,28 @@ class LobbyScreen extends ConsumerWidget {
                   onCopy: room.roomCode.isEmpty
                       ? null
                       : () async {
-                          await Clipboard.setData(ClipboardData(text: room.roomCode));
+                          await Clipboard.setData(
+                            ClipboardData(text: room.roomCode),
+                          );
                           if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('방 코드가 복사되었습니다')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('방 코드가 복사되었습니다')),
+                          );
                         },
                 ),
+                const SizedBox(height: 12),
+                _RoomConfigSummaryCard(rules: rules),
                 const SizedBox(height: 16),
                 Text('참가자', style: Theme.of(context).textTheme.titleMedium),
+                if (me?.ready ?? false) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Ready 해제 후 팀 변경 가능',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 GlowCard(
                   glow: true,
@@ -84,60 +100,82 @@ class LobbyScreen extends ConsumerWidget {
                           itemCount: room.members.length,
                           separatorBuilder: (context, index) => const Padding(
                             padding: EdgeInsets.symmetric(vertical: 10),
-                            child: Divider(color: AppColors.outlineLow, height: 1),
+                            child: Divider(
+                              color: AppColors.outlineLow,
+                              height: 1,
+                            ),
                           ),
                           itemBuilder: (context, i) {
                             final m = room.members[i];
                             return _MemberRow(
                               member: m,
                               isMe: m.id == room.myId,
-                              onTeamSelected: m.id == room.myId ? (t) => ref.read(roomProvider.notifier).setMyTeam(t) : null,
+                              onTeamSelected:
+                                  (m.id == room.myId && !(me?.ready ?? false))
+                                  ? (t) => ref
+                                        .read(roomProvider.notifier)
+                                        .setMyTeam(t)
+                                  : null,
                             );
                           },
                         )
                       : _EmptyRoomCard(
-                          onGoHome: () => ref.read(gamePhaseProvider.notifier).toOffGame(),
+                          onGoHome: () =>
+                              ref.read(gamePhaseProvider.notifier).toOffGame(),
                         ),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Text('경기 규칙', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      '경기 규칙',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const Spacer(),
                     if (room.amIHost)
                       TextButton(
                         onPressed: room.inRoom
                             ? () => showModalBottomSheet<void>(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (context) => _EditRulesSheet(
-                                    initial: rules,
-                                    onSave: (next) {
-                                      final ctrl = ref.read(matchRulesProvider.notifier);
-                                      ctrl.setGameMode(next.gameMode);
-                                      ctrl.setDurationMin(next.durationMin);
-                                      ctrl.setMaxPlayers(next.maxPlayers);
-                                      ctrl.setReleaseMode(next.releaseMode);
-                                      ctrl.setMapName(next.mapName);
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => _EditRulesSheet(
+                                  initial: rules,
+                                  onSave: (next) {
+                                    final ctrl = ref.read(
+                                      matchRulesProvider.notifier,
+                                    );
+                                    ctrl.setGameMode(next.gameMode);
+                                    ctrl.setDurationMin(next.durationMin);
+                                    ctrl.setMaxPlayers(next.maxPlayers);
+                                    ctrl.setReleaseMode(next.releaseMode);
+                                    ctrl.setMapName(next.mapName);
 
-                                      // TODO: 서버 룰 싱크 메시지(action/rules_update 등) 스키마 확정 후 WS로 전송.
-                                    },
-                                    onEditZone: () {
-                                      Navigator.of(context).pop(); // close sheet
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(builder: (_) => const ZoneEditorScreen()),
-                                      );
-                                    },
-                                  ),
-                                )
+                                    // TODO: 서버 룰 싱크 메시지(action/rules_update 등) 스키마 확정 후 WS로 전송.
+                                  },
+                                  onEditZone: () {
+                                    Navigator.of(context).pop(); // close sheet
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            const ZoneEditorScreen(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
                             : null,
-                        style: TextButton.styleFrom(foregroundColor: AppColors.borderCyan),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.borderCyan,
+                        ),
                         child: const Text('편집'),
                       )
                     else
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.surface2.withOpacity(0.35),
                           borderRadius: BorderRadius.circular(999),
@@ -145,16 +183,17 @@ class LobbyScreen extends ConsumerWidget {
                         ),
                         child: const Text(
                           'READ ONLY',
-                          style: TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _RulesSummaryCard(
-                  rules: rules,
-                  readOnly: !room.amIHost,
-                ),
+                _RulesSummaryCard(rules: rules, readOnly: !room.amIHost),
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -163,9 +202,14 @@ class LobbyScreen extends ConsumerWidget {
                         key: const Key('lobbyReadyButton'),
                         variant: GradientButtonVariant.joinRoom,
                         title: (me?.ready ?? false) ? '준비 해제' : '준비 완료',
-                        onPressed: room.inRoom ? () => ref.read(roomProvider.notifier).toggleReady() : null,
+                        onPressed: room.inRoom
+                            ? () =>
+                                  ref.read(roomProvider.notifier).toggleReady()
+                            : null,
                         leading: Icon(
-                          (me?.ready ?? false) ? Icons.undo_rounded : Icons.check_circle_rounded,
+                          (me?.ready ?? false)
+                              ? Icons.undo_rounded
+                              : Icons.check_circle_rounded,
                           color: Colors.white,
                         ),
                       ),
@@ -176,20 +220,31 @@ class LobbyScreen extends ConsumerWidget {
                         key: const Key('lobbyStartButton'),
                         variant: GradientButtonVariant.createRoom,
                         title: '경기 시작',
-                        onPressed: (room.amIHost && room.allReady)
-                            ? () {
-                                final matchId = room.roomCode.isEmpty ? '' : 'm_${room.roomCode}';
-                                if (matchId.isNotEmpty) {
-                                  ref.read(matchSyncProvider.notifier).setCurrentMatchId(matchId);
-                                  ref.read(wsConnectionProvider.notifier).connect();
-                                  ref
-                                      .read(wsConnectionProvider.notifier)
-                                      .sendJoinMatch(matchId: matchId, playerId: room.myId, roomCode: room.roomCode);
-                                }
-                                ref.read(gamePhaseProvider.notifier).toInGame();
+                        onPressed: room.amIHost
+                            ? () async {
+                                await showDialog<void>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: AppColors.surface1,
+                                    title: const Text('준비 중'),
+                                    content: const Text(
+                                      '팀 인원 검증/시작 로직은 다음 단계에서 활성화됩니다.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        child: const Text('확인'),
+                                      ),
+                                    ],
+                                  ),
+                                );
                               }
                             : null,
-                        leading: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                        leading: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -204,13 +259,25 @@ class LobbyScreen extends ConsumerWidget {
                     runSpacing: 10,
                     children: [
                       TextButton(
-                        onPressed: room.inRoom ? () => ref.read(roomProvider.notifier).addFakeMember() : null,
-                        style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+                        onPressed: room.inRoom
+                            ? () => ref
+                                  .read(roomProvider.notifier)
+                                  .addFakeMember()
+                            : null,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textMuted,
+                        ),
                         child: const Text('+ 봇 추가'),
                       ),
                       TextButton(
-                        onPressed: room.inRoom ? () => ref.read(roomProvider.notifier).toggleFakeReadyAll() : null,
-                        style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+                        onPressed: room.inRoom
+                            ? () => ref
+                                  .read(roomProvider.notifier)
+                                  .toggleFakeReadyAll()
+                            : null,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textMuted,
+                        ),
                         child: const Text('봇 READY 토글'),
                       ),
                     ],
@@ -224,7 +291,6 @@ class LobbyScreen extends ConsumerWidget {
     );
   }
 }
-
 
 class _RoomCodeCard extends StatelessWidget {
   final String roomCode;
@@ -249,14 +315,22 @@ class _RoomCodeCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.borderCyan.withOpacity(0.25)),
             ),
-            child: const Icon(Icons.vpn_key_rounded, color: AppColors.borderCyan),
+            child: const Icon(
+              Icons.vpn_key_rounded,
+              color: AppColors.borderCyan,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('방 코드', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+                Text(
+                  '방 코드',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   roomCode.isEmpty ? '—' : roomCode,
@@ -274,7 +348,11 @@ class _RoomCodeCard extends StatelessWidget {
           IconButton(
             tooltip: '복사',
             onPressed: onCopy,
-            icon: const Icon(Icons.copy_rounded, color: AppColors.textMuted, size: 18),
+            icon: const Icon(
+              Icons.copy_rounded,
+              color: AppColors.textMuted,
+              size: 18,
+            ),
           ),
         ],
       ),
@@ -286,20 +364,24 @@ class _RulesSummaryCard extends StatelessWidget {
   final MatchRulesState rules;
   final bool readOnly;
 
-  const _RulesSummaryCard({
-    required this.rules,
-    required this.readOnly,
-  });
+  const _RulesSummaryCard({required this.rules, required this.readOnly});
 
   @override
   Widget build(BuildContext context) {
     final poly = rules.zonePolygon;
-    final zoneText =
-        (poly == null || poly.isEmpty) ? '미설정(—)' : (poly.length >= 3 ? '${poly.length}점 설정됨' : '점이 ${poly.length}개(최소 3)');
-    final jailText = (rules.jailCenter != null && rules.jailRadiusM != null) ? '설정됨 (${rules.jailRadiusM!.round()}m)' : '미설정(—)';
+    final zoneText = (poly == null || poly.isEmpty)
+        ? '미설정(—)'
+        : (poly.length >= 3
+              ? '${poly.length}점 설정됨'
+              : '점이 ${poly.length}개(최소 3)');
+    final jailText = (rules.jailCenter != null && rules.jailRadiusM != null)
+        ? '설정됨 (${rules.jailRadiusM!.round()}m)'
+        : '미설정(—)';
     return GlowCard(
       glow: false,
-      borderColor: readOnly ? AppColors.outlineLow : AppColors.borderCyan.withOpacity(0.35),
+      borderColor: readOnly
+          ? AppColors.outlineLow
+          : AppColors.borderCyan.withOpacity(0.35),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -320,7 +402,9 @@ class _RulesSummaryCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               '방장이 설정한 규칙을 확인할 수 있습니다.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
             ),
           ],
         ],
@@ -334,13 +418,130 @@ class _RulesSummaryCard extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
         const SizedBox(width: 12),
         Text(
           value,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RoomConfigSummaryCard extends StatelessWidget {
+  final MatchRulesState rules;
+
+  const _RoomConfigSummaryCard({required this.rules});
+
+  @override
+  Widget build(BuildContext context) {
+    final poly = rules.zonePolygon;
+    final polyText = (poly == null || poly.isEmpty)
+        ? '미설정'
+        : (poly.length >= 3 ? '${poly.length}점' : '${poly.length}점(최소 3)');
+
+    final jailCenterText = (rules.jailCenter == null)
+        ? '미설정'
+        : '${rules.jailCenter!.lat.toStringAsFixed(4)}, ${rules.jailCenter!.lng.toStringAsFixed(4)}';
+
+    final jailRadiusText = (rules.jailRadiusM == null)
+        ? '—'
+        : '${rules.jailRadiusM!.round()}m';
+
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.tune_rounded,
+                color: AppColors.textSecondary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text('현재 방 설정', style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surface2.withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.outlineLow),
+                ),
+                child: const Text(
+                  'OFFLINE',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _ruleRow(label: '모드', value: rules.gameMode.wire),
+          const SizedBox(height: 10),
+          _ruleRow(label: '인원', value: '${rules.maxPlayers}명'),
+          const SizedBox(height: 10),
+          _ruleRow(label: '시간', value: '${rules.timeLimitSec}s'),
+          const SizedBox(height: 10),
+          _ruleRow(label: 'contactMode', value: rules.contactMode),
+          const SizedBox(height: 10),
+          _ruleRow(
+            label: '감옥',
+            value:
+                '${rules.jailEnabled ? 'ON' : 'OFF'} • radius=$jailRadiusText • center=$jailCenterText',
+          ),
+          const SizedBox(height: 10),
+          _ruleRow(label: '폴리곤', value: polyText),
+        ],
+      ),
+    );
+  }
+
+  Widget _ruleRow({required String label, required String value}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
       ],
     );
@@ -381,9 +582,7 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
       top: false,
       child: Container(
         padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset + 18),
-        decoration: const BoxDecoration(
-          color: Colors.transparent,
-        ),
+        decoration: const BoxDecoration(color: Colors.transparent),
         child: GlowCard(
           glow: false,
           borderColor: AppColors.borderCyan.withOpacity(0.35),
@@ -393,17 +592,28 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
             children: [
               Row(
                 children: [
-                  Text('경기 규칙 편집', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    '경기 규칙 편집',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const Spacer(),
                   IconButton(
                     tooltip: '닫기',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              Text('모드', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+              Text(
+                '모드',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 10,
@@ -413,7 +623,8 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                     _chip(
                       selected: _draft.gameMode == m,
                       label: m.label,
-                      onTap: () => setState(() => _draft = _draft.copyWith(gameMode: m)),
+                      onTap: () =>
+                          setState(() => _draft = _draft.copyWith(gameMode: m)),
                     ),
                 ],
               ),
@@ -423,7 +634,8 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                 valueText: '${_draft.durationMin}분',
                 min: 5,
                 max: 30,
-                onChanged: (v) => setState(() => _draft = _draft.copyWith(durationMin: v)),
+                onChanged: (v) =>
+                    setState(() => _draft = _draft.copyWith(durationMin: v)),
                 value: _draft.durationMin,
               ),
               const SizedBox(height: 10),
@@ -432,11 +644,17 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                 valueText: '${_draft.maxPlayers}명',
                 min: 2,
                 max: 10,
-                onChanged: (v) => setState(() => _draft = _draft.copyWith(maxPlayers: v)),
+                onChanged: (v) =>
+                    setState(() => _draft = _draft.copyWith(maxPlayers: v)),
                 value: _draft.maxPlayers,
               ),
               const SizedBox(height: 14),
-              Text('해방 방식', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+              Text(
+                '해방 방식',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 10,
@@ -446,12 +664,19 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                     _chip(
                       selected: _draft.releaseMode == v,
                       label: v,
-                      onTap: () => setState(() => _draft = _draft.copyWith(releaseMode: v)),
+                      onTap: () => setState(
+                        () => _draft = _draft.copyWith(releaseMode: v),
+                      ),
                     ),
                 ],
               ),
               const SizedBox(height: 14),
-              Text('맵', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+              Text(
+                '맵',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 10,
@@ -461,7 +686,8 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                     _chip(
                       selected: _draft.mapName == v,
                       label: v,
-                      onTap: () => setState(() => _draft = _draft.copyWith(mapName: v)),
+                      onTap: () =>
+                          setState(() => _draft = _draft.copyWith(mapName: v)),
                     ),
                 ],
               ),
@@ -483,7 +709,10 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
                         widget.onSave(_draft);
                         Navigator.of(context).pop();
                       },
-                      leading: const Icon(Icons.save_rounded, color: Colors.white),
+                      leading: const Icon(
+                        Icons.save_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -501,7 +730,9 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
     required VoidCallback onTap,
   }) {
     final color = selected ? AppColors.borderCyan : AppColors.outlineLow;
-    final textColor = selected ? AppColors.textPrimary : AppColors.textSecondary;
+    final textColor = selected
+        ? AppColors.textPrimary
+        : AppColors.textSecondary;
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
@@ -512,7 +743,14 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: color.withOpacity(selected ? 0.6 : 0.9)),
         ),
-        child: Text(label, style: TextStyle(color: textColor, fontWeight: FontWeight.w800, fontSize: 12)),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }
@@ -528,7 +766,12 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
     return Row(
       children: [
         Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
         ),
         IconButton(
           tooltip: '-',
@@ -536,7 +779,13 @@ class _EditRulesSheetState extends State<_EditRulesSheet> {
           icon: const Icon(Icons.remove_circle_outline_rounded),
           color: AppColors.textSecondary,
         ),
-        Text(valueText, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w900)),
+        Text(
+          valueText,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
         IconButton(
           tooltip: '+',
           onPressed: value >= max ? null : () => onChanged(value + 1),
@@ -553,12 +802,18 @@ class _MemberRow extends StatelessWidget {
   final bool isMe;
   final ValueChanged<Team>? onTeamSelected;
 
-  const _MemberRow({required this.member, required this.isMe, required this.onTeamSelected});
+  const _MemberRow({
+    required this.member,
+    required this.isMe,
+    required this.onTeamSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     final teamLabel = member.team == Team.police ? '경찰' : '도둑';
-    final teamColor = member.team == Team.police ? AppColors.borderCyan : AppColors.red;
+    final teamColor = member.team == Team.police
+        ? AppColors.borderCyan
+        : AppColors.red;
     final readyColor = member.ready ? AppColors.lime : AppColors.textMuted;
 
     return Row(
@@ -572,7 +827,9 @@ class _MemberRow extends StatelessWidget {
             border: Border.all(color: teamColor.withOpacity(0.25)),
           ),
           child: Icon(
-            member.team == Team.police ? Icons.shield_rounded : Icons.lock_rounded,
+            member.team == Team.police
+                ? Icons.shield_rounded
+                : Icons.lock_rounded,
             color: teamColor,
           ),
         ),
@@ -587,12 +844,19 @@ class _MemberRow extends StatelessWidget {
                     child: Text(
                       member.name + (isMe ? ' (나)' : ''),
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w900),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                   if (member.isHost) ...[
                     const SizedBox(width: 8),
-                    const Icon(Icons.emoji_events_rounded, size: 16, color: AppColors.orange),
+                    const Icon(
+                      Icons.emoji_events_rounded,
+                      size: 16,
+                      color: AppColors.orange,
+                    ),
                   ],
                 ],
               ),
@@ -653,7 +917,10 @@ class _MemberRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? color : color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? color : color.withOpacity(0.35), width: AppDimens.border),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.35),
+            width: AppDimens.border,
+          ),
         ),
         child: Text(
           label,
@@ -682,7 +949,12 @@ class _MemberRow extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(color: textColor, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.4),
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }
@@ -715,7 +987,14 @@ class _StartHelper extends StatelessWidget {
           color: ok ? AppColors.lime : AppColors.textMuted,
         ),
         const SizedBox(width: 8),
-        Expanded(child: Text(msg, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted))),
+        Expanded(
+          child: Text(
+            msg,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
+        ),
       ],
     );
   }
@@ -737,7 +1016,9 @@ class _EmptyRoomCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '홈에서 방을 만들거나 참여해주세요.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: 14),
           GradientButton(

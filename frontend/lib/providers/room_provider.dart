@@ -51,12 +51,8 @@ class RoomState {
     required this.members,
   });
 
-  factory RoomState.initial() => const RoomState(
-        inRoom: false,
-        roomCode: '',
-        myId: '',
-        members: [],
-      );
+  factory RoomState.initial() =>
+      const RoomState(inRoom: false, roomCode: '', myId: '', members: []);
 
   RoomState copyWith({
     bool? inRoom,
@@ -81,19 +77,40 @@ class RoomState {
   }
 
   bool get amIHost => me?.isHost ?? false;
-  bool get allReady => inRoom && members.isNotEmpty && members.every((m) => m.ready);
+  bool get allReady =>
+      inRoom && members.isNotEmpty && members.every((m) => m.ready);
 
   int get policeCount => members.where((m) => m.team == Team.police).length;
   int get thiefCount => members.where((m) => m.team == Team.thief).length;
 }
 
-final roomProvider = NotifierProvider<RoomController, RoomState>(RoomController.new);
+final roomProvider = NotifierProvider<RoomController, RoomState>(
+  RoomController.new,
+);
 
 class RoomController extends Notifier<RoomState> {
   final _rand = Random();
 
   @override
   RoomState build() => RoomState.initial();
+
+  void enterLobbyOffline({required String myName}) {
+    final myId = _newId();
+    state = RoomState(
+      inRoom: true,
+      roomCode: 'OFFLINE',
+      myId: myId,
+      members: [
+        RoomMember(
+          id: myId,
+          name: myName.trim().isEmpty ? '김선수' : myName.trim(),
+          team: Team.police,
+          ready: false,
+          isHost: true,
+        ),
+      ],
+    );
+  }
 
   void createRoom({required String myName}) {
     final myId = _newId();
@@ -174,6 +191,7 @@ class RoomController extends Notifier<RoomState> {
   void setMyTeam(Team team) {
     final me = state.me;
     if (me == null) return;
+    if (me.ready) return;
     state = state.copyWith(
       members: [
         for (final m in state.members)
@@ -196,7 +214,10 @@ class RoomController extends Notifier<RoomState> {
 
     const names = ['참가자C', '참가자D'];
     final existing = state.members.map((m) => m.name).toSet();
-    final name = names.firstWhere((n) => !existing.contains(n), orElse: () => '참가자${state.members.length + 1}');
+    final name = names.firstWhere(
+      (n) => !existing.contains(n),
+      orElse: () => '참가자${state.members.length + 1}',
+    );
 
     final police = state.policeCount;
     final thief = state.thiefCount;
@@ -247,5 +268,6 @@ class RoomController extends Notifier<RoomState> {
     return cleaned.substring(0, 6);
   }
 
-  String _newId() => 'm_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
+  String _newId() =>
+      'm_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 20)}';
 }
