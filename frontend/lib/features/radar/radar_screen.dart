@@ -23,6 +23,8 @@ import '../../providers/radar_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../providers/watch_provider.dart';
 import '../../providers/ws_ui_status_provider.dart';
+import '../match/widgets/ingame_hud.dart';
+import '../../providers/match_state_sim_provider.dart';
 import 'widgets/radar_painter.dart';
 
 class RadarScreen extends ConsumerStatefulWidget {
@@ -35,6 +37,7 @@ class RadarScreen extends ConsumerStatefulWidget {
 class _RadarScreenState extends ConsumerState<RadarScreen> {
   late final Timer _timer;
   double _sweep = 0;
+  late final ProviderSubscription<int?> _noticeSub;
 
   @override
   void initState() {
@@ -45,10 +48,22 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         if (_sweep > 1) _sweep -= 1;
       });
     });
+
+    _noticeSub = ref.listenManual<int?>(
+      matchStateSimProvider.select((s) => s?.noticeSeq),
+      (prev, next) {
+        if (!mounted) return;
+        if (next == null || next == prev) return;
+        final msg = ref.read(matchStateSimProvider)?.noticeMessage ?? '';
+        if (msg.isEmpty) return;
+        showAppSnackBar(context, message: msg);
+      },
+    );
   }
 
   @override
   void dispose() {
+    _noticeSub.close();
     _timer.cancel();
     super.dispose();
   }
@@ -77,11 +92,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
       body: GlassBackground(
         child: SafeArea(
           bottom: true,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, AppDimens.bottomBarHIn + 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Stack(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  18,
+                  14 + 118,
+                  18,
+                  AppDimens.bottomBarHIn + 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 // A. 상단 타이틀 row: 전술 레이더 + Watch + WsStatusPill
                 _buildTitleRow(context, watchConnected, wsUiStatus),
                 const SizedBox(height: 12),
@@ -304,8 +326,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     ),
                   ),
                 ],
-              ],
-            ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 18,
+                top: 14,
+                child: IgnorePointer(
+                  child: IngameHud(key: const Key('ingameHud')),
+                ),
+              ),
+            ],
           ),
         ),
       ),
