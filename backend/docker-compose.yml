@@ -9,7 +9,7 @@ services:
       - "6379:6379"  # 내 컴퓨터 6379 포트 <-> Docker 내부 6379 포트 연결
     volumes:
       - redis_data:/data # 껐다 켜도 데이터 안 날아가게 저장
-    command: redis-server --appendonly yes # 데이터 지속성 옵션 켜기
+    command: redis-server --requirepass "crydus125!" --appendonly yes # 데이터 지속성 옵션 켜기
 
 volumes:
   redis_data:
