@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { PrismaModule } from './database/prisma.module'; // (*중요: 아래 설명 확인)
+import { UserModule } from './modules/user/user.module';
+import { LobbyModule } from './modules/lobby/lobby.module';
+import { GameModule } from './modules/game/game.module';
+import { EventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
@@ -19,9 +21,9 @@ import { PrismaModule } from './database/prisma.module'; // (*중요: 아래 설
     RedisModule,  // Redis 모듈 (우리가 만든 것)
 
     // 3. 비즈니스 로직 모듈
-    AuthModule,   // 회원가입, 로그인
+    AuthModule, UserModule, LobbyModule, GameModule, EventsModule  // 회원가입, 로그인
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [],
+  providers: [],
 })
 export class AppModule {}

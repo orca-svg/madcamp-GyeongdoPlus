@@ -38,6 +38,13 @@ enum MatchResult {
   WIN
   LOSE  // 기획서 오타(LOSW) 수정됨
   DRAW
+  ABANDON
+}
+
+enum GameStatus {
+  WAITING  // 대기 중 (로비)
+  PLAYING  // 게임 진행 중
+  ENDED    // 종료됨
 }
 
 // ------------------------------------------
@@ -66,7 +73,8 @@ model User {
 // 2. 사용자 통계 (1:1 관계)
 model UserStat {
   userId         String @id @db.Uuid // PK이자 FK
-  mmr            Int    @default(1000)
+  policeMmr      Int    @default(1000) // 경찰 실력 점수
+  thiefMmr       Int    @default(1000) // 도둑 실력 점수
   integrityScore Int    @default(100) // 청렴도
   totalCatch     Int    @default(0)
   totalRelease   Int    @default(0)
@@ -94,12 +102,17 @@ model UserAchievement {
 // 4. 게임 매치 정보 (영구 기록용)
 model GameMatch {
   id         String    @id @default(uuid()) @db.Uuid
-  createdAt  DateTime  @default(now()) // 게임 시작 시간
+  hostUserId String    @db.Uuid // 방장 유저 ID
+  createdAt  DateTime  @default(now()) // 방 생성 시간
+  startedAt  DateTime?  // 게임 실제 시작 시간
   endedAt    DateTime? // 게임 종료 시간 (진행 중일 땐 Null)
   roomCode   String    @unique // 방 입장 코드
   mode       GameMode
+  maxPlayers Int       @default(8)// 최대 인원
+  timeLimit  Int       @default(600)// 제한 시간 (초 단위)
   mapConfig  Json      // 경기장 & 감옥 좌표 정보 (JSON)
   rules      Json      // 설정한 규칙 (JSON)
+  status     GameStatus @default(WAITING)
   winnerTeam Team?     // 승리 팀 (종료 전엔 Null)
   mvpUserId  String?   @db.Uuid // MVP 유저 ID
 

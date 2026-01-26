@@ -21,7 +21,10 @@ import {
   RefreshRequestDto,
   RefreshResponseDto,
   LogoutResponseDto,
-  CheckNicknameResponseDto
+  CheckNicknameResponseDto,
+  KakaoLoginResponseDto,
+  KakaoUnauthorizedErrorDto,
+  RefreshUnauthorizedErrorDto
 } from './auth.dto';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 
@@ -46,10 +49,23 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  @Post('login/kakao')
+@Post('login/kakao')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '카카오 로그인' })
-  @ApiResponse({ status: 200, type: LoginResponseDto })
+  
+  // ✅ [수정 1] 200 OK 응답 타입을 'LoginResponseDto' -> 'KakaoLoginResponseDto'로 변경
+  @ApiResponse({ 
+    status: 200, 
+    type: KakaoLoginResponseDto, 
+    description: '로그인 성공 (isNewUser 포함)' 
+  })
+  
+  // ✅ [추가 2] 401 Unauthorized 에러 명세 추가
+  @ApiResponse({ 
+    status: 401, 
+    type: KakaoUnauthorizedErrorDto, 
+    description: '카카오 토큰 만료 또는 위조' 
+  })
   async kakaoLogin(@Body() dto: KakaoLoginDto) {
     return this.authService.kakaoLogin(dto);
   }
@@ -58,7 +74,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '토큰 재발급', description: 'Refresh Token을 이용해 AT/RT를 모두 재발급받습니다.' })
   @ApiResponse({ status: 200, type: RefreshResponseDto })
-  @ApiResponse({ status: 401, description: '유효하지 않은 토큰' })
+  @ApiResponse({ 
+    status: 401, 
+    type: RefreshUnauthorizedErrorDto, 
+    description: '유효하지 않은 토큰' 
+  })
   async refresh(@Body() dto: RefreshRequestDto) {
     return this.authService.refresh(dto);
   }
