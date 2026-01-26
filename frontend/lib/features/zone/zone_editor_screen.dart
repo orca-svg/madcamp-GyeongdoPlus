@@ -35,6 +35,16 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     _points = List<GeoPointDto>.from(rules.zonePolygon ?? const <GeoPointDto>[]);
     _jailCenter = rules.jailCenter;
     _jailRadiusM = rules.jailRadiusM;
+
+    // ignore: avoid_print
+    print('[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_points.length}');
+  }
+
+  @override
+  void dispose() {
+    // ignore: avoid_print
+    print('[ZoneEditor ${DateTime.now().toIso8601String()}] dispose');
+    super.dispose();
   }
 
   bool get _mapEnabled {
@@ -46,8 +56,15 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ignore: avoid_print
+    print(
+      '[ZoneEditor ${DateTime.now().toIso8601String()}] build mapEnabled=$_mapEnabled key=${dotenv.isInitialized ? 'loaded' : 'not_loaded'}',
+    );
+
+    // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
+    const debugZoneEditor = bool.fromEnvironment('DEBUG_START_ZONE_EDITOR');
     final room = ref.watch(roomProvider);
-    if (!room.amIHost) {
+    if (!debugZoneEditor && !room.amIHost) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) Navigator.of(context).pop();
       });
@@ -88,7 +105,19 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   enabled: _mapEnabled,
                 ),
                 const SizedBox(height: 12),
-                _mapEnabled ? _buildMapCard(context) : _buildFallbackCard(context),
+                Stack(
+                  children: [
+                    _mapEnabled ? _buildMapCard(context) : _buildFallbackCard(context),
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: _DebugPill(
+                        keyOk: (dotenv.isInitialized ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty : false),
+                        built: true,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 14),
                 _ControlsCard(
                   points: _points,
@@ -130,6 +159,8 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   }
 
   Widget _buildMapCard(BuildContext context) {
+    // ignore: avoid_print
+    print('[MAP] ZoneEditor: _buildMapCard called, _mapEnabled=$_mapEnabled');
     final points = _points.map((p) => LatLng(p.lat, p.lng)).toList(growable: false);
     final center = _previewCenter(points, _jailCenter);
 
@@ -197,6 +228,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 polygons: polygonOverlay == null ? null : [polygonOverlay],
                 circles: jailCircle == null ? null : [jailCircle],
                 markers: markers,
+                onMapCreated: (controller) {
+                  // ignore: avoid_print
+                  print('[MAP] ZoneEditor: onMapCreated called');
+                },
                 onMapTap: (latLng) {
                   final p = GeoPointDto(lat: latLng.latitude, lng: latLng.longitude).clamp();
                   if (_mode == _EditMode.polygonPoint) {
@@ -283,6 +318,29 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     ref.read(matchRulesProvider.notifier).setZonePolygon(_points);
     ref.read(matchRulesProvider.notifier).setJail(center: _jailCenter, radiusM: _jailRadiusM);
     if (context.mounted) Navigator.of(context).pop();
+  }
+}
+
+class _DebugPill extends StatelessWidget {
+  final bool keyOk;
+  final bool built;
+
+  const _DebugPill({required this.keyOk, required this.built});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.75),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.outlineLow),
+      ),
+      child: Text(
+        'KAKAO_KEY:${keyOk ? 'OK' : 'EMPTY'} MAP_BUILT:${built ? 'YES' : 'NO'}',
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w800),
+      ),
+    );
   }
 }
 

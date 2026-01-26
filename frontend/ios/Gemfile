@@ -11,3 +11,5 @@ gem "cocoapods", "~> 1.16"
 # PR: https://github.com/CocoaPods/Xcodeproj/pull/1007 (merged 2026-01-05)
 # This commit adds compatibility for objectVersion 70 introduced in Xcode 16
 gem "xcodeproj", git: "https://github.com/CocoaPods/Xcodeproj.git", ref: "2cf6a2263d2b164b87c1fdaed340667046b4e44d"
+
+

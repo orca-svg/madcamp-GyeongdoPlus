@@ -322,6 +322,9 @@ class _ArenaMapPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ignore: avoid_print
+    print('[MatchMapPreview ${DateTime.now().toIso8601String()}] build');
+
     final poly = polygon;
     final hasJail = jailCenter != null && jailRadiusM != null;
     final hasPolygon = poly != null && poly.length >= 3;
@@ -398,6 +401,22 @@ class _ArenaMapPreviewCard extends StatelessWidget {
                 onMapCreated: (controller) {
                   if (hasPolygon && points.isNotEmpty) controller.fitBounds(points);
                 },
+              ),
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface2.withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.outlineLow),
+                  ),
+                  child: Text(
+                    'KAKAO_KEY:${kakaoJsAppKey.isNotEmpty ? 'OK' : 'EMPTY'} MAP_BUILT:YES',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w800),
+                  ),
+                ),
               ),
               Positioned(
                 top: 10,
