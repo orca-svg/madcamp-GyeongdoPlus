@@ -34,6 +34,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   String? _mapDiag;
   bool _mapDiagScheduled = false;
   Timer? _mapDiagTimer;
+  bool _keyLogged = false;
 
   static const bool _mapRenderDisabledThisStage = false;
   static const double _defaultJailRadiusM = 15.0;
@@ -48,10 +49,23 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     _jailCenter = rules.jailCenter;
     _jailRadiusM = rules.jailRadiusM;
 
+    final kakaoJsAppKey =
+        (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
+            ?.trim() ??
+        '';
+    final masked = (kakaoJsAppKey.length >= 4)
+        ? '${kakaoJsAppKey.substring(0, 4)}••••'
+        : (kakaoJsAppKey.isEmpty ? 'EMPTY' : 'SET');
+    final showMap = !_mapRenderDisabledThisStage && kakaoJsAppKey.isNotEmpty;
     // ignore: avoid_print
     print(
       '[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_points.length}',
     );
+    // ignore: avoid_print
+    print(
+      '[ZoneEditor] key=$masked len=${kakaoJsAppKey.length} showMap=$showMap',
+    );
+    _keyLogged = true;
   }
 
   @override
@@ -80,6 +94,20 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     );
 
     final showMap = !_mapRenderDisabledThisStage && _mapEnabled;
+    if (!_keyLogged) {
+      final kakaoJsAppKey =
+          (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
+              ?.trim() ??
+          '';
+      final masked = (kakaoJsAppKey.length >= 4)
+          ? '${kakaoJsAppKey.substring(0, 4)}••••'
+          : (kakaoJsAppKey.isEmpty ? 'EMPTY' : 'SET');
+      // ignore: avoid_print
+      print(
+        '[ZoneEditor] key=$masked len=${kakaoJsAppKey.length} showMap=$showMap',
+      );
+      _keyLogged = true;
+    }
     _scheduleMapDiag(showMap);
 
     // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
@@ -389,13 +417,15 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     _mapDiagScheduled = true;
     _mapDiag ??= 'Map loading...';
     _mapDiagTimer?.cancel();
-    _mapDiagTimer = Timer(const Duration(seconds: 3), () {
+    _mapDiagTimer = Timer(const Duration(seconds: 10), () {
       if (!mounted) return;
       if (_mapBuilt) return;
       setState(() {
         _mapDiag =
             'Map not created yet. Check Kakao Web domain (localhost/127.0.0.1) & key.';
       });
+      // ignore: avoid_print
+      print('[MAP] onMapCreated not fired yet (3s). Check web domain/key.');
     });
   }
 

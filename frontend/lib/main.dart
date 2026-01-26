@@ -40,6 +40,10 @@ Future<void> main() async {
     print(
       '[KAKAO] dotenv=${dotenv.isInitialized ? 'ok' : 'not_loaded'} key=$masked',
     );
+    // ignore: avoid_print
+    print(
+      '[KAKAO] keyLen=${kakaoKey.length} jsKeyPresent=${kakaoKey.isNotEmpty}',
+    );
 
     // ✅ Kakao Map plugin init (필수)
     if (kakaoKey.isNotEmpty) {
