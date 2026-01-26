@@ -15,7 +15,7 @@ class SectionTitle extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.titleMedium),
         if (subtitle != null) ...[
           const SizedBox(width: 8),
-          Text(subtitle!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
+          Text(subtitle!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
         ],
       ],
     );
