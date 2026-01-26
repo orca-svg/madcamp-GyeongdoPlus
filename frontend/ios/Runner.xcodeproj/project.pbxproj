@@ -119,9 +119,39 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4F263EF02F24FFE4006A5552 /* GyeongdoPlusWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "GyeongdoPlusWatch Watch App"; sourceTree = "<group>"; };
-		4F263EFE2F24FFE5006A5552 /* GyeongdoPlusWatch Watch AppTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "GyeongdoPlusWatch Watch AppTests"; sourceTree = "<group>"; };
-		4F263F082F24FFE5006A5552 /* GyeongdoPlusWatch Watch AppUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "GyeongdoPlusWatch Watch AppUITests"; sourceTree = "<group>"; };
+		4F263EF02F24FFE4006A5552 /* GyeongdoPlusWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "GyeongdoPlusWatch Watch App";
+			sourceTree = "<group>";
+		};
+		4F263EFE2F24FFE5006A5552 /* GyeongdoPlusWatch Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "GyeongdoPlusWatch Watch AppTests";
+			sourceTree = "<group>";
+		};
+		4F263F082F24FFE5006A5552 /* GyeongdoPlusWatch Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "GyeongdoPlusWatch Watch AppUITests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -558,13 +588,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

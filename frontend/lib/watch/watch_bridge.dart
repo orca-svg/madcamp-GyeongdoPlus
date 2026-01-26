@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -68,12 +69,20 @@ class WatchBridge {
       if (event is String) {
         try {
           final decoded = jsonDecode(event);
+          final matchId =
+              decoded is Map ? decoded['matchId']?.toString() : null;
+          debugPrint(
+            '[WATCH][FLUTTER][RX] WATCH_ACTION matchId=$matchId len=${event.length}',
+          );
           if (decoded is Map) {
             return decoded.cast<String, dynamic>();
           }
         } catch (_) {
+          debugPrint('[WATCH][FLUTTER][RX] WATCH_ACTION len=${event.length}');
           return <String, dynamic>{};
         }
+      } else {
+        debugPrint('[WATCH][FLUTTER][RX] WATCH_ACTION');
       }
       if (event is Map) {
         return event.cast<String, dynamic>();

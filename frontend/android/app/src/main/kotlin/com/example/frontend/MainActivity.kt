@@ -1,3 +1,5 @@
+package com.example.frontend
+
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -7,9 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.example.frontend.watch.WearBridge
+import android.util.Log
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.Wearable
+import org.json.JSONObject
 
 class MainActivity: FlutterActivity() {
     private val channelName = "gyeongdo/watch_bridge"
@@ -21,6 +25,12 @@ class MainActivity: FlutterActivity() {
         if (event.path == "/gyeongdo/action") {
             val json = String(event.data, Charsets.UTF_8)
             runOnUiThread {
+                val matchId = try {
+                    JSONObject(json).optString("matchId", "unknown")
+                } catch (_: Throwable) {
+                    "unknown"
+                }
+                Log.d("WatchBridge", "[WATCH][ANDROID][RX] WATCH_ACTION matchId=$matchId len=${json.length}")
                 actionSink?.success(json)
             }
         }

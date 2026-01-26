@@ -60,17 +60,51 @@ final class WatchBridge: NSObject, WCSessionDelegate {
             "ts": Int(Date().timeIntervalSince1970 * 1000)
         ]
         if s.isReachable {
-            s.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+            s.sendMessage(payload, replyHandler: nil) { error in
+                print("[WatchBridge] sendMessage error: \(error.localizedDescription)")
+            }
         } else {
-            // reachable이 아니면 applicationContext로 “최신값” 전달(워치가 나중에 열어도 반영)
-            try? s.updateApplicationContext(payload)
+            // reachable이 아니면 applicationContext로 "최신값" 전달(워치가 나중에 열어도 반영)
+            do {
+                try s.updateApplicationContext(payload)
+                print("[WatchBridge] updateApplicationContext success type=\(type)")
+            } catch {
+                print("[WatchBridge] updateApplicationContext error: \(error.localizedDescription)")
+            }
         }
     }
 
     // MARK: WCSessionDelegate
-    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {}
-    func sessionDidBecomeInactive(_ session: WCSession) {}
-    func sessionDidDeactivate(_ session: WCSession) { WCSession.default.activate() }
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        print("[WatchBridge] activationDidComplete state=\(activationState.rawValue) error=\(String(describing: error))")
+        switch activationState {
+        case .activated:
+            print("[WatchBridge] Session activated successfully")
+        case .inactive:
+            print("[WatchBridge] Session inactive")
+        case .notActivated:
+            print("[WatchBridge] Session not activated")
+        @unknown default:
+            print("[WatchBridge] Unknown activation state")
+        }
+    }
+
+    func sessionDidBecomeInactive(_ session: WCSession) {
+        print("[WatchBridge] Session became inactive")
+    }
+
+    func sessionDidDeactivate(_ session: WCSession) {
+        print("[WatchBridge] Session deactivated, reactivating...")
+        WCSession.default.activate()
+    }
+
+    func sessionWatchStateDidChange(_ session: WCSession) {
+        print("[WatchBridge] watchStateDidChange paired=\(session.isPaired) installed=\(session.isWatchAppInstalled)")
+    }
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        print("[WatchBridge] reachabilityDidChange reachable=\(session.isReachable)")
+    }
 
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         actionHandler?(message)

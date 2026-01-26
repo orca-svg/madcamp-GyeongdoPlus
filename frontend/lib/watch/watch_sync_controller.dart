@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/game_phase_provider.dart';
 import '../providers/watch_provider.dart';
 import 'state_snapshot_builder.dart';
 import 'watch_bridge.dart';
+import 'watch_debug_overrides.dart';
 
 class WatchSyncState {
   final GamePhase phase;
@@ -53,7 +56,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
   WatchSyncState build() {
     ref.onDispose(_disposeTimers);
 
-    final phase = ref.read(gamePhaseProvider);
+    final phase = effectiveWatchPhase(ref.read);
     state = WatchSyncState.initial(phase);
 
     // watch 초기화 (1회)
@@ -63,8 +66,18 @@ class WatchSyncController extends Notifier<WatchSyncState> {
 
     // phase 변경 시 주기 재스케줄
     ref.listen<GamePhase>(gamePhaseProvider, (prev, next) {
+      final override = kDebugMode ? ref.read(debugWatchPhaseOverrideProvider) : null;
+      if (override != null) return;
       _scheduleForPhase(next);
       state = state.copyWith(phase: next);
+    });
+
+    // Debug override 변경 시에도 재스케줄
+    ref.listen<GamePhase?>(debugWatchPhaseOverrideProvider, (prev, next) {
+      if (!kDebugMode) return;
+      final effective = next ?? ref.read(gamePhaseProvider);
+      _scheduleForPhase(effective);
+      state = state.copyWith(phase: effective);
     });
 
     // watch 연결이 true로 바뀌는 순간 즉시 1회 전송(“연결됐는데 5초 기다리는” UX 방지)
@@ -116,8 +129,11 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     final connected = ref.read(watchConnectedProvider);
     if (!connected) return;
 
-    final snapshot = StateSnapshotBuilder.build(ref);
+    final snapshot = StateSnapshotBuilder.build((p) => ref.read(p));
     await ref.read(watchBridgeProvider).sendStateSnapshot(snapshot);
+    final len = jsonEncode(snapshot).length;
+    final matchId = snapshot['matchId'];
+    debugPrint('[WATCH][FLUTTER][TX] STATE_SNAPSHOT matchId=$matchId len=$len');
 
     state = state.copyWith(
       lastSnapshotTs: DateTime.now().millisecondsSinceEpoch,
@@ -128,7 +144,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     final connected = ref.read(watchConnectedProvider);
     if (!connected) return;
 
-    final snapshot = StateSnapshotBuilder.build(ref);
+    final snapshot = StateSnapshotBuilder.build((p) => ref.read(p));
     final payload = snapshot['payload'] as Map<String, dynamic>? ?? {};
     final team = payload['team']?.toString() ?? 'UNKNOWN';
     final nearby = payload['nearby'] as Map<String, dynamic>? ?? {};
@@ -142,7 +158,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     // 쿨다운(5초) 강제
     if (now - state.lastHapticTs < _enemyCooldownMs) return;
 
-    await ref.read(watchBridgeProvider).sendHapticAlert({
+    final haptic = {
       'type': 'HAPTIC_ALERT',
       'ts': now,
       'matchId': snapshot['matchId'],
@@ -151,7 +167,11 @@ class WatchSyncController extends Notifier<WatchSyncState> {
         'cooldownSec': 5,
         'durationMs': 300,
       },
-    });
+    };
+    await ref.read(watchBridgeProvider).sendHapticAlert(haptic);
+    final len = jsonEncode(haptic).length;
+    final matchId = haptic['matchId'];
+    debugPrint('[WATCH][FLUTTER][TX] HAPTIC_ALERT matchId=$matchId len=$len');
 
     state = state.copyWith(lastHapticTs: now);
   }

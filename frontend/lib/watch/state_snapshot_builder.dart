@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../features/match/match_state_model.dart';
 import '../net/ws/dto/radar_ping.dart';
 import '../providers/game_phase_provider.dart';
@@ -9,14 +7,15 @@ import '../providers/match_rules_provider.dart';
 import '../providers/match_state_sim_provider.dart';
 import '../providers/match_sync_provider.dart';
 import '../providers/room_provider.dart';
+import 'watch_debug_overrides.dart';
 
 class StateSnapshotBuilder {
-  static Map<String, dynamic> build(Ref ref) {
-    final phase = ref.read(gamePhaseProvider);
-    final rules = ref.read(matchRulesProvider);
-    final room = ref.read(roomProvider);
-    final sim = ref.read(matchStateSimProvider);
-    final sync = ref.read(matchSyncProvider);
+  static Map<String, dynamic> build(ProviderRead read) {
+    final phase = effectiveWatchPhase(read);
+    final rules = read(matchRulesProvider);
+    final room = read(roomProvider);
+    final sim = read(matchStateSimProvider);
+    final sync = read(matchSyncProvider);
 
     final matchId =
         sync.currentMatchId ??

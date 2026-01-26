@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import 'providers/auth_provider.dart';
 import 'features/navigation/bottom_nav_shell.dart';
 import 'features/auth/login_screen.dart';
 import 'features/zone/zone_editor_screen.dart';
+import 'features/debug/watch_debug_screen.dart';
 
 class GyeongdoPlusApp extends ConsumerWidget {
   const GyeongdoPlusApp({super.key});
@@ -33,6 +35,11 @@ class GyeongdoPlusApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       builder: (context, child) => HeroControllerScope.none(child: child!),
+      routes: kDebugMode
+          ? {
+              '/debug/watch': (_) => const WatchDebugScreen(),
+            }
+          : const {},
       home: _debugZoneEditor
           ? const Scaffold(body: ZoneEditorScreen())
           : (!auth.initialized || auth.status == AuthStatus.signingIn)
