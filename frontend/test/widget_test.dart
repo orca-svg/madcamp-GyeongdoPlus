@@ -100,7 +100,11 @@ void main() {
     await tester.tap(startBtn);
     await tester.pumpAndSettle(const Duration(milliseconds: 200));
 
-    expect(find.text('준비 중'), findsOneWidget);
+    expect(find.text('자세히'), findsOneWidget);
+    await tester.tap(find.text('자세히'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 200));
+
+    expect(find.text('시작 불가'), findsOneWidget);
     await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
 

@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/widgets/app_bottom_bar.dart';
+import '../ingame/ingame_settings_screen.dart';
+import '../ingame/ingame_zone_screen.dart';
 import '../radar/radar_screen.dart';
-import '../stats/stats_screen.dart';
 import '../ability/ability_screen.dart';
-import '../match/match_screen.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
@@ -127,12 +127,12 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       const InGameTabSpec(
         icon: Icons.map_rounded,
         label: '구역',
-        screen: StatsScreen(),
+        screen: IngameZoneScreen(),
       ),
       const InGameTabSpec(
         icon: Icons.settings_rounded,
         label: '설정',
-        screen: MatchScreen(),
+        screen: IngameSettingsScreen(),
       ),
     ];
   }

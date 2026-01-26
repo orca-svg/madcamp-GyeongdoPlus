@@ -86,6 +86,8 @@ class MatchRulesState {
   final int timeLimitSec;
   final String mapName;
   final int maxPlayers;
+  final int policeCount;
+  final bool policeCountCustomized;
   final String releaseMode;
   final String contactMode;
   final GameMode gameMode;
@@ -103,6 +105,8 @@ class MatchRulesState {
     required this.timeLimitSec,
     required this.mapName,
     required this.maxPlayers,
+    required this.policeCount,
+    required this.policeCountCustomized,
     required this.releaseMode,
     required this.contactMode,
     required this.gameMode,
@@ -120,6 +124,8 @@ class MatchRulesState {
     int? timeLimitSec,
     String? mapName,
     int? maxPlayers,
+    int? policeCount,
+    bool? policeCountCustomized,
     String? releaseMode,
     String? contactMode,
     GameMode? gameMode,
@@ -133,6 +139,9 @@ class MatchRulesState {
       timeLimitSec: timeLimitSec ?? this.timeLimitSec,
       mapName: mapName ?? this.mapName,
       maxPlayers: maxPlayers ?? this.maxPlayers,
+      policeCount: policeCount ?? this.policeCount,
+      policeCountCustomized:
+          policeCountCustomized ?? this.policeCountCustomized,
       releaseMode: releaseMode ?? this.releaseMode,
       contactMode: contactMode ?? this.contactMode,
       gameMode: gameMode ?? this.gameMode,
@@ -158,6 +167,7 @@ final matchRulesProvider =
 class MatchRulesController extends Notifier<MatchRulesState> {
   static const double _minJailRadiusM = 1.0;
   static const double _maxJailRadiusM = 200.0;
+  static const double _defaultPoliceRatio = 0.4;
 
   @override
   MatchRulesState build() => const MatchRulesState(
@@ -165,6 +175,8 @@ class MatchRulesController extends Notifier<MatchRulesState> {
     timeLimitSec: 600,
     mapName: '도심',
     maxPlayers: 5,
+    policeCount: 2,
+    policeCountCustomized: false,
     releaseMode: '터치/근접',
     contactMode: 'NON_CONTACT',
     gameMode: GameMode.normal,
@@ -191,7 +203,22 @@ class MatchRulesController extends Notifier<MatchRulesState> {
   }
 
   void setMapName(String v) => state = state.copyWith(mapName: v);
-  void setMaxPlayers(int v) => state = state.copyWith(maxPlayers: v);
+  void setMaxPlayers(int v) {
+    final nextMax = v.clamp(2, 12);
+    final nextPolice = _derivePoliceCount(
+      maxPlayers: nextMax,
+      preferExisting: state.policeCount,
+      keepExisting: state.policeCountCustomized,
+    );
+    state = state.copyWith(maxPlayers: nextMax, policeCount: nextPolice);
+  }
+
+  void setPoliceCount(int v) {
+    final max = state.maxPlayers;
+    final clamped = v.clamp(1, max - 1);
+    state = state.copyWith(policeCount: clamped, policeCountCustomized: true);
+  }
+
   void setReleaseMode(String v) => state = state.copyWith(releaseMode: v);
   void setContactMode(String v) => state = state.copyWith(contactMode: v);
   void setGameMode(GameMode v) => state = state.copyWith(gameMode: v);
@@ -275,11 +302,18 @@ class MatchRulesController extends Notifier<MatchRulesState> {
       }
     }
 
+    final mpClamped = mp.clamp(2, 12);
+    final nextPolice = _derivePoliceCount(
+      maxPlayers: mpClamped,
+      preferExisting: state.policeCount,
+      keepExisting: state.policeCountCustomized,
+    );
+
     state = state.copyWith(
       gameMode: gm,
-      maxPlayers: mp.clamp(2, 12),
+      maxPlayers: mpClamped,
+      policeCount: nextPolice,
       contactMode: cm,
-      releaseMode: cm,
       timeLimitSec: tls.clamp(300, 1800),
       durationMin: (tls.clamp(300, 1800) / 60).round(),
       jailEnabled: je,
@@ -289,5 +323,17 @@ class MatchRulesController extends Notifier<MatchRulesState> {
       jailCenter: jc,
       zonePolygon: null,
     );
+  }
+
+  int _derivePoliceCount({
+    required int maxPlayers,
+    required int preferExisting,
+    required bool keepExisting,
+  }) {
+    final minP = 1;
+    final maxP = (maxPlayers - 1).clamp(1, 9999);
+    if (keepExisting) return preferExisting.clamp(minP, maxP);
+    final base = (maxPlayers * _defaultPoliceRatio).floor();
+    return base.clamp(minP, maxP);
   }
 }

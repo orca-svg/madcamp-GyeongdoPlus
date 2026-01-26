@@ -82,6 +82,20 @@ class RoomState {
 
   int get policeCount => members.where((m) => m.team == Team.police).length;
   int get thiefCount => members.where((m) => m.team == Team.thief).length;
+
+  /// Team counts for validation even when member list is not yet hydrated (offline/early stage).
+  /// If there are no members but we have a local player id, treat it as "me=police".
+  int get effectivePoliceCount {
+    if (members.isNotEmpty) return policeCount;
+    if (myId.isNotEmpty) return 1;
+    return 0;
+  }
+
+  int get effectiveThiefCount {
+    if (members.isNotEmpty) return thiefCount;
+    if (myId.isNotEmpty) return 0;
+    return 0;
+  }
 }
 
 final roomProvider = NotifierProvider<RoomController, RoomState>(

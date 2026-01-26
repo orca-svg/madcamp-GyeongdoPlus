@@ -23,6 +23,7 @@ class LobbyScreen extends ConsumerWidget {
     final me = room.me;
     final wsUi = ref.watch(wsUiStatusProvider);
     final rules = ref.watch(matchRulesProvider);
+    final teamV = _teamValidation(room: room, rules: rules);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -77,6 +78,15 @@ class LobbyScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 _RoomConfigSummaryCard(rules: rules),
+                const SizedBox(height: 12),
+                _TeamDistributionCard(
+                  rules: rules,
+                  onPoliceChanged: room.amIHost
+                      ? (v) => ref
+                            .read(matchRulesProvider.notifier)
+                            .setPoliceCount(v)
+                      : null,
+                ),
                 const SizedBox(height: 16),
                 Text('참가자', style: Theme.of(context).textTheme.titleMedium),
                 if (me?.ready ?? false) ...[
@@ -220,7 +230,7 @@ class LobbyScreen extends ConsumerWidget {
                         key: const Key('lobbyStartButton'),
                         variant: GradientButtonVariant.createRoom,
                         title: '경기 시작',
-                        onPressed: room.amIHost
+                        onPressed: (room.amIHost && teamV.ok)
                             ? () async {
                                 await showDialog<void>(
                                   context: context,
@@ -228,7 +238,7 @@ class LobbyScreen extends ConsumerWidget {
                                     backgroundColor: AppColors.surface1,
                                     title: const Text('준비 중'),
                                     content: const Text(
-                                      '팀 인원 검증/시작 로직은 다음 단계에서 활성화됩니다.',
+                                      '이번 단계에서는 실제 시작(phase 전환/WS)을 비활성화했습니다.',
                                     ),
                                     actions: [
                                       TextButton(
@@ -249,6 +259,10 @@ class LobbyScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (room.amIHost && !teamV.ok) ...[
+                  const SizedBox(height: 10),
+                  _StartBlockedCard(v: teamV),
+                ],
                 const SizedBox(height: 10),
                 _StartHelper(room: room),
                 const SizedBox(height: 10),
@@ -499,6 +513,12 @@ class _RoomConfigSummaryCard extends StatelessWidget {
           const SizedBox(height: 12),
           _ruleRow(label: '모드', value: rules.gameMode.wire),
           const SizedBox(height: 10),
+          _ruleRow(
+            label: '팀 분배',
+            value:
+                '경찰 ${rules.policeCount} / 도둑 ${rules.maxPlayers - rules.policeCount} (총 ${rules.maxPlayers})',
+          ),
+          const SizedBox(height: 10),
           _ruleRow(label: '인원', value: '${rules.maxPlayers}명'),
           const SizedBox(height: 10),
           _ruleRow(label: '시간', value: '${rules.timeLimitSec}s'),
@@ -544,6 +564,191 @@ class _RoomConfigSummaryCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TeamDistributionCard extends StatelessWidget {
+  final MatchRulesState rules;
+  final ValueChanged<int>? onPoliceChanged;
+
+  const _TeamDistributionCard({
+    required this.rules,
+    required this.onPoliceChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maxPlayers = rules.maxPlayers.clamp(2, 12);
+    final minPolice = 1;
+    final maxPolice = (maxPlayers - 1).clamp(1, 11);
+    final police = rules.policeCount.clamp(minPolice, maxPolice);
+    final thief = maxPlayers - police;
+
+    final enabled = onPoliceChanged != null;
+
+    return GlowCard(
+      glow: false,
+      borderColor: enabled
+          ? AppColors.borderCyan.withOpacity(0.35)
+          : AppColors.outlineLow,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.85,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('팀 분배', style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                if (!enabled)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface2.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppColors.outlineLow),
+                    ),
+                    child: const Text(
+                      'READ ONLY',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '경찰 $police / 도둑 $thief (총 $maxPlayers)',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              enabled ? '슬라이더로 경찰 수를 조정하세요.' : '팀 분배는 방장만 변경할 수 있어요.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 10),
+            AbsorbPointer(
+              absorbing: !enabled,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: AppColors.borderCyan,
+                  inactiveTrackColor: AppColors.outlineLow.withOpacity(0.9),
+                  thumbColor: AppColors.borderCyan,
+                  overlayColor: AppColors.borderCyan.withOpacity(0.12),
+                ),
+                child: Slider(
+                  min: minPolice.toDouble(),
+                  max: maxPolice.toDouble(),
+                  divisions: (maxPolice - minPolice),
+                  value: police.toDouble(),
+                  onChanged: (v) => onPoliceChanged?.call(v.round()),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TeamValidationResult {
+  final int requiredPolice;
+  final int requiredThief;
+  final int currentPolice;
+  final int currentThief;
+
+  const _TeamValidationResult({
+    required this.requiredPolice,
+    required this.requiredThief,
+    required this.currentPolice,
+    required this.currentThief,
+  });
+
+  bool get ok =>
+      requiredPolice == currentPolice && requiredThief == currentThief;
+
+  String get mismatchMessage =>
+      '팀 인원이 규칙과 맞지 않습니다. (경찰 $requiredPolice/도둑 $requiredThief 필요, 현재 경찰 $currentPolice/도둑 $currentThief)';
+}
+
+_TeamValidationResult _teamValidation({
+  required RoomState room,
+  required MatchRulesState rules,
+}) {
+  final maxPlayers = rules.maxPlayers.clamp(2, 12);
+  final requiredPolice = rules.policeCount.clamp(1, maxPlayers - 1);
+  final requiredThief = maxPlayers - requiredPolice;
+
+  final currentPolice = room.effectivePoliceCount;
+  final currentThief = room.effectiveThiefCount;
+
+  return _TeamValidationResult(
+    requiredPolice: requiredPolice,
+    requiredThief: requiredThief,
+    currentPolice: currentPolice,
+    currentThief: currentThief,
+  );
+}
+
+class _StartBlockedCard extends StatelessWidget {
+  final _TeamValidationResult v;
+
+  const _StartBlockedCard({required this.v});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            color: AppColors.orange,
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              v.mismatchMessage,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          const SizedBox(width: 10),
+          TextButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: AppColors.surface1,
+                title: const Text('시작 불가'),
+                content: Text(v.mismatchMessage),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('확인'),
+                  ),
+                ],
+              ),
+            ),
+            child: const Text('자세히'),
+          ),
+        ],
+      ),
     );
   }
 }
