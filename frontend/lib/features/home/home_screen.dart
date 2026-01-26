@@ -8,14 +8,20 @@ import '../../core/widgets/gradient_button.dart';
 import '../../core/widgets/delta_chip.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/room_provider.dart';
+import '../room/room_create_screen.dart';
+import '../room/room_join_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Intentionally always false (this stage): keep legacy widgets without deleting them.
+    final bool showLegacy = DateTime.now().millisecondsSinceEpoch < 0;
     final phase = ref.watch(gamePhaseProvider);
-    final bottomPad = (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+    final bottomPad = (phase == GamePhase.offGame)
+        ? AppDimens.bottomBarHOff
+        : AppDimens.bottomBarHIn;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -23,63 +29,138 @@ class HomeScreen extends ConsumerWidget {
       body: GlassBackground(
         child: SafeArea(
           bottom: true,
-          child: SingleChildScrollView(
+          child: Padding(
             padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 GlowCard(
-                  glowColor: AppColors.purple.withOpacity(0.35),
-                  borderColor: AppColors.borderCyan.withOpacity(0.55),
+                  glow: false,
+                  borderColor: AppColors.outlineLow,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('환영합니다', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted)),
-                      const SizedBox(height: 8),
-                      RichText(
-                        text: TextSpan(
-                          style: Theme.of(context).textTheme.titleLarge,
-                          children: const [
-                            TextSpan(text: '김선수'),
-                            TextSpan(text: ' 님', style: TextStyle(color: AppColors.borderCyan)),
-                          ],
+                      Text(
+                        '방 시작하기',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      GradientButton(
+                        variant: GradientButtonVariant.createRoom,
+                        title: '방 만들기',
+                        height: 56,
+                        borderRadius: 16,
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const RoomCreateScreen(),
+                            ),
+                          );
+                        },
+                        leading: const Icon(
+                          Icons.add_rounded,
+                          color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text('시즌 12 • 다이아몬드 II', style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 12),
+                      GradientButton(
+                        variant: GradientButtonVariant.joinRoom,
+                        title: '방 참여하기',
+                        height: 56,
+                        borderRadius: 16,
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const RoomJoinScreen(),
+                            ),
+                          );
+                        },
+                        leading: const Icon(
+                          Icons.login_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '방 생성/참여 후 로비에서 규칙을 수정할 수 있어요.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 12.5,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                GradientButton(
-                  variant: GradientButtonVariant.createRoom,
-                  title: '방 만들기',
-                  onPressed: () => _showCreateRoomSheet(context: context, ref: ref),
-                  leading: const Icon(Icons.add_rounded, color: Colors.white),
-                ),
-                const SizedBox(height: 14),
-                GradientButton(
-                  variant: GradientButtonVariant.joinRoom,
-                  title: '방 참여하기',
-                  onPressed: () => _showJoinRoomSheet(context: context, ref: ref),
-                  leading: const Icon(Icons.login_rounded, color: Colors.white),
-                ),
-                const SizedBox(height: 26),
-                Text('최근 활동', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                _activityCard(
-                  title: '승리!',
-                  subtitle: '랭크 매치 • 2분 전',
-                  delta: 25,
-                  detail: 'K/D/A: 12/3/8',
-                ),
-                const SizedBox(height: 12),
-                _activityCard(
-                  title: '승리!',
-                  subtitle: '랭크 매치 • 2일 전',
-                  delta: 25,
-                  detail: 'K/D/A: 12/3/8',
-                ),
+                if (showLegacy) ...[
+                  const SizedBox(height: 26),
+                  GlowCard(
+                    glowColor: AppColors.purple.withOpacity(0.35),
+                    borderColor: AppColors.borderCyan.withOpacity(0.55),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '환영합니다',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textMuted),
+                        ),
+                        const SizedBox(height: 8),
+                        RichText(
+                          text: TextSpan(
+                            style: Theme.of(context).textTheme.titleLarge,
+                            children: const [
+                              TextSpan(text: '김선수'),
+                              TextSpan(
+                                text: ' 님',
+                                style: TextStyle(color: AppColors.borderCyan),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '시즌 12 • 다이아몬드 II',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  GradientButton(
+                    variant: GradientButtonVariant.createRoom,
+                    title: '방 만들기',
+                    onPressed: () =>
+                        _showCreateRoomSheet(context: context, ref: ref),
+                    leading: const Icon(Icons.add_rounded, color: Colors.white),
+                  ),
+                  const SizedBox(height: 14),
+                  GradientButton(
+                    variant: GradientButtonVariant.joinRoom,
+                    title: '방 참여하기',
+                    onPressed: () =>
+                        _showJoinRoomSheet(context: context, ref: ref),
+                    leading: const Icon(
+                      Icons.login_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Text('최근 활동', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  _activityCard(
+                    title: '승리!',
+                    subtitle: '랭크 매치 • 2분 전',
+                    delta: 25,
+                    detail: 'K/D/A: 12/3/8',
+                  ),
+                  const SizedBox(height: 12),
+                  _activityCard(
+                    title: '승리!',
+                    subtitle: '랭크 매치 • 2일 전',
+                    delta: 25,
+                    detail: 'K/D/A: 12/3/8',
+                  ),
+                ],
               ],
             ),
           ),
@@ -88,7 +169,10 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showCreateRoomSheet({required BuildContext context, required WidgetRef ref}) async {
+  Future<void> _showCreateRoomSheet({
+    required BuildContext context,
+    required WidgetRef ref,
+  }) async {
     final controller = TextEditingController(text: '김선수');
     await showModalBottomSheet<void>(
       context: context,
@@ -103,7 +187,9 @@ class HomeScreen extends ConsumerWidget {
             primaryTitle: '만들기',
             primaryVariant: GradientButtonVariant.createRoom,
             onPrimary: () {
-              ref.read(roomProvider.notifier).createRoom(myName: controller.text);
+              ref
+                  .read(roomProvider.notifier)
+                  .createRoom(myName: controller.text);
               Navigator.of(context).pop();
               ref.read(gamePhaseProvider.notifier).toLobby();
             },
@@ -124,7 +210,10 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showJoinRoomSheet({required BuildContext context, required WidgetRef ref}) async {
+  Future<void> _showJoinRoomSheet({
+    required BuildContext context,
+    required WidgetRef ref,
+  }) async {
     final codeController = TextEditingController();
     final nameController = TextEditingController(text: '김선수');
 
@@ -143,7 +232,10 @@ class HomeScreen extends ConsumerWidget {
             onPrimary: () {
               ref
                   .read(roomProvider.notifier)
-                  .joinRoom(myName: nameController.text, code: codeController.text.toUpperCase());
+                  .joinRoom(
+                    myName: nameController.text,
+                    code: codeController.text.toUpperCase(),
+                  );
               Navigator.of(context).pop();
               ref.read(gamePhaseProvider.notifier).toLobby();
             },
@@ -200,16 +292,31 @@ class HomeScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.borderCyan.withOpacity(0.25)),
             ),
-            child: const Icon(Icons.emoji_events_rounded, color: AppColors.lime),
+            child: const Icon(
+              Icons.emoji_events_rounded,
+              color: AppColors.lime,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
@@ -218,7 +325,13 @@ class HomeScreen extends ConsumerWidget {
             children: [
               DeltaChip(delta: delta.toDouble(), suffix: ' LP'),
               const SizedBox(height: 8),
-              Text(detail, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              Text(
+                detail,
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
         ],
@@ -262,10 +375,15 @@ class _RoomSheet extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface2.withOpacity(0.45),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.outlineLow.withOpacity(0.9)),
+                  border: Border.all(
+                    color: AppColors.outlineLow.withOpacity(0.9),
+                  ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   child: child,
                 ),
               ),
@@ -284,7 +402,10 @@ class _RoomSheet extends StatelessWidget {
                       variant: primaryVariant,
                       title: primaryTitle,
                       onPressed: onPrimary,
-                      leading: const Icon(Icons.check_rounded, color: Colors.white),
+                      leading: const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
