@@ -1,9 +1,14 @@
+// Lobby UI overhaul with compact neon action bar and clearer ready/team UX.
+// Why: reduce bottom bar space, remove overflow, and align rules summary with current edits.
+// Adds host-only edit toggle with snackbar feedback and live rules summary updates.
+// Provides neon radio team selection + READY/WAIТ toggle in a single "내 상태" card.
+// Enforces start conditions (host/all ready/team distribution) with guidance text above the bar.
+// Keeps debug bot tooling for local testing in kDebugMode.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
@@ -15,122 +20,121 @@ import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
 
-class LobbyScreen extends ConsumerWidget {
+class LobbyScreen extends ConsumerStatefulWidget {
   const LobbyScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LobbyScreen> createState() => _LobbyScreenState();
+}
+
+class _LobbyScreenState extends ConsumerState<LobbyScreen> {
+  bool _editMode = false;
+
+  @override
+  Widget build(BuildContext context) {
     final room = ref.watch(roomProvider);
     final rules = ref.watch(matchRulesProvider);
-    final phase = ref.watch(gamePhaseProvider);
-    final bottomInset = (phase == GamePhase.offGame
-        ? AppDimens.bottomBarHOff
-        : AppDimens.bottomBarHIn) +
-        18;
-
     final me = room.me;
     final isHost = room.amIHost;
     final allReady = room.allReady;
     final totalPlayers = room.members.length;
-    final canStart = isHost && allReady && totalPlayers >= 2;
+    final totalForRules = totalPlayers > 0 ? totalPlayers : rules.maxPlayers;
+    final policeCount = rules.policeCount.clamp(0, totalForRules);
+    final thiefCount = (totalForRules - policeCount).clamp(0, 99);
+    final teamOk = policeCount >= 1 && thiefCount >= 1;
+    final canStart = isHost && allReady && totalPlayers >= 2 && teamOk;
+    final bottomBarHeight = 68.0;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    final bottomInset =
+        bottomBarHeight + safeBottom + (isHost ? 32 : 28);
+
+    final startNotice = _startNotice(
+      isHost: isHost,
+      totalPlayers: totalPlayers,
+      allReady: allReady,
+      teamOk: teamOk,
+    );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
         child: SafeArea(
-          bottom: true,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView(
+          bottom: false,
+          child: Stack(
+            children: [
+              ListView(
+                padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
+                children: [
+                  _roomInfoCard(context, room, rules.maxPlayers),
+                  const SizedBox(height: 12),
+                  _myStatusCard(context, ref, me),
+                  const SizedBox(height: 12),
+                  _rulesSummaryCard(
+                    context,
+                    rules,
+                    totalForRules: totalForRules,
+                    onEditToggle: isHost
+                        ? () {
+                            setState(() => _editMode = !_editMode);
+                            showAppSnackBar(
+                              context,
+                              message: '규칙 편집 모드 ON',
+                              action: SnackBarAction(
+                                label: '닫기',
+                                onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+                              ),
+                            );
+                          }
+                        : null,
+                    editEnabled: _editMode && isHost,
+                  ),
+                  const SizedBox(height: 12),
+                  if (_editMode && isHost) ...[
+                    _rulesEditCard(context, ref, rules, room),
+                    const SizedBox(height: 12),
+                  ],
+                  if (kDebugMode) ...[
+                    _devBotCard(context),
+                    const SizedBox(height: 12),
+                  ],
+                  _membersCard(context, room),
+                ],
+              ),
+              Positioned(
+                left: 18,
+                right: 18,
+                bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _roomInfoCard(context, room, rules.maxPlayers),
-                      const SizedBox(height: 12),
-                      _rulesSummaryCard(context, room, rules),
-                      const SizedBox(height: 12),
-                      if (isHost) ...[
-                        _rulesEditCard(context, ref, rules),
-                        const SizedBox(height: 12),
-                      ],
-                      if (kDebugMode) ...[
-                        _devBotCard(context),
-                        const SizedBox(height: 12),
-                      ],
-                      _membersCard(context, ref, room, me),
-                      const SizedBox(height: 12),
-                      _teamSection(context, ref, me),
+                      if (startNotice.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            startNotice,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textMuted,
+                                  fontSize: 12,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      _lobbyActionBar(
+                        context,
+                        ref,
+                        canStart: canStart,
+                        height: bottomBarHeight,
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          ref.read(roomProvider.notifier).leaveRoom();
-                          ref.read(gamePhaseProvider.notifier).toOffGame();
-                        },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(54),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          side: const BorderSide(color: AppColors.outlineLow),
-                        ),
-                        child: const Text('나가기'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GradientButton(
-                        key: const Key('lobbyStartButton'),
-                        variant: GradientButtonVariant.createRoom,
-                        title: '게임 시작',
-                        height: 54,
-                        borderRadius: 16,
-                        onPressed: canStart
-                            ? () {
-                                ref.read(gamePhaseProvider.notifier).toInGame();
-                              }
-                            : null,
-                        leading: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (!isHost)
-                  Text(
-                    '게임 시작은 방장만 가능합니다.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.textMuted),
-                  )
-                else if (totalPlayers < 2)
-                  Text(
-                    '최소 2명 이상이어야 시작할 수 있습니다.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.textMuted),
-                  )
-                else if (!allReady)
-                  Text(
-                    '모든 멤버가 준비되어야 시작할 수 있습니다.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.textMuted),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -214,20 +218,18 @@ class LobbyScreen extends ConsumerWidget {
 
   Widget _rulesSummaryCard(
     BuildContext context,
-    RoomState room,
-    MatchRulesState rules,
-  ) {
+    MatchRulesState rules, {
+    required int totalForRules,
+    required VoidCallback? onEditToggle,
+    required bool editEnabled,
+  }) {
     final polygonCount = rules.zonePolygon?.length ?? 0;
     final hasJailCenter = rules.jailCenter != null;
     final jailRadiusText = rules.jailRadiusM == null
         ? '미설정'
         : '${rules.jailRadiusM!.toStringAsFixed(0)}m';
-    final policeCount = room.members.isNotEmpty
-        ? room.policeCount
-        : rules.policeCount;
-    final thiefCount = room.members.isNotEmpty
-        ? room.thiefCount
-        : (rules.maxPlayers - rules.policeCount).clamp(0, 99);
+    final policeCount = rules.policeCount.clamp(0, totalForRules);
+    final thiefCount = (totalForRules - policeCount).clamp(0, 99);
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
@@ -235,7 +237,25 @@ class LobbyScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('규칙 요약', style: Theme.of(context).textTheme.titleSmall),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '규칙 요약',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              if (onEditToggle != null)
+                TextButton(
+                  onPressed: onEditToggle,
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        editEnabled ? AppColors.borderCyan : AppColors.textMuted,
+                  ),
+                  child: Text(editEnabled ? '편집 중' : '편집'),
+                ),
+            ],
+          ),
           const SizedBox(height: 10),
           _ruleRow('모드', rules.gameMode.label),
           _ruleRow('시간 제한', '${(rules.timeLimitSec / 60).round()}분'),
@@ -259,7 +279,18 @@ class LobbyScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     MatchRulesState rules,
+    RoomState room,
   ) {
+    final totalPlayers = room.members.length;
+    final totalForRules = totalPlayers > 0 ? totalPlayers : rules.maxPlayers;
+    final policeMin = totalForRules >= 2 ? 1 : 0;
+    final policeMax = totalForRules >= 2 ? totalForRules - 1 : 0;
+    final policeValue = rules.policeCount
+        .clamp(policeMin, policeMax == 0 ? policeMin : policeMax)
+        .toDouble();
+    final policeDivisions =
+        (policeMax - policeMin) >= 1 ? (policeMax - policeMin) : null;
+    final thiefCount = (totalForRules - policeValue.round()).clamp(0, 99);
     final timeMin = 300.0;
     final timeMax = 1800.0;
     final timeSpan = ((timeMax - timeMin) / 60).round();
@@ -276,6 +307,40 @@ class LobbyScreen extends ConsumerWidget {
         children: [
           Text('규칙 수정', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 12),
+          Text(
+            '경찰 수',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 6),
+          Slider(
+            min: policeMin.toDouble(),
+            max: policeMax.toDouble(),
+            divisions: policeDivisions,
+            value: policeValue,
+            onChanged: totalForRules >= 2
+                ? (v) => ref
+                    .read(matchRulesProvider.notifier)
+                    .setPoliceCount(v.round())
+                : null,
+          ),
+          Text(
+            '도둑 수: $thiefCount',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: AppColors.textMuted),
+          ),
+          if (totalForRules < 2) ...[
+            const SizedBox(height: 6),
+            Text(
+              '참가자 2명 이상부터 팀 분배가 가능합니다.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+          const SizedBox(height: 14),
           Text(
             '시간 제한',
             style: Theme.of(context).textTheme.bodySmall,
@@ -365,9 +430,7 @@ class LobbyScreen extends ConsumerWidget {
 
   Widget _membersCard(
     BuildContext context,
-    WidgetRef ref,
     RoomState room,
-    RoomMember? me,
   ) {
     return GlowCard(
       glow: false,
@@ -388,13 +451,8 @@ class LobbyScreen extends ConsumerWidget {
             ),
             itemBuilder: (context, i) {
               final m = room.members[i];
-              final isMe = m.id == room.myId;
               return _MemberRow(
                 member: m,
-                isMe: isMe,
-                onReadyChanged: isMe
-                    ? (v) => ref.read(roomProvider.notifier).setMyReady(v)
-                    : null,
               );
             },
           ),
@@ -403,7 +461,10 @@ class LobbyScreen extends ConsumerWidget {
     );
   }
 
-  Widget _teamSection(BuildContext context, WidgetRef ref, RoomMember? me) {
+  Widget _myStatusCard(BuildContext context, WidgetRef ref, RoomMember? me) {
+    final team = me?.team ?? Team.police;
+    final ready = me?.ready ?? false;
+    final teamColor = team == Team.police ? AppColors.borderCyan : AppColors.red;
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
@@ -411,23 +472,51 @@ class LobbyScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('팀 선택', style: Theme.of(context).textTheme.titleSmall),
+          Text('내 상태', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 10),
-          _TeamSelector(
-            team: me?.team ?? Team.police,
-            enabled: !(me?.ready ?? false),
-            onChanged: (t) => ref.read(roomProvider.notifier).setMyTeam(t),
+          Text('팀 선택', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Opacity(
+            opacity: ready ? 0.6 : 1,
+            child: IgnorePointer(
+              ignoring: ready,
+              child: NeonRadioGroup<Team>(
+                value: team,
+                onChanged: (t) => ref.read(roomProvider.notifier).setMyTeam(t),
+                options: const [
+                  NeonRadioOption(
+                    value: Team.police,
+                    label: '경찰',
+                    color: AppColors.borderCyan,
+                  ),
+                  NeonRadioOption(
+                    value: Team.thief,
+                    label: '도둑',
+                    color: AppColors.red,
+                  ),
+                ],
+                height: 40,
+                radius: 14,
+              ),
+            ),
           ),
-          if (me?.ready ?? false) ...[
-            const SizedBox(height: 8),
+          if (ready) ...[
+            const SizedBox(height: 6),
             Text(
-              'Ready 해제 후 변경 가능',
+              'READY 해제 후 팀 변경 가능',
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.textMuted),
+                  ?.copyWith(color: AppColors.textMuted, fontSize: 12),
             ),
           ],
+          const SizedBox(height: 12),
+          _ReadyToggleButton(
+            ready: ready,
+            color: teamColor,
+            onTap: () =>
+                ref.read(roomProvider.notifier).setMyReady(!ready),
+          ),
         ],
       ),
     );
@@ -468,6 +557,77 @@ class LobbyScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Widget _lobbyActionBar(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool canStart,
+    required double height,
+  }) {
+    return Container(
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface1.withOpacity(0.92),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        border: Border.all(color: AppColors.outlineLow, width: 1),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 42,
+            child: OutlinedButton(
+              onPressed: () {
+                ref.read(roomProvider.notifier).leaveRoom();
+                ref.read(gamePhaseProvider.notifier).toOffGame();
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                side: const BorderSide(color: AppColors.outlineLow),
+              ),
+              child: const Text('나가기'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 58,
+            child: GradientButton(
+              key: const Key('lobbyStartButton'),
+              variant: GradientButtonVariant.createRoom,
+              title: '게임 시작',
+              height: 44,
+              borderRadius: 14,
+              onPressed: canStart
+                  ? () {
+                      ref.read(gamePhaseProvider.notifier).toInGame();
+                    }
+                  : null,
+              leading: const Icon(
+                Icons.play_arrow_rounded,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _startNotice({
+    required bool isHost,
+    required int totalPlayers,
+    required bool allReady,
+    required bool teamOk,
+  }) {
+    if (!isHost) return '게임 시작은 방장만 가능합니다.';
+    if (totalPlayers < 2) return '최소 2명 이상이어야 시작할 수 있습니다.';
+    if (!teamOk) return '경찰/도둑 팀 수를 확인하세요.';
+    if (!allReady) return '모든 멤버가 준비되어야 시작할 수 있습니다.';
+    return '';
   }
 
   Widget _devButton(BuildContext context, String label, VoidCallback onTap) {
@@ -682,13 +842,9 @@ class LobbyScreen extends ConsumerWidget {
 
 class _MemberRow extends StatelessWidget {
   final RoomMember member;
-  final bool isMe;
-  final ValueChanged<bool>? onReadyChanged;
 
   const _MemberRow({
     required this.member,
-    required this.isMe,
-    required this.onReadyChanged,
   });
 
   @override
@@ -696,77 +852,102 @@ class _MemberRow extends StatelessWidget {
     final teamIcon =
         member.team == Team.police ? Icons.shield_rounded : Icons.lock_rounded;
     final teamColor =
-        member.team == Team.police ? AppColors.borderCyan : AppColors.orange;
+        member.team == Team.police ? AppColors.borderCyan : AppColors.red;
     final readyText = member.ready ? 'READY' : 'WAIT';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Icon(teamIcon, size: 18, color: teamColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      member.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w800,
-                      ),
+        Icon(teamIcon, size: 18, color: teamColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  member.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (member.isHost) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface2.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.outlineLow),
+                  ),
+                  child: const Text(
+                    'HOST',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (member.isHost) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface2.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.outlineLow),
-                      ),
-                      child: const Text(
-                        'HOST',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            _ReadyPill(text: readyText),
-          ],
-        ),
-        if (isMe && onReadyChanged != null) ...[
-          const SizedBox(height: 8),
-          NeonRadioGroup<bool>(
-            value: member.ready,
-            onChanged: onReadyChanged!,
-            options: const [
-              NeonRadioOption(
-                value: false,
-                label: 'NOT READY',
-                color: AppColors.textMuted,
-              ),
-              NeonRadioOption(
-                value: true,
-                label: 'READY',
-                color: AppColors.lime,
-              ),
+                ),
+              ],
             ],
           ),
-        ],
+        ),
+        const SizedBox(width: 8),
+        _ReadyPill(text: readyText),
       ],
+    );
+  }
+}
+
+class _ReadyToggleButton extends StatelessWidget {
+  final bool ready;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ReadyToggleButton({
+    required this.ready,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: ready ? color.withOpacity(0.18) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: ready ? color.withOpacity(0.8) : AppColors.outlineLow,
+          ),
+          boxShadow: ready
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          ready ? 'READY' : 'WAIT',
+          style: TextStyle(
+            color: ready ? color : AppColors.textMuted,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -794,70 +975,6 @@ class _ReadyPill extends StatelessWidget {
           fontWeight: FontWeight.w800,
           fontSize: 11,
         ),
-      ),
-    );
-  }
-}
-
-class _TeamSelector extends StatelessWidget {
-  final Team team;
-  final bool enabled;
-  final ValueChanged<Team> onChanged;
-
-  const _TeamSelector({
-    required this.team,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    Widget item(Team value, String label, IconData icon) {
-      final selected = team == value;
-      final color = selected ? AppColors.borderCyan : AppColors.outlineLow;
-      final fill = selected
-          ? AppColors.borderCyan.withOpacity(0.18)
-          : AppColors.surface2.withOpacity(0.25);
-      return Expanded(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: enabled ? () => onChanged(value) : null,
-          child: Container(
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: fill,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: color.withOpacity(selected ? 0.6 : 0.9)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 16, color: AppColors.textPrimary),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Opacity(
-      opacity: enabled ? 1 : 0.6,
-      child: Row(
-        children: [
-          item(Team.police, '경찰', Icons.shield_rounded),
-          const SizedBox(width: 10),
-          item(Team.thief, '도둑', Icons.lock_rounded),
-        ],
       ),
     );
   }

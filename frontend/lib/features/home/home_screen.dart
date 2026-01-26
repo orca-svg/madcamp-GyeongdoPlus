@@ -1,10 +1,14 @@
+// lib/features/home/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/connection_indicator.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../core/widgets/rank_neon_card.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/watch_provider.dart';
@@ -19,10 +23,11 @@ class HomeScreen extends ConsumerWidget {
     final auth = ref.watch(authProvider);
     final watchConnected = ref.watch(watchConnectedProvider);
     final phase = ref.watch(gamePhaseProvider);
-    final bottomPad = (phase == GamePhase.offGame)
-        ? AppDimens.bottomBarHOff
-        : AppDimens.bottomBarHIn;
+
+    final bottomPad =
+        (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
     final bottomInset = bottomPad + 18;
+
     final rankItems = _stubRanks();
 
     return Scaffold(
@@ -49,13 +54,30 @@ class HomeScreen extends ConsumerWidget {
                             ?.copyWith(color: AppColors.textMuted),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        auth.displayName ?? '김선수',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
+
+                      // ✅ 이름 Row 우측에 워치 인디케이터 배치
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              auth.displayName ?? '김선수',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ConnectionIndicator(
+                            icon: Icons.watch_rounded,
+                            connected: watchConnected,
+                            label: watchConnected ? '워치' : '오프',
+                          ),
+                        ],
                       ),
+
                       const SizedBox(height: 4),
                       Text(
                         '시즌 12',
@@ -64,44 +86,38 @@ class HomeScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
+
+                      // ✅ 경찰/도둑 네온 랭크 카드 (cyan / red)
                       Row(
                         children: [
                           Expanded(
-                            child: _rankTile(
+                            child: RankNeonCard(
+                              title: '경찰',
+                              score: rankItems[0].score,
                               icon: Icons.shield_rounded,
-                              label: '경찰 랭크',
-                              value: rankItems[0].displayText,
+                              accent: AppColors.borderCyan,
+                              rankName: rankItems[0].rankName,
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: _rankTile(
+                            child: RankNeonCard(
+                              title: '도둑',
+                              score: rankItems[1].score,
                               icon: Icons.lock_rounded,
-                              label: '도둑 랭크',
-                              value: rankItems[1].displayText,
+                              accent: AppColors.red,
+                              rankName: rankItems[1].rankName,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      const Divider(height: 1, color: AppColors.outlineLow),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            _watchIndicatorCompact(watchConnected),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 24),
+
+                // ✅ 버튼 영역은 Expanded로 가운데 정렬 유지 (오버플로 방지)
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -118,10 +134,7 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           );
                         },
-                        leading: const Icon(
-                          Icons.add_rounded,
-                          color: Colors.white,
-                        ),
+                        leading: const Icon(Icons.add_rounded, color: Colors.white),
                       ),
                       const SizedBox(height: 18),
                       GradientButton(
@@ -136,10 +149,7 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           );
                         },
-                        leading: const Icon(
-                          Icons.login_rounded,
-                          color: Colors.white,
-                        ),
+                        leading: const Icon(Icons.login_rounded, color: Colors.white),
                       ),
                     ],
                   ),
@@ -152,114 +162,40 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _watchIndicatorCompact(bool connected) {
-    final color = connected ? AppColors.lime : AppColors.textMuted;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 28),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface2.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.watch_rounded, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            connected ? 'Connected' : 'Off',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _rankTile({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface2.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineLow.withOpacity(0.9)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: AppColors.borderCyan),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   List<_RankInfo> _stubRanks() {
     return const [
-      _RankInfo(role: 'POLICE', score: 1240, tierCode: 'DIAMOND_2'),
-      _RankInfo(role: 'THIEF', score: 980, tierCode: 'PLATINUM_4'),
+      _RankInfo(role: 'POLICE', score: 1240),
+      _RankInfo(role: 'THIEF', score: 980),
     ];
   }
 }
 
 class _RankInfo {
-  final String role;
+  final String role; // 'POLICE' | 'THIEF'
   final int score;
-  final String tierCode;
-  final String? subtitle;
 
   const _RankInfo({
     required this.role,
     required this.score,
-    required this.tierCode,
-    this.subtitle,
   });
 
-  String get displayText => '${_tierLabel(tierCode)} · $score';
-}
+  String get rankName {
+    final r = role.toUpperCase();
 
-String _tierLabel(String code) {
-  switch (code) {
-    case 'DIAMOND_2':
-      return '다이아 II';
-    case 'PLATINUM_4':
-      return '플래티넘 IV';
-    default:
-      return '브론즈 V';
+    // ✅ “내 정보 탭에서처럼” 역할별 랭크명 제공 (필요하면 구간표를 더 확장 가능)
+    if (r == 'POLICE') {
+      if (score >= 3000) return '특수요원';
+      if (score >= 2000) return '강력반';
+      if (score >= 1200) return '경사';
+      if (score >= 600) return '순경';
+      return '훈련생';
+    }
+
+    // THIEF
+    if (score >= 3000) return '전설의 도둑';
+    if (score >= 2000) return '괴도';
+    if (score >= 1200) return '전문털이범';
+    if (score >= 600) return '소매치기';
+    return '연습생';
   }
 }

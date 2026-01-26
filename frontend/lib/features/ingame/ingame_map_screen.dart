@@ -1,3 +1,8 @@
+// In-game map: taller map area and server-driven polygon/jail display only.
+// Why: give more space to the map without adding edit interactions.
+// Keeps polygon/circle from matchRulesProvider and shows missing config hints.
+// Adjusts height dynamically to avoid overflow on small screens.
+// Maintains neon border and legend pills.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
@@ -22,7 +27,7 @@ class InGameMapScreen extends ConsumerWidget {
         ? LatLng(polygon.first.lat, polygon.first.lng)
         : (jailCenter != null
             ? LatLng(jailCenter.lat, jailCenter.lng)
-            : const LatLng(37.5665, 126.9780));
+            : LatLng(37.5665, 126.9780));
 
     final polygonOverlay = polygon.length >= 3
         ? Polygon(
@@ -47,6 +52,10 @@ class InGameMapScreen extends ConsumerWidget {
             fillColor: AppColors.purple.withOpacity(0.14),
           );
 
+    final mapHeight = (MediaQuery.of(context).size.height * 0.62)
+        .clamp(360.0, 520.0)
+        .toDouble();
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
@@ -66,7 +75,7 @@ class InGameMapScreen extends ConsumerWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppDimens.radiusCard),
                     child: SizedBox(
-                      height: 360,
+                      height: mapHeight,
                       child: Stack(
                         children: [
                           KakaoMap(

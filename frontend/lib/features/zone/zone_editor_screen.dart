@@ -1,3 +1,9 @@
+// Zone editor: fix polygon rendering when points are removed or preview-only.
+// Why: polygon should appear only with 3+ confirmed points and disappear immediately otherwise.
+// Prevents preview point from creating a closed polygon (no "first pin fixed" feel).
+// Keeps map markers for confirmed/preview points while suppressing fill until confirmed.
+// Adjusts polygon stroke/fill to lighter neon values for clarity.
+// Retains existing save flow and jail editing UX.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -256,12 +262,12 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     final polygonOverlay = (_pointsConfirmed.length >= 3)
         ? Polygon(
             polygonId: 'edit_polygon',
-            points: points,
-            strokeWidth: 3,
+            points: confirmed,
+            strokeWidth: 2,
             strokeColor: AppColors.borderCyan,
             strokeOpacity: 0.9,
             fillColor: AppColors.borderCyan,
-            fillOpacity: 0.10,
+            fillOpacity: 0.14,
             zIndex: 1,
           )
         : null;

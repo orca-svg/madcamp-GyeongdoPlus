@@ -1,3 +1,8 @@
+// Profile UI: compact neon ranks with consistent Home styling.
+// Why: unify rank cards, show explicit "랭크명 · 점수" text, and reduce overflow risk.
+// Uses RankNeonCard for police/thief with cyan/red neon borders.
+// Keeps existing stats/achievements layout intact.
+// Preserves neon header/gradients for profile identity.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../core/widgets/rank_neon_card.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/profile_stats_provider.dart';
 import '../../providers/room_provider.dart';
@@ -55,20 +61,22 @@ class ProfileScreen extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _rankCard(
+                      child: RankNeonCard(
                         title: '경찰',
-                        rank: '${stats.policeRank} · ${stats.policeScore}',
+                        score: stats.policeScore,
                         icon: Icons.shield_rounded,
-                        accent: neonCyan,
+                        accent: AppColors.borderCyan,
+                        rankName: _rankNameFromScore(stats.policeScore),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _rankCard(
+                      child: RankNeonCard(
                         title: '도둑',
-                        rank: '${stats.thiefRank} · ${stats.thiefScore}',
+                        score: stats.thiefScore,
                         icon: Icons.lock_rounded,
-                        accent: neonPurple,
+                        accent: AppColors.red,
+                        rankName: _rankNameFromScore(stats.thiefScore),
                       ),
                     ),
                   ],
@@ -152,62 +160,6 @@ class ProfileScreen extends ConsumerWidget {
                       .textTheme
                       .bodySmall
                       ?.copyWith(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _rankCard({
-    required String title,
-    required String rank,
-    required IconData icon,
-    required Color accent,
-  }) {
-    return GlowCard(
-      glow: true,
-      glowColor: accent,
-      borderColor: accent.withOpacity(0.7),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accent.withOpacity(0.5)),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 18, color: accent),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  rank,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w900,
-                  ),
                 ),
               ],
             ),
@@ -370,4 +322,10 @@ class ProfileScreen extends ConsumerWidget {
     if (hours <= 0) return '${minutes}분';
     return '${hours}시간 ${minutes}분';
   }
+}
+
+String _rankNameFromScore(int score) {
+  if (score >= 1500) return '전문가';
+  if (score >= 1000) return '숙련';
+  return '초보';
 }

@@ -1,6 +1,11 @@
+// Placeholder settings: ensure exit button clears bottom nav bar safely.
+// Why: avoid bottom nav overlap with the "게임 나가기" action.
+// Adds bottom padding based on in-game bottom bar height.
+// Keeps current UI and logic intact otherwise.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
@@ -27,7 +32,12 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
       body: GlassBackground(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            padding: const EdgeInsets.fromLTRB(
+              18,
+              14,
+              18,
+              AppDimens.bottomBarHIn + 12,
+            ),
             child: Column(
               children: [
                 GlowCard(
