@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
@@ -114,9 +115,7 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
   Future<void> _join(BuildContext context) async {
     final code = _codeCtrl.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('방 코드를 입력하세요')));
+      showAppSnackBar(context, message: '방 코드를 입력하세요', isError: true);
       return;
     }
 

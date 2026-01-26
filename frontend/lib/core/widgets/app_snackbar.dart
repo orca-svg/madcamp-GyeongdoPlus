@@ -1,47 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../providers/ws_notice_provider.dart';
+import '../theme/app_colors.dart';
 
-final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+void showAppSnackBar(
+  BuildContext context, {
+  required String message,
+  Duration duration = const Duration(seconds: 2),
+  bool isError = false,
+  SnackBarAction? action,
+}) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
 
-class WsNoticeHost extends ConsumerStatefulWidget {
-  final Widget child;
+  final bottomInset = MediaQuery.of(context).padding.bottom;
+  final navH = kBottomNavigationBarHeight;
+  final fg = isError ? AppColors.red : AppColors.textPrimary;
 
-  const WsNoticeHost({super.key, required this.child});
-
-  @override
-  ConsumerState<WsNoticeHost> createState() => _WsNoticeHostState();
+  messenger.showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      duration: duration,
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset + navH),
+      backgroundColor: AppColors.surface1.withOpacity(0.92),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      action: action,
+      content: Row(
+        children: [
+          if (isError) ...[
+            const Icon(Icons.error_outline_rounded, color: AppColors.red),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
-class _WsNoticeHostState extends ConsumerState<WsNoticeHost> {
-  late final ProviderSubscription<WsNotice?> _sub;
-
-  @override
-  void initState() {
-    super.initState();
-    _sub = ref.listenManual<WsNotice?>(wsNoticeProvider, (prev, next) {
-      if (next == null) return;
-      final messenger = rootScaffoldMessengerKey.currentState;
-      if (messenger == null) return;
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(next.message),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      ref.read(wsNoticeProvider.notifier).consume();
-    });
-  }
-
-  @override
-  void dispose() {
-    _sub.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
-}

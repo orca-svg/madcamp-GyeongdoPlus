@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
@@ -150,9 +151,7 @@ class ZonePointsDetailScreen extends StatelessWidget {
     final jsonText = jsonEncode(points.map((p) => p.toJson()).toList());
     await Clipboard.setData(ClipboardData(text: jsonText));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('JSON이 복사되었습니다')),
-    );
+    showAppSnackBar(context, message: 'JSON이 복사되었습니다');
   }
 
   Future<void> _copyCsv(BuildContext context) async {
@@ -162,8 +161,6 @@ class ZonePointsDetailScreen extends StatelessWidget {
     }
     await Clipboard.setData(ClipboardData(text: buf.toString()));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('CSV가 복사되었습니다')),
-    );
+    showAppSnackBar(context, message: 'CSV가 복사되었습니다');
   }
 }

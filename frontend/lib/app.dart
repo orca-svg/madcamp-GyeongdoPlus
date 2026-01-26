@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/app_snackbar.dart';
 import 'features/navigation/bottom_nav_shell.dart';
 import 'features/zone/zone_editor_screen.dart';
 
@@ -16,10 +15,9 @@ class GyeongdoPlusApp extends StatelessWidget {
       title: 'GyeongdoPlus',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
-      scaffoldMessengerKey: rootScaffoldMessengerKey,
       home: _debugZoneEditor
           ? const Scaffold(body: ZoneEditorScreen())
-          : const WsNoticeHost(child: BottomNavShell()),
+          : const BottomNavShell(),
     );
   }
 }

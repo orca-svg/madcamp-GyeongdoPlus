@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/ws_status_pill.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
@@ -71,9 +72,7 @@ class LobbyScreen extends ConsumerWidget {
                             ClipboardData(text: room.roomCode),
                           );
                           if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('방 코드가 복사되었습니다')),
-                          );
+                          showAppSnackBar(context, message: '방 코드가 복사되었습니다');
                         },
                 ),
                 const SizedBox(height: 12),

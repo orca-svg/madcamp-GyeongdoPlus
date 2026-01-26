@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/section_title.dart';
@@ -272,7 +273,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                           await ref.read(watchConnectedProvider.notifier).refresh();
                           final ok = ref.read(watchConnectedProvider);
                           if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Watch connected: $ok')));
+                          showAppSnackBar(context, message: 'Watch connected: $ok');
                         },
                         icon: const Icon(Icons.watch_rounded, size: 18),
                         label: const Text('연결 확인'),
