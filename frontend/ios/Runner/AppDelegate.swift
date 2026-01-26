@@ -4,11 +4,6 @@ import Flutter
 @main
 
 @objc class AppDelegate: FlutterAppDelegate {
-  /// Idempotent guard: MethodChannel 설정이 한 번만 실행되도록 함
-  private var watchChannelInitialized = false
-
-  /// Idempotent guard: WCSession setup이 한 번만 실행되도록 함
-  private var watchSessionSetup = false
 
   override func application(
     _ application: UIApplication,
@@ -19,8 +14,6 @@ import Flutter
 
     // ============================================================
     // 1. super.application() 반드시 가장 먼저 호출
-    //    - 내부적으로 GeneratedPluginRegistrant.register 수행
-    //    - 명시적 register 추가 금지 (중복 등록 → instanceManager 충돌)
     // ============================================================
     NSLog("[IOS][APPDELEGATE] super.application BEFORE")
     let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -34,85 +27,35 @@ import Flutter
     //    - UserDefaults("DISABLE_WATCH_BRIDGE")는 런타임 스위치로 유지
     // ============================================================
     var watchEnabled = true
+    var isSimulator = false
+    var simOverride = false
 #if targetEnvironment(simulator)
-    watchEnabled = false
-    NSLog("[IOS][WATCH] WatchBridge disabled (simulator)")
+      isSimulator = true
+      let env = ProcessInfo.processInfo.environment["ENABLE_WATCH_BRIDGE_SIM"]
+      let envOverride = (env == "1" || env == "true" || env == "YES")
+      simOverride = envOverride || UserDefaults.standard.bool(forKey: "ENABLE_WATCH_BRIDGE_SIM")
+      watchEnabled = simOverride
 #endif
 
     if UserDefaults.standard.bool(forKey: "DISABLE_WATCH_BRIDGE") {
       watchEnabled = false
       NSLog("[IOS][WATCH] WatchBridge disabled via UserDefaults")
     }
+    NSLog("[IOS][WATCH] enabled=\(watchEnabled) simulator=\(isSimulator) simOverride=\(simOverride)")
 
     // ============================================================
-    // 3. MethodChannel은 항상 준비 (Dart에서 MissingPluginException 방지)
-    //    - 단, WCSession 활성화(setup)는 Dart 'init' 호출 시에만 수행
+    // 3. WatchBridgePlugin 등록 (Method/Event Channel)
     // ============================================================
-    initializeWatchChannel(watchEnabled: watchEnabled)
+    WatchBridgePlugin.watchEnabled = watchEnabled
+    if let registrar = self.registrar(forPlugin: "WatchBridgePlugin") {
+      WatchBridgePlugin.register(with: registrar)
+      NSLog("[IOS][WATCH] WatchBridgePlugin registered")
+    } else {
+      NSLog("[IOS][WATCH] WARNING: registrar not found for WatchBridgePlugin")
+    }
 
     NSLog("[IOS][APPDELEGATE] didFinishLaunching END")
     return result
   }
 
-  /// MethodChannel 설정 (idempotent). WCSession setup은 'init'에서만.
-  private func initializeWatchChannel(watchEnabled: Bool) {
-    guard !watchChannelInitialized else { return }
-    watchChannelInitialized = true
-
-    guard let controller = window?.rootViewController as? FlutterViewController else {
-      NSLog("[IOS][WATCH] WARNING: FlutterViewController not found - channel NOT created")
-      return
-    }
-
-    NSLog("[IOS][WATCH] FlutterViewController found, setting up channel")
-    let channel = FlutterMethodChannel(name: "gyeongdo/watch_bridge", binaryMessenger: controller.binaryMessenger)
-
-    channel.setMethodCallHandler { call, callResult in
-      switch call.method {
-      case "init":
-        guard watchEnabled else {
-          callResult(false)
-          return
-        }
-
-        // WCSession setup은 여기서만 실행 (WebView 초기화 타이밍과 분리)
-        if !self.watchSessionSetup {
-          self.watchSessionSetup = true
-          NSLog("[IOS][WATCH] WatchBridge.setup (from Dart init) BEFORE")
-          WatchBridge.shared.setup()
-          NSLog("[IOS][WATCH] WatchBridge.setup (from Dart init) AFTER")
-        }
-        callResult(true)
-
-      case "isConnected":
-        guard watchEnabled, self.watchSessionSetup else {
-          callResult(false)
-          return
-        }
-        callResult(WatchBridge.shared.isConnected())
-
-      case "sendRadarPacket":
-        guard watchEnabled, self.watchSessionSetup else {
-          callResult(false)
-          return
-        }
-        if let args = call.arguments as? [String: Any],
-           let json = args["json"] as? String {
-          WatchBridge.shared.sendRadarPacket(json: json)
-          callResult(true)
-        } else {
-          callResult(false)
-        }
-
-      case "sendHaptic":
-        // Not implemented on native yet; return false without throwing.
-        callResult(false)
-
-      default:
-        callResult(FlutterMethodNotImplemented)
-      }
-    }
-
-    NSLog("[IOS][WATCH] channel ready")
-  }
 }

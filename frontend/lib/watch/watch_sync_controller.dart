@@ -56,6 +56,11 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     final phase = ref.read(gamePhaseProvider);
     state = WatchSyncState.initial(phase);
 
+    // watch 초기화 (1회)
+    Future.microtask(() async {
+      await ref.read(watchConnectedProvider.notifier).init();
+    });
+
     // phase 변경 시 주기 재스케줄
     ref.listen<GamePhase>(gamePhaseProvider, (prev, next) {
       _scheduleForPhase(next);
