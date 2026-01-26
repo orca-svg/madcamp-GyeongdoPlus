@@ -123,16 +123,29 @@ class _IngameSettingsScreenState extends ConsumerState<IngameSettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Slider(
-                        min: 300,
-                        max: 1800,
-                        divisions: ((1800 - 300) / 60).round(),
-                        value: rules.timeLimitSec.clamp(300, 1800).toDouble(),
-                        onChanged: isHost
-                            ? (v) => ref
-                                  .read(matchRulesProvider.notifier)
-                                  .setTimeLimitSec(v.round())
-                            : null,
+                      Builder(
+                        builder: (context) {
+                          const min = 300.0;
+                          const max = 1800.0;
+                          final span = (max - min).round();
+                          final divisions =
+                              span >= 1 ? ((max - min) / 60).round() : null;
+                          final enabled = isHost && divisions != null;
+
+                          return Slider(
+                            min: min,
+                            max: max,
+                            divisions: divisions,
+                            value: rules.timeLimitSec
+                                .clamp(min.toInt(), max.toInt())
+                                .toDouble(),
+                            onChanged: enabled
+                                ? (v) => ref
+                                      .read(matchRulesProvider.notifier)
+                                      .setTimeLimitSec(v.round())
+                                : null,
+                          );
+                        },
                       ),
                       if (!isHost) ...[
                         const SizedBox(height: 4),
@@ -157,4 +170,3 @@ class _IngameSettingsScreenState extends ConsumerState<IngameSettingsScreen> {
     );
   }
 }
-

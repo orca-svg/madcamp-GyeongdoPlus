@@ -585,6 +585,11 @@ class _TeamDistributionCard extends StatelessWidget {
     final thief = maxPlayers - police;
 
     final enabled = onPoliceChanged != null;
+    final min = minPolice.toDouble();
+    final max = maxPolice.toDouble();
+    final span = (max - min).round();
+    final canAdjust = span >= 1;
+    final divisions = canAdjust ? span : null;
 
     return GlowCard(
       glow: false,
@@ -632,30 +637,37 @@ class _TeamDistributionCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              enabled ? '슬라이더로 경찰 수를 조정하세요.' : '팀 분배는 방장만 변경할 수 있어요.',
+              enabled
+                  ? (canAdjust
+                        ? '슬라이더로 경찰 수를 조정하세요.'
+                        : '2인 게임은 팀 분배 조정이 불가능합니다.')
+                  : '팀 분배는 방장만 변경할 수 있어요.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
             ),
             const SizedBox(height: 10),
-            AbsorbPointer(
-              absorbing: !enabled,
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: AppColors.borderCyan,
-                  inactiveTrackColor: AppColors.outlineLow.withOpacity(0.9),
-                  thumbColor: AppColors.borderCyan,
-                  overlayColor: AppColors.borderCyan.withOpacity(0.12),
-                ),
-                child: Slider(
-                  min: minPolice.toDouble(),
-                  max: maxPolice.toDouble(),
-                  divisions: (maxPolice - minPolice),
-                  value: police.toDouble(),
-                  onChanged: (v) => onPoliceChanged?.call(v.round()),
+            if (canAdjust)
+              AbsorbPointer(
+                absorbing: !enabled,
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: AppColors.borderCyan,
+                    inactiveTrackColor: AppColors.outlineLow.withOpacity(0.9),
+                    thumbColor: AppColors.borderCyan,
+                    overlayColor: AppColors.borderCyan.withOpacity(0.12),
+                  ),
+                  child: Slider(
+                    min: min,
+                    max: max,
+                    divisions: divisions,
+                    value: police.toDouble().clamp(min, max),
+                    onChanged: enabled
+                        ? (v) => onPoliceChanged?.call(v.round())
+                        : null,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),

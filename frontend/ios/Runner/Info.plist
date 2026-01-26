@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Frontend</string>
+	<string>경도+</string>
 	<key>KAKAO_JS_APP_KEY</key>
 	<string></string>
 	<key>CFBundleExecutable</key>

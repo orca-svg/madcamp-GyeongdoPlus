@@ -12,9 +12,10 @@ class GyeongdoPlusApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GyeongdoPlus',
+      title: '경도+',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
+      builder: (context, child) => HeroControllerScope.none(child: child!),
       home: _debugZoneEditor
           ? const Scaffold(body: ZoneEditorScreen())
           : const BottomNavShell(),

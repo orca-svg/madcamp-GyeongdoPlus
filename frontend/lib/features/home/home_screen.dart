@@ -6,10 +6,13 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 import '../../core/widgets/delta_chip.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/room_provider.dart';
+import '../auth/login_screen.dart';
 import '../room/room_create_screen.dart';
 import '../room/room_join_screen.dart';
+import '../../core/widgets/app_snackbar.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -18,6 +21,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Intentionally always false (this stage): keep legacy widgets without deleting them.
     final bool showLegacy = DateTime.now().millisecondsSinceEpoch < 0;
+    final auth = ref.watch(authProvider);
+    final signedIn = auth.status == AuthStatus.signedIn;
     final phase = ref.watch(gamePhaseProvider);
     final bottomPad = (phase == GamePhase.offGame)
         ? AppDimens.bottomBarHOff
@@ -44,13 +49,64 @@ class HomeScreen extends ConsumerWidget {
                         '방 시작하기',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (!signedIn) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '로그인이 필요합니다',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.textMuted),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final ok = await Navigator.of(context).push<bool>(
+                                  MaterialPageRoute<bool>(
+                                    builder: (_) => const LoginScreen(),
+                                  ),
+                                );
+                                if (ok == true && context.mounted) {
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    if (!context.mounted) return;
+                                    showAppSnackBar(context, message: '로그인 완료');
+                                  });
+                                }
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.borderCyan,
+                              ),
+                              child: const Text('로그인'),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       GradientButton(
                         variant: GradientButtonVariant.createRoom,
                         title: '방 만들기',
                         height: 56,
                         borderRadius: 16,
-                        onPressed: () {
+                        onPressed: () async {
+                          if (!signedIn) {
+                            final ok = await Navigator.of(context).push<bool>(
+                              MaterialPageRoute<bool>(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                            if (ok == true && context.mounted) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!context.mounted) return;
+                                showAppSnackBar(context, message: '로그인 완료');
+                              });
+                            }
+                            return;
+                          }
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => const RoomCreateScreen(),
@@ -68,7 +124,21 @@ class HomeScreen extends ConsumerWidget {
                         title: '방 참여하기',
                         height: 56,
                         borderRadius: 16,
-                        onPressed: () {
+                        onPressed: () async {
+                          if (!signedIn) {
+                            final ok = await Navigator.of(context).push<bool>(
+                              MaterialPageRoute<bool>(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                            if (ok == true && context.mounted) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!context.mounted) return;
+                                showAppSnackBar(context, message: '로그인 완료');
+                              });
+                            }
+                            return;
+                          }
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (_) => const RoomJoinScreen(),

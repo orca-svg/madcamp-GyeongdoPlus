@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend/app.dart';
 import 'package:frontend/net/ws/ws_client.dart';
@@ -19,6 +20,7 @@ import 'package:frontend/net/ws/ws_types.dart';
 
 void main() {
   testWidgets('App boots to OFF_GAME home', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
     await tester.pumpWidget(
@@ -32,9 +34,23 @@ void main() {
     expect(find.text('방 시작하기'), findsOneWidget);
   });
 
+  Future<void> signInStub(WidgetTester tester) async {
+    await tester.tap(find.text('방 만들기'));
+    await tester.pumpAndSettle();
+
+    // Login gate
+    expect(find.text('카카오 로그인'), findsOneWidget);
+    await tester.tap(find.text('카카오 로그인'));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    expect(find.text('방 시작하기'), findsOneWidget);
+  }
+
   testWidgets('Create room -> Lobby shows room code', (
     WidgetTester tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
     await tester.pumpWidget(
@@ -44,6 +60,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    await signInStub(tester);
 
     await tester.tap(find.text('방 만들기'));
     await tester.pumpAndSettle();
@@ -63,6 +81,7 @@ void main() {
   testWidgets('Lobby: ready locks team change, start shows dialog', (
     WidgetTester tester,
   ) async {
+    SharedPreferences.setMockInitialValues({});
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
     await tester.pumpWidget(
@@ -72,6 +91,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    await signInStub(tester);
 
     await tester.tap(find.text('방 만들기'));
     await tester.pumpAndSettle();
