@@ -2,19 +2,25 @@ enum RoomCreateMode { normal, item, ability }
 
 enum RoomContactMode { nonContact, contact }
 
+enum RoomReleaseScope { partial, all }
+
+enum RoomReleaseOrder { fifo, lifo }
+
 class RoomCreateFormState {
   final RoomCreateMode mode;
   final int maxPlayers;
   final int timeLimitSec;
   final RoomContactMode contactMode;
-  final bool jailEnabled;
+  final RoomReleaseScope releaseScope;
+  final RoomReleaseOrder releaseOrder;
 
   const RoomCreateFormState({
     required this.mode,
     required this.maxPlayers,
     required this.timeLimitSec,
     required this.contactMode,
-    required this.jailEnabled,
+    required this.releaseScope,
+    required this.releaseOrder,
   });
 
   factory RoomCreateFormState.initial() => const RoomCreateFormState(
@@ -22,7 +28,8 @@ class RoomCreateFormState {
     maxPlayers: 8,
     timeLimitSec: 600,
     contactMode: RoomContactMode.nonContact,
-    jailEnabled: true,
+    releaseScope: RoomReleaseScope.partial,
+    releaseOrder: RoomReleaseOrder.fifo,
   );
 
   RoomCreateFormState copyWith({
@@ -30,14 +37,16 @@ class RoomCreateFormState {
     int? maxPlayers,
     int? timeLimitSec,
     RoomContactMode? contactMode,
-    bool? jailEnabled,
+    RoomReleaseScope? releaseScope,
+    RoomReleaseOrder? releaseOrder,
   }) {
     return RoomCreateFormState(
       mode: mode ?? this.mode,
       maxPlayers: maxPlayers ?? this.maxPlayers,
       timeLimitSec: timeLimitSec ?? this.timeLimitSec,
       contactMode: contactMode ?? this.contactMode,
-      jailEnabled: jailEnabled ?? this.jailEnabled,
+      releaseScope: releaseScope ?? this.releaseScope,
+      releaseOrder: releaseOrder ?? this.releaseOrder,
     );
   }
 }
@@ -53,12 +62,22 @@ String _contactModeWire(RoomContactMode m) => switch (m) {
   RoomContactMode.contact => 'CONTACT',
 };
 
+String _releaseScopeWire(RoomReleaseScope s) => switch (s) {
+  RoomReleaseScope.partial => 'PARTIAL',
+  RoomReleaseScope.all => 'ALL',
+};
+
+String _releaseOrderWire(RoomReleaseOrder o) => switch (o) {
+  RoomReleaseOrder.fifo => 'FIFO',
+  RoomReleaseOrder.lifo => 'LIFO',
+};
+
 /// Assemble a room-create payload without any side effects.
 ///
 /// This payload is intentionally "mapping-friendly" rather than server-perfect:
 /// next step can adapt keys/shape to the final WS schema.
 Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
-  final maxPlayers = state.maxPlayers.clamp(2, 12);
+  final maxPlayers = state.maxPlayers.clamp(3, 50);
   final timeLimitSec = state.timeLimitSec.clamp(300, 1800);
 
   return <String, dynamic>{
@@ -66,21 +85,15 @@ Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
     'maxPlayers': maxPlayers,
     'timeLimitSec': timeLimitSec,
     'rules': <String, dynamic>{
-      'capture': <String, dynamic>{
+      'rescueRule': <String, dynamic>{
         'contactMode': _contactModeWire(state.contactMode),
+        'releaseScope': _releaseScopeWire(state.releaseScope),
+        if (state.releaseScope == RoomReleaseScope.partial)
+          'releaseOrder': _releaseOrderWire(state.releaseOrder),
       },
-      'zone': <String, dynamic>{'polygon': null},
-      'jail': <String, dynamic>{
-        'enabled': state.jailEnabled,
-        'radiusM': 12,
-        'center': null,
-      },
-      'rescue': <String, dynamic>{
-        'type': 'CHANNELING',
-        'rangeM': 10,
-        'channelMs': 8000,
-        'releaseCount': 3,
-        'queuePolicy': 'FIFO',
+      'zone': <String, dynamic>{
+        'polygon': null,
+        'jail': <String, dynamic>{'center': null, 'radiusM': 12},
       },
       'opponentReveal': <String, dynamic>{
         'policy': 'LIMITED',

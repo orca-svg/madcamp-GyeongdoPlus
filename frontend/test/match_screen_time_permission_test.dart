@@ -14,7 +14,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    container.read(roomProvider.notifier).joinRoom(myName: '나', code: 'ABCD');
+    await container.read(roomProvider.notifier).joinRoom(myName: '나', code: 'ABCD');
     final room = container.read(roomProvider);
     expect(room.amIHost, isFalse);
 

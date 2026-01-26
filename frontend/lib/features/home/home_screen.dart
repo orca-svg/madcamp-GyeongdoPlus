@@ -9,24 +9,31 @@ import '../../core/widgets/delta_chip.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/room_provider.dart';
-import '../auth/login_screen.dart';
+import '../../providers/watch_provider.dart';
 import '../room/room_create_screen.dart';
 import '../room/room_join_screen.dart';
-import '../../core/widgets/app_snackbar.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
+  static bool _homeLogPrinted = false;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Intentionally always false (this stage): keep legacy widgets without deleting them.
     final bool showLegacy = DateTime.now().millisecondsSinceEpoch < 0;
     final auth = ref.watch(authProvider);
-    final signedIn = auth.status == AuthStatus.signedIn;
+    final watchConnected = ref.watch(watchConnectedProvider);
     final phase = ref.watch(gamePhaseProvider);
     final bottomPad = (phase == GamePhase.offGame)
         ? AppDimens.bottomBarHOff
         : AppDimens.bottomBarHIn;
+    final rankItems = _stubRanks();
+    if (!_homeLogPrinted) {
+      _homeLogPrinted = true;
+      debugPrint(
+        '[HOME] auth.initialized=${auth.initialized} status=${auth.status}',
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -37,128 +44,106 @@ class HomeScreen extends ConsumerWidget {
           child: Padding(
             padding: EdgeInsets.fromLTRB(18, 14, 18, bottomPad + 12),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                GlowCard(
-                  glow: false,
-                  borderColor: AppColors.outlineLow,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        '방 시작하기',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      if (!signedIn) ...[
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '로그인이 필요합니다',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: AppColors.textMuted),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GlowCard(
+                      glow: false,
+                      borderColor: AppColors.outlineLow,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '환영합니다',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.textMuted),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            auth.displayName ?? '김선수',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '시즌 12 • 다이아몬드 II',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _rankTile(
+                                  icon: Icons.shield_rounded,
+                                  label: '경찰 랭크',
+                                  value: rankItems[0].displayText,
+                                ),
                               ),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                final ok = await Navigator.of(context).push<bool>(
-                                  MaterialPageRoute<bool>(
-                                    builder: (_) => const LoginScreen(),
-                                  ),
-                                );
-                                if (ok == true && context.mounted) {
-                                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    if (!context.mounted) return;
-                                    showAppSnackBar(context, message: '로그인 완료');
-                                  });
-                                }
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.borderCyan,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _rankTile(
+                                  icon: Icons.lock_rounded,
+                                  label: '도둑 랭크',
+                                  value: rankItems[1].displayText,
+                                ),
                               ),
-                              child: const Text('로그인'),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      GradientButton(
-                        variant: GradientButtonVariant.createRoom,
-                        title: '방 만들기',
-                        height: 56,
-                        borderRadius: 16,
-                        onPressed: () async {
-                          if (!signedIn) {
-                            final ok = await Navigator.of(context).push<bool>(
-                              MaterialPageRoute<bool>(
-                                builder: (_) => const LoginScreen(),
-                              ),
-                            );
-                            if (ok == true && context.mounted) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!context.mounted) return;
-                                showAppSnackBar(context, message: '로그인 완료');
-                              });
-                            }
-                            return;
-                          }
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const RoomCreateScreen(),
-                            ),
-                          );
-                        },
-                        leading: const Icon(
-                          Icons.add_rounded,
-                          color: Colors.white,
-                        ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      GradientButton(
-                        variant: GradientButtonVariant.joinRoom,
-                        title: '방 참여하기',
-                        height: 56,
-                        borderRadius: 16,
-                        onPressed: () async {
-                          if (!signedIn) {
-                            final ok = await Navigator.of(context).push<bool>(
-                              MaterialPageRoute<bool>(
-                                builder: (_) => const LoginScreen(),
-                              ),
-                            );
-                            if (ok == true && context.mounted) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!context.mounted) return;
-                                showAppSnackBar(context, message: '로그인 완료');
-                              });
-                            }
-                            return;
-                          }
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const RoomJoinScreen(),
-                            ),
-                          );
-                        },
-                        leading: const Icon(
-                          Icons.login_rounded,
-                          color: Colors.white,
-                        ),
+                    ),
+                    Positioned(
+                      right: 4,
+                      bottom: -8,
+                      child: Transform.translate(
+                        offset: const Offset(0, 8),
+                        child: _watchIndicatorCompact(watchConnected),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '방 생성/참여 후 로비에서 규칙을 수정할 수 있어요.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 12.5,
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                GradientButton(
+                  variant: GradientButtonVariant.createRoom,
+                  title: '방 만들기',
+                  height: 64,
+                  borderRadius: 18,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RoomCreateScreen(),
                       ),
-                    ],
+                    );
+                  },
+                  leading: const Icon(
+                    Icons.add_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                GradientButton(
+                  variant: GradientButtonVariant.joinRoom,
+                  title: '방 참여하기',
+                  height: 64,
+                  borderRadius: 18,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const RoomJoinScreen(),
+                      ),
+                    );
+                  },
+                  leading: const Icon(
+                    Icons.login_rounded,
+                    color: Colors.white,
                   ),
                 ),
                 if (showLegacy) ...[
@@ -239,6 +224,80 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
+  Widget _watchIndicatorCompact(bool connected) {
+    final color = connected ? AppColors.lime : AppColors.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.watch_rounded, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            connected ? 'Connected' : 'Off',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rankTile({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outlineLow.withOpacity(0.9)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.borderCyan),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showCreateRoomSheet({
     required BuildContext context,
     required WidgetRef ref,
@@ -256,12 +315,15 @@ class HomeScreen extends ConsumerWidget {
             title: '방 만들기',
             primaryTitle: '만들기',
             primaryVariant: GradientButtonVariant.createRoom,
-            onPrimary: () {
-              ref
+            onPrimary: () async {
+              final result = await ref
                   .read(roomProvider.notifier)
                   .createRoom(myName: controller.text);
-              Navigator.of(context).pop();
-              ref.read(gamePhaseProvider.notifier).toLobby();
+              if (!context.mounted) return;
+              if (result.ok) {
+                Navigator.of(context).pop();
+                ref.read(gamePhaseProvider.notifier).toLobby();
+              }
             },
             child: TextField(
               key: const Key('createRoomNameField'),
@@ -299,15 +361,18 @@ class HomeScreen extends ConsumerWidget {
             title: '방 참여하기',
             primaryTitle: '참여',
             primaryVariant: GradientButtonVariant.joinRoom,
-            onPrimary: () {
-              ref
+            onPrimary: () async {
+              final result = await ref
                   .read(roomProvider.notifier)
                   .joinRoom(
                     myName: nameController.text,
                     code: codeController.text.toUpperCase(),
                   );
-              Navigator.of(context).pop();
-              ref.read(gamePhaseProvider.notifier).toLobby();
+              if (!context.mounted) return;
+              if (result.ok) {
+                Navigator.of(context).pop();
+                ref.read(gamePhaseProvider.notifier).toLobby();
+              }
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -407,6 +472,41 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  List<_RankInfo> _stubRanks() {
+    return const [
+      _RankInfo(role: 'POLICE', score: 1240, tierCode: 'DIAMOND_2'),
+      _RankInfo(role: 'THIEF', score: 980, tierCode: 'PLATINUM_4'),
+    ];
+  }
+}
+
+class _RankInfo {
+  final String role;
+  final int score;
+  final String tierCode;
+  final String? subtitle;
+
+  const _RankInfo({
+    required this.role,
+    required this.score,
+    required this.tierCode,
+    this.subtitle,
+  });
+
+  String get displayText => '${_tierLabel(tierCode)} · $score';
+}
+
+String _tierLabel(String code) {
+  // TODO(next): map score -> tier from server contract
+  switch (code) {
+    case 'DIAMOND_2':
+      return '다이아 II';
+    case 'PLATINUM_4':
+      return '플래티넘 IV';
+    default:
+      return '브론즈 V';
   }
 }
 

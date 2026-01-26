@@ -60,7 +60,7 @@ void main() {
     addTearDown(container.dispose);
 
     container.read(wsRouterProvider);
-    container.read(roomProvider.notifier).createRoom(myName: 'me');
+    await container.read(roomProvider.notifier).createRoom(myName: 'me');
 
     fake.emit(
       const WsEnvelope<Object?>(

@@ -90,6 +90,9 @@ class MatchRulesState {
   final bool policeCountCustomized;
   final String releaseMode;
   final String contactMode;
+  final String rescueContactMode;
+  final String rescueReleaseScope;
+  final String rescueReleaseOrder;
   final GameMode gameMode;
 
   /// 구역 폴리곤(최소 3점 권장)
@@ -109,6 +112,9 @@ class MatchRulesState {
     required this.policeCountCustomized,
     required this.releaseMode,
     required this.contactMode,
+    required this.rescueContactMode,
+    required this.rescueReleaseScope,
+    required this.rescueReleaseOrder,
     required this.gameMode,
     required this.zonePolygon,
     required this.jailEnabled,
@@ -128,6 +134,9 @@ class MatchRulesState {
     bool? policeCountCustomized,
     String? releaseMode,
     String? contactMode,
+    String? rescueContactMode,
+    String? rescueReleaseScope,
+    String? rescueReleaseOrder,
     GameMode? gameMode,
     Object? zonePolygon = _unset,
     bool? jailEnabled,
@@ -144,6 +153,9 @@ class MatchRulesState {
           policeCountCustomized ?? this.policeCountCustomized,
       releaseMode: releaseMode ?? this.releaseMode,
       contactMode: contactMode ?? this.contactMode,
+      rescueContactMode: rescueContactMode ?? this.rescueContactMode,
+      rescueReleaseScope: rescueReleaseScope ?? this.rescueReleaseScope,
+      rescueReleaseOrder: rescueReleaseOrder ?? this.rescueReleaseOrder,
       gameMode: gameMode ?? this.gameMode,
       zonePolygon: (zonePolygon == _unset)
           ? this.zonePolygon
@@ -179,6 +191,9 @@ class MatchRulesController extends Notifier<MatchRulesState> {
     policeCountCustomized: false,
     releaseMode: '터치/근접',
     contactMode: 'NON_CONTACT',
+    rescueContactMode: 'NON_CONTACT',
+    rescueReleaseScope: 'PARTIAL',
+    rescueReleaseOrder: 'FIFO',
     gameMode: GameMode.normal,
     zonePolygon: null,
     jailEnabled: true,
@@ -204,7 +219,7 @@ class MatchRulesController extends Notifier<MatchRulesState> {
 
   void setMapName(String v) => state = state.copyWith(mapName: v);
   void setMaxPlayers(int v) {
-    final nextMax = v.clamp(2, 12);
+    final nextMax = v.clamp(3, 50);
     final nextPolice = _derivePoliceCount(
       maxPlayers: nextMax,
       preferExisting: state.policeCount,
@@ -258,7 +273,7 @@ class MatchRulesController extends Notifier<MatchRulesState> {
   /// Expected shape (mapping-friendly):
   /// - mode, maxPlayers, timeLimitSec
   /// - rules.capture.contactMode
-  /// - rules.jail.enabled/radiusM/center
+  /// - rules.rescueRule.contactMode/releaseScope/releaseOrder
   /// - rules.zone.polygon
   void applyOfflineRoomConfig(Map<String, dynamic> payload) {
     final modeRaw = (payload['mode'] ?? '').toString();
@@ -268,13 +283,15 @@ class MatchRulesController extends Notifier<MatchRulesState> {
     final rules = (payload['rules'] is Map)
         ? (payload['rules'] as Map)
         : const {};
-    final capture = (rules['capture'] is Map)
-        ? (rules['capture'] as Map)
+    final rescueRule = (rules['rescueRule'] is Map)
+        ? (rules['rescueRule'] as Map)
         : const {};
-    final jail = (rules['jail'] is Map) ? (rules['jail'] as Map) : const {};
+    final zone = (rules['zone'] is Map) ? (rules['zone'] as Map) : const {};
+    final jail = (zone['jail'] is Map) ? (zone['jail'] as Map) : const {};
 
-    final contactRaw = (capture['contactMode'] ?? '').toString();
-    final jailEnabledRaw = jail['enabled'];
+    final contactRaw = (rescueRule['contactMode'] ?? '').toString();
+    final releaseScopeRaw = (rescueRule['releaseScope'] ?? '').toString();
+    final releaseOrderRaw = (rescueRule['releaseOrder'] ?? '').toString();
     final jailRadiusRaw = jail['radiusM'];
     final jailCenterRaw = jail['center'];
 
@@ -287,8 +304,12 @@ class MatchRulesController extends Notifier<MatchRulesState> {
         : state.timeLimitSec;
 
     final cm = contactRaw.isEmpty ? state.contactMode : contactRaw;
-
-    final je = (jailEnabledRaw is bool) ? jailEnabledRaw : state.jailEnabled;
+    final rs = releaseScopeRaw.isEmpty
+        ? state.rescueReleaseScope
+        : releaseScopeRaw;
+    final ro = releaseOrderRaw.isEmpty
+        ? state.rescueReleaseOrder
+        : releaseOrderRaw;
     final jr = (jailRadiusRaw is num)
         ? jailRadiusRaw.toDouble()
         : state.jailRadiusM;
@@ -302,7 +323,7 @@ class MatchRulesController extends Notifier<MatchRulesState> {
       }
     }
 
-    final mpClamped = mp.clamp(2, 12);
+    final mpClamped = mp.clamp(3, 50);
     final nextPolice = _derivePoliceCount(
       maxPlayers: mpClamped,
       preferExisting: state.policeCount,
@@ -314,15 +335,36 @@ class MatchRulesController extends Notifier<MatchRulesState> {
       maxPlayers: mpClamped,
       policeCount: nextPolice,
       contactMode: cm,
+      rescueContactMode: cm,
+      rescueReleaseScope: rs,
+      rescueReleaseOrder: ro,
+      releaseMode: _formatRescueRuleLabel(
+        contactMode: cm,
+        releaseScope: rs,
+        releaseOrder: ro,
+      ),
       timeLimitSec: tls.clamp(300, 1800),
       durationMin: (tls.clamp(300, 1800) / 60).round(),
-      jailEnabled: je,
       jailRadiusM: (jr == null)
           ? null
           : jr.clamp(_minJailRadiusM, _maxJailRadiusM).toDouble(),
       jailCenter: jc,
       zonePolygon: null,
     );
+  }
+
+  String _formatRescueRuleLabel({
+    required String contactMode,
+    required String releaseScope,
+    required String releaseOrder,
+  }) {
+    final contactLabel = contactMode == 'CONTACT' ? '접촉' : '비접촉';
+    final scopeLabel = releaseScope == 'ALL' ? '전체 해방' : '일부 해방';
+    if (releaseScope != 'PARTIAL') {
+      return '$contactLabel · $scopeLabel';
+    }
+    final orderLabel = releaseOrder == 'LIFO' ? '후착순' : '선착순';
+    return '$contactLabel · $scopeLabel · $orderLabel';
   }
 
   int _derivePoliceCount({

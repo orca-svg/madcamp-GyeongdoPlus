@@ -20,6 +20,7 @@ class RoomJoinScreen extends ConsumerStatefulWidget {
 class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
   final _codeCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -93,14 +94,24 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                     const SizedBox(height: 14),
                     GradientButton(
                       variant: GradientButtonVariant.joinRoom,
-                      title: '참여',
+                      title: _submitting ? '참여 중...' : '참여',
                       height: 56,
                       borderRadius: 16,
-                      onPressed: () => _join(context),
-                      leading: const Icon(
-                        Icons.meeting_room_rounded,
-                        color: Colors.white,
-                      ),
+                      onPressed: _submitting ? null : () => _join(context),
+                      leading: _submitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.meeting_room_rounded,
+                              color: Colors.white,
+                            ),
                     ),
                   ],
                 ),
@@ -113,17 +124,39 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
   }
 
   Future<void> _join(BuildContext context) async {
-    final code = _codeCtrl.text.trim();
+    if (_submitting) return;
+    final code = _codeCtrl.text.trim().toUpperCase();
     if (code.isEmpty) {
+      debugPrint('[ROOM] join fail/error=EMPTY_CODE');
       showAppSnackBar(context, message: '방 코드를 입력하세요', isError: true);
       return;
     }
+    final valid = RegExp(r'^[A-Z0-9]{4,6}$').hasMatch(code);
+    if (!valid) {
+      debugPrint('[ROOM] join fail/error=INVALID_CODE_FORMAT');
+      showAppSnackBar(
+        context,
+        message: '방 코드는 4~6자 영문/숫자여야 합니다',
+        isError: true,
+      );
+      return;
+    }
 
-    ref
+    setState(() => _submitting = true);
+    final result = await ref
         .read(roomProvider.notifier)
         .joinRoom(myName: _nameCtrl.text, code: code);
-    ref.read(gamePhaseProvider.notifier).toLobby();
     if (!context.mounted) return;
-    Navigator.of(context).pop();
+    if (result.ok) {
+      ref.read(gamePhaseProvider.notifier).toLobby();
+      Navigator.of(context).pop();
+    } else {
+      showAppSnackBar(
+        context,
+        message: result.errorMessage ?? '방 참여에 실패했습니다',
+        isError: true,
+      );
+    }
+    setState(() => _submitting = false);
   }
 }

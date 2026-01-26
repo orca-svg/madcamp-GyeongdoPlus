@@ -471,6 +471,7 @@ class _RoomConfigSummaryCard extends StatelessWidget {
     final jailRadiusText = (rules.jailRadiusM == null)
         ? '—'
         : '${rules.jailRadiusM!.round()}m';
+    final rescueRuleText = _rescueRuleLabel(rules);
 
     return GlowCard(
       glow: false,
@@ -522,7 +523,7 @@ class _RoomConfigSummaryCard extends StatelessWidget {
           const SizedBox(height: 10),
           _ruleRow(label: '시간', value: '${rules.timeLimitSec}s'),
           const SizedBox(height: 10),
-          _ruleRow(label: 'contactMode', value: rules.contactMode),
+          _ruleRow(label: '해방 규칙', value: rescueRuleText),
           const SizedBox(height: 10),
           _ruleRow(
             label: '감옥',
@@ -578,9 +579,9 @@ class _TeamDistributionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxPlayers = rules.maxPlayers.clamp(2, 12);
+    final maxPlayers = rules.maxPlayers.clamp(3, 50);
     final minPolice = 1;
-    final maxPolice = (maxPlayers - 1).clamp(1, 11);
+    final maxPolice = (maxPlayers - 1).clamp(1, 49);
     final police = rules.policeCount.clamp(minPolice, maxPolice);
     final thief = maxPlayers - police;
 
@@ -699,7 +700,7 @@ _TeamValidationResult _teamValidation({
   required RoomState room,
   required MatchRulesState rules,
 }) {
-  final maxPlayers = rules.maxPlayers.clamp(2, 12);
+  final maxPlayers = rules.maxPlayers.clamp(3, 50);
   final requiredPolice = rules.policeCount.clamp(1, maxPlayers - 1);
   final requiredThief = maxPlayers - requiredPolice;
 
@@ -712,6 +713,19 @@ _TeamValidationResult _teamValidation({
     currentPolice: currentPolice,
     currentThief: currentThief,
   );
+}
+
+String _rescueRuleLabel(MatchRulesState rules) {
+  final contactLabel =
+      rules.rescueContactMode == 'CONTACT' ? '접촉' : '비접촉';
+  final scopeLabel =
+      rules.rescueReleaseScope == 'ALL' ? '전체 해방' : '일부 해방';
+  if (rules.rescueReleaseScope != 'PARTIAL') {
+    return '$contactLabel · $scopeLabel';
+  }
+  final orderLabel =
+      rules.rescueReleaseOrder == 'LIFO' ? '후착순' : '선착순';
+  return '$contactLabel · $scopeLabel · $orderLabel';
 }
 
 class _StartBlockedCard extends StatelessWidget {

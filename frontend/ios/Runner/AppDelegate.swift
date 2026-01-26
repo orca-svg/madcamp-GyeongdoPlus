@@ -15,6 +15,7 @@ import Flutter
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     NSLog("[IOS][APPDELEGATE] didFinishLaunching START")
+    NSLog("[IOS][APP] bundle=\(Bundle.main.bundleIdentifier ?? "nil")")
 
     // ============================================================
     // 1. super.application() 반드시 가장 먼저 호출
@@ -24,6 +25,8 @@ import Flutter
     NSLog("[IOS][APPDELEGATE] super.application BEFORE")
     let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
     NSLog("[IOS][APPDELEGATE] super.application AFTER (result=\(result))")
+    GeneratedPluginRegistrant.register(with: self)
+    NSLog("[IOS][APPDELEGATE] registrant done")
 
     // ============================================================
     // 2. WatchBridge 활성/비활성 정책

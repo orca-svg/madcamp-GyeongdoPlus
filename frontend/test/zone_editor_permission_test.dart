@@ -13,7 +13,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    container.read(roomProvider.notifier).joinRoom(myName: '나', code: 'ABCD');
+    await container.read(roomProvider.notifier).joinRoom(myName: '나', code: 'ABCD');
     expect(container.read(roomProvider).amIHost, isFalse);
 
     await tester.pumpWidget(
@@ -32,7 +32,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    container.read(roomProvider.notifier).createRoom(myName: '호스트');
+    await container.read(roomProvider.notifier).createRoom(myName: '호스트');
     expect(container.read(roomProvider).amIHost, isTrue);
 
     await tester.pumpWidget(

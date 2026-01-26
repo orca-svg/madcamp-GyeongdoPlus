@@ -1,10 +1,14 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/room_repository.dart';
 import 'match_rules_provider.dart';
 
 enum Team { police, thief }
+
+enum RoomStatus { idle, loading, success, error }
 
 class RoomMember {
   final String id;
@@ -40,30 +44,50 @@ class RoomMember {
 
 class RoomState {
   final bool inRoom;
+  final RoomStatus status;
+  final String roomId;
   final String roomCode;
   final String myId;
+  final String? errorMessage;
   final List<RoomMember> members;
 
   const RoomState({
     required this.inRoom,
+    required this.status,
+    required this.roomId,
     required this.roomCode,
     required this.myId,
+    required this.errorMessage,
     required this.members,
   });
 
   factory RoomState.initial() =>
-      const RoomState(inRoom: false, roomCode: '', myId: '', members: []);
+      const RoomState(
+        inRoom: false,
+        status: RoomStatus.idle,
+        roomId: '',
+        roomCode: '',
+        myId: '',
+        errorMessage: null,
+        members: [],
+      );
 
   RoomState copyWith({
     bool? inRoom,
+    RoomStatus? status,
+    String? roomId,
     String? roomCode,
     String? myId,
+    String? errorMessage,
     List<RoomMember>? members,
   }) {
     return RoomState(
       inRoom: inRoom ?? this.inRoom,
+      status: status ?? this.status,
+      roomId: roomId ?? this.roomId,
       roomCode: roomCode ?? this.roomCode,
       myId: myId ?? this.myId,
+      errorMessage: errorMessage ?? this.errorMessage,
       members: members ?? this.members,
     );
   }
@@ -112,8 +136,11 @@ class RoomController extends Notifier<RoomState> {
     final myId = _newId();
     state = RoomState(
       inRoom: true,
+      status: RoomStatus.success,
+      roomId: 'offline_${_newId()}',
       roomCode: 'OFFLINE',
       myId: myId,
+      errorMessage: null,
       members: [
         RoomMember(
           id: myId,
@@ -126,69 +153,121 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
-  void createRoom({required String myName}) {
-    final myId = _newId();
-    final code = _newRoomCode();
-    state = RoomState(
-      inRoom: true,
-      roomCode: code,
-      myId: myId,
-      members: [
-        RoomMember(
-          id: myId,
-          name: myName.trim().isEmpty ? '김선수' : myName.trim(),
-          team: Team.police,
-          ready: false,
-          isHost: true,
-        ),
-      ],
+  Future<RoomResult<RoomInfo>> createRoom({required String myName}) async {
+    final name = myName.trim().isEmpty ? '김선수' : myName.trim();
+    debugPrint('[ROOM] create start/name=$name');
+    state = state.copyWith(
+      status: RoomStatus.loading,
+      errorMessage: null,
     );
+    final repo = ref.read(roomRepositoryProvider);
+    final result = await repo.createRoom(myName: name);
+    if (result.ok) {
+      final info = result.data!;
+      final myId = _newId();
+      state = RoomState(
+        inRoom: true,
+        status: RoomStatus.success,
+        roomId: info.roomId,
+        roomCode: info.code,
+        myId: myId,
+        errorMessage: null,
+        members: [
+          RoomMember(
+            id: myId,
+            name: name,
+            team: Team.police,
+            ready: false,
+            isHost: true,
+          ),
+        ],
+      );
+      debugPrint('[ROOM] create success/code=${info.code}');
+    } else {
+      state = RoomState.initial().copyWith(
+        status: RoomStatus.error,
+        errorMessage: result.errorMessage,
+      );
+      debugPrint('[ROOM] create fail/error=${result.errorMessage}');
+    }
+    return result;
   }
 
-  void joinRoom({required String myName, required String code}) {
-    final myId = _newId();
+  Future<RoomResult<RoomInfo>> joinRoom({
+    required String myName,
+    required String code,
+  }) async {
+    final name = myName.trim().isEmpty ? '김선수' : myName.trim();
     final normalizedCode = _normalizeCode(code);
+    debugPrint('[ROOM] join start/code=$normalizedCode');
+    state = state.copyWith(
+      status: RoomStatus.loading,
+      errorMessage: null,
+    );
+    final repo = ref.read(roomRepositoryProvider);
+    final result = await repo.joinRoom(
+      myName: name,
+      code: normalizedCode,
+    );
+    if (result.ok) {
+      final info = result.data!;
+      final myId = _newId();
+      final host = RoomMember(
+        id: _newId(),
+        name: info.hostName,
+        team: Team.police,
+        ready: false,
+        isHost: true,
+      );
+      final other1 = RoomMember(
+        id: _newId(),
+        name: '참가자A',
+        team: Team.thief,
+        ready: false,
+        isHost: false,
+      );
+      final other2 = RoomMember(
+        id: _newId(),
+        name: '참가자B',
+        team: Team.police,
+        ready: true,
+        isHost: false,
+      );
+      final me = RoomMember(
+        id: myId,
+        name: name,
+        team: Team.police,
+        ready: false,
+        isHost: false,
+      );
 
-    final host = RoomMember(
-      id: _newId(),
-      name: '방장',
-      team: Team.police,
-      ready: false,
-      isHost: true,
-    );
-    final other1 = RoomMember(
-      id: _newId(),
-      name: '참가자A',
-      team: Team.thief,
-      ready: false,
-      isHost: false,
-    );
-    final other2 = RoomMember(
-      id: _newId(),
-      name: '참가자B',
-      team: Team.police,
-      ready: true,
-      isHost: false,
-    );
-    final me = RoomMember(
-      id: myId,
-      name: myName.trim().isEmpty ? '김선수' : myName.trim(),
-      team: Team.police,
-      ready: false,
-      isHost: false,
-    );
-
-    state = RoomState(
-      inRoom: true,
-      roomCode: normalizedCode,
-      myId: myId,
-      members: [host, other1, other2, me],
-    );
+      state = RoomState(
+        inRoom: true,
+        status: RoomStatus.success,
+        roomId: info.roomId,
+        roomCode: normalizedCode,
+        myId: myId,
+        errorMessage: null,
+        members: [host, other1, other2, me],
+      );
+      debugPrint('[ROOM] join success/roomId=${info.roomId}');
+    } else {
+      state = RoomState.initial().copyWith(
+        status: RoomStatus.error,
+        errorMessage: result.errorMessage,
+      );
+      debugPrint('[ROOM] join fail/error=${result.errorMessage}');
+    }
+    return result;
   }
 
   void leaveRoom() {
     state = RoomState.initial();
     ref.read(matchRulesProvider.notifier).reset();
+  }
+
+  void reset() {
+    state = RoomState.initial();
   }
 
   void toggleReady() {

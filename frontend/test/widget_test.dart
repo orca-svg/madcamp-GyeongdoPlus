@@ -31,20 +31,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('방 시작하기'), findsOneWidget);
+    expect(find.text('카카오 로그인'), findsOneWidget);
   });
 
   Future<void> signInStub(WidgetTester tester) async {
-    await tester.tap(find.text('방 만들기'));
-    await tester.pumpAndSettle();
-
-    // Login gate
     expect(find.text('카카오 로그인'), findsOneWidget);
     await tester.tap(find.text('카카오 로그인'));
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(find.text('방 시작하기'), findsOneWidget);
+    expect(find.text('방 만들기'), findsOneWidget);
   }
 
   testWidgets('Create room -> Lobby shows room code', (
