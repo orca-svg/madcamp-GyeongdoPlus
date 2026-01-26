@@ -14,7 +14,10 @@ class DeltaChip extends StatelessWidget {
     final fg = positive ? AppColors.chipPositiveFg : AppColors.chipNegativeFg;
     final icon = positive ? Icons.trending_up_rounded : Icons.trending_down_rounded;
     final sign = positive ? '+' : '';
-    final label = '$sign${delta.toStringAsFixed(1)}${suffix ?? ''}';
+    final number = (delta == delta.truncateToDouble())
+        ? delta.toStringAsFixed(0)
+        : delta.toStringAsFixed(1);
+    final label = '$sign$number${suffix ?? ''}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -37,4 +40,3 @@ class DeltaChip extends StatelessWidget {
     );
   }
 }
-
