@@ -3,20 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/widgets/app_bottom_bar.dart';
-import '../ingame/ingame_settings_screen.dart';
-import '../ingame/ingame_zone_screen.dart';
-import '../radar/radar_screen.dart';
-import '../ability/ability_screen.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
-import '../../providers/match_mode_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
-import '../../ui/history/history_screen.dart';
 import '../../ui/lobby/lobby_screen.dart';
 import '../../ui/post_game/post_game_screen.dart';
 import '../home/home_screen.dart';
-import '../profile/profile_screen.dart';
+import '../ingame/ingame_capture_screen.dart';
+import '../ingame/ingame_overview_screen.dart';
+import '../ingame/ingame_settings_placeholder_screen.dart';
+import '../ingame/ingame_zone_placeholder_screen.dart';
+import '../../ui/placeholders/recent_game_placeholder_screen.dart';
+import '../../ui/placeholders/profile_placeholder_screen.dart';
 
 class BottomNavShell extends ConsumerStatefulWidget {
   const BottomNavShell({super.key});
@@ -31,8 +30,8 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
 
   static const _screensOff = [
     HomeScreen(),
-    HistoryScreen(),
-    ProfileScreen(),
+    RecentGamePlaceholderScreen(),
+    ProfilePlaceholderScreen(),
   ];
 
   @override
@@ -84,8 +83,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
           ],
         );
       case GamePhase.inGame:
-        final tabConfig = ref.watch(inGameTabConfigProvider);
-        final tabs = _buildInGameTabs(tabConfig);
+        final tabs = _buildInGameTabs();
         final screens = tabs.map((t) => t.screen).toList();
         return Stack(
           fit: StackFit.expand,
@@ -105,34 +103,27 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   }
 
   /// 모드에 따라 IN_GAME 탭 구성을 동적으로 생성
-  List<InGameTabSpec> _buildInGameTabs(InGameTabConfig config) {
+  List<InGameTabSpec> _buildInGameTabs() {
     return [
       const InGameTabSpec(
-        icon: Icons.radar_rounded,
-        label: '레이더',
-        screen: RadarScreen(),
+        icon: Icons.sports_esports_rounded,
+        label: '게임',
+        screen: InGameOverviewScreen(),
       ),
-      if (config.showAbilityTab)
-        const InGameTabSpec(
-          icon: Icons.flash_on_rounded,
-          label: '능력',
-          screen: AbilityScreen(),
-        ),
-      if (config.showItemTab)
-        const InGameTabSpec(
-          icon: Icons.inventory_2_rounded,
-          label: '아이템',
-          screen: AbilityScreen(), // TODO: ItemScreen 구현 시 교체
-        ),
       const InGameTabSpec(
         icon: Icons.map_rounded,
-        label: '구역',
-        screen: IngameZoneScreen(),
+        label: '지도',
+        screen: InGameZonePlaceholderScreen(),
+      ),
+      const InGameTabSpec(
+        icon: Icons.lock_rounded,
+        label: '체포',
+        screen: InGameCaptureScreen(),
       ),
       const InGameTabSpec(
         icon: Icons.settings_rounded,
         label: '설정',
-        screen: IngameSettingsScreen(),
+        screen: InGameSettingsPlaceholderScreen(),
       ),
     ];
   }
