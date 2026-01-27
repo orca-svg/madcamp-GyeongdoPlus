@@ -19,6 +19,7 @@ import '../ingame/ingame_map_screen.dart';
 import '../ingame/ingame_settings_placeholder_screen.dart';
 import '../radar/radar_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../history/history_screen.dart';
 
 class BottomNavShell extends ConsumerStatefulWidget {
   const BottomNavShell({super.key});
@@ -32,7 +33,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   late final ProviderSubscription<GamePhase> _phaseSub;
   late final ProviderSubscription<ActiveTab> _tabSub;
 
-  static const _screensOff = [HomeScreen(), ProfileScreen()];
+  static const _screensOff = [HomeScreen(), HistoryScreen(), ProfileScreen()];
 
   @override
   void initState() {

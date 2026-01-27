@@ -44,6 +44,7 @@ class AppBottomBarOffGame extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = [
       _BarItem(icon: Icons.home_rounded, label: '홈'),
+      _BarItem(icon: Icons.history_rounded, label: '전적'),
       _BarItem(icon: Icons.person_rounded, label: '내정보'),
     ];
     return _AppBottomBarBase(

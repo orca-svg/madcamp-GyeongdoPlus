@@ -176,6 +176,16 @@ class RoomController extends Notifier<RoomState> {
             } catch (_) {}
           }
           break;
+
+        case 'full_rules_update':
+          try {
+            ref
+                .read(matchRulesProvider.notifier)
+                .applyOfflineRoomConfig(event.payload);
+          } catch (e) {
+            debugPrint('[ROOM] Rules sync error: $e');
+          }
+          break;
       }
     });
   }

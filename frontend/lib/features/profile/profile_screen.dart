@@ -16,7 +16,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/profile_stats_provider.dart';
 import '../../providers/room_provider.dart';
-import 'widgets/history_card.dart';
 
 const neonCyan = Color(0xFF00E5FF);
 const neonPurple = Color(0xFFB026FF);
@@ -100,7 +99,7 @@ class ProfileScreen extends ConsumerWidget {
                         icon: Icons.shield_rounded,
                         accent: AppColors.borderCyan,
                         rankName: _rankNameFromScore(policeScore),
-                        trend: 1, // Mock trend: Up
+                        trend: RankTrend.up, // Mock trend: Up
                         isWin: true, // Mock win state
                       ),
                     ),
@@ -112,7 +111,7 @@ class ProfileScreen extends ConsumerWidget {
                         icon: Icons.lock_rounded,
                         accent: AppColors.red,
                         rankName: _rankNameFromScore(thiefScore),
-                        trend: -1, // Mock trend: Down
+                        trend: RankTrend.down, // Mock trend: Down
                         isWin: false, // Mock loss state
                       ),
                     ),
@@ -147,73 +146,6 @@ class ProfileScreen extends ConsumerWidget {
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text('최근 전적', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                // Mock History Data - Tappable for details
-                GestureDetector(
-                  onTap: () => _showHistoryDetail(context, {
-                    'isWin': true,
-                    'team': 'POLICE',
-                    'scoreDelta': 30,
-                    'date': '2024.05.20 14:00',
-                    'result': '경찰 승리 (도둑 전원 검거)',
-                    'mode': 'NORMAL',
-                    'players': 6,
-                    'duration': '15분 32초',
-                    'arrests': 3,
-                    'rescues': 0,
-                  }),
-                  child: HistoryCard(
-                    isWin: true,
-                    teamType: Team.police,
-                    scoreDelta: 30,
-                    date: '2024.05.20 14:00',
-                    resultText: '경찰 승리 (도둑 전원 검거)',
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _showHistoryDetail(context, {
-                    'isWin': false,
-                    'team': 'THIEF',
-                    'scoreDelta': -15,
-                    'date': '2024.05.19 18:30',
-                    'result': '패배 (검거됨)',
-                    'mode': 'NORMAL',
-                    'players': 4,
-                    'duration': '8분 45초',
-                    'arrests': 0,
-                    'rescues': 1,
-                  }),
-                  child: HistoryCard(
-                    isWin: false,
-                    teamType: Team.thief,
-                    scoreDelta: -15,
-                    date: '2024.05.19 18:30',
-                    resultText: '패배 (검거됨)',
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _showHistoryDetail(context, {
-                    'isWin': true,
-                    'team': 'THIEF',
-                    'scoreDelta': 45,
-                    'date': '2024.05.18 12:00',
-                    'result': '도둑 승리 (탈출 성공)',
-                    'mode': 'ITEM',
-                    'players': 8,
-                    'duration': '20분 10초',
-                    'arrests': 2,
-                    'rescues': 3,
-                  }),
-                  child: HistoryCard(
-                    isWin: true,
-                    teamType: Team.thief,
-                    scoreDelta: 45,
-                    date: '2024.05.18 12:00',
-                    resultText: '도둑 승리 (탈출 성공)',
                   ),
                 ),
               ],
@@ -446,149 +378,6 @@ class ProfileScreen extends ConsumerWidget {
       AchievementSummary(title: '100km 달성', unlocked: false),
       AchievementSummary(title: '10경기 완주', unlocked: true),
     ];
-  }
-
-  void _showHistoryDetail(BuildContext context, Map<String, dynamic> data) {
-    final isWin = data['isWin'] as bool;
-    final team = data['team'] as String;
-    final scoreDelta = data['scoreDelta'] as int;
-    final date = data['date'] as String;
-    final result = data['result'] as String;
-    final mode = data['mode'] as String;
-    final players = data['players'] as int;
-    final duration = data['duration'] as String;
-    final arrests = data['arrests'] as int;
-    final rescues = data['rescues'] as int;
-
-    final accentColor = team == 'POLICE' ? AppColors.borderCyan : AppColors.red;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface1,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          border: Border.all(
-            color: isWin ? accentColor.withOpacity(0.5) : AppColors.outlineLow,
-          ),
-          boxShadow: isWin
-              ? [
-                  BoxShadow(
-                    color: accentColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : null,
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Icon(
-                  team == 'POLICE' ? Icons.shield_rounded : Icons.lock_rounded,
-                  color: isWin ? accentColor : AppColors.textMuted,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    result,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        (scoreDelta >= 0
-                                ? Colors.greenAccent
-                                : Colors.redAccent)
-                            .withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    (scoreDelta > 0 ? '+' : '') + scoreDelta.toString(),
-                    style: TextStyle(
-                      color: scoreDelta >= 0
-                          ? Colors.greenAccent
-                          : Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            // Details Grid
-            _detailRow('게임 모드', mode == 'ITEM' ? '아이템전' : '일반전'),
-            _detailRow('참여 인원', '$players명'),
-            _detailRow('진행 시간', duration),
-            _detailRow('체포', '$arrests회'),
-            _detailRow('구출', '$rescues회'),
-            _detailRow('일시', date),
-            const SizedBox(height: 20),
-            // Close Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor.withOpacity(0.2),
-                  foregroundColor: accentColor,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: accentColor.withOpacity(0.5)),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text(
-                  '닫기',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

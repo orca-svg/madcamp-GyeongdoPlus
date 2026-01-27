@@ -8,13 +8,15 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import 'glow_card.dart';
 
+enum RankTrend { up, down, none }
+
 class RankNeonCard extends StatelessWidget {
   final String title;
   final int score;
   final IconData icon;
   final Color accent;
   final String? rankName;
-  final int? trend; // 1: Up, -1: Down, 0: Same
+  final RankTrend trend;
   final bool isWin; // For glow control
 
   const RankNeonCard({
@@ -24,7 +26,7 @@ class RankNeonCard extends StatelessWidget {
     required this.icon,
     required this.accent,
     this.rankName,
-    this.trend = 0,
+    this.trend = RankTrend.none,
     this.isWin = true,
   });
 
@@ -79,26 +81,29 @@ class RankNeonCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (trend != null && trend != 0)
+              if (trend != RankTrend.none)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: (trend == 1 ? Colors.greenAccent : Colors.redAccent)
-                        .withOpacity(0.15),
+                    color:
+                        (trend == RankTrend.up
+                                ? Colors.greenAccent
+                                : Colors.redAccent)
+                            .withOpacity(0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        trend == 1
+                        trend == RankTrend.up
                             ? Icons.arrow_upward_rounded
                             : Icons.arrow_downward_rounded,
                         size: 12,
-                        color: trend == 1
+                        color: trend == RankTrend.up
                             ? Colors.greenAccent
                             : Colors.redAccent,
                       ),
