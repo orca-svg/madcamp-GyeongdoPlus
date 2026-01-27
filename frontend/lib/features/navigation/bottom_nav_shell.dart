@@ -18,8 +18,8 @@ import '../ingame/ingame_capture_screen.dart';
 import '../ingame/ingame_map_screen.dart';
 import '../ingame/ingame_settings_placeholder_screen.dart';
 import '../radar/radar_screen.dart';
-import '../../ui/placeholders/recent_game_placeholder_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../history/history_screen.dart';
 
 class BottomNavShell extends ConsumerStatefulWidget {
   const BottomNavShell({super.key});
@@ -33,11 +33,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   late final ProviderSubscription<GamePhase> _phaseSub;
   late final ProviderSubscription<ActiveTab> _tabSub;
 
-  static const _screensOff = [
-    HomeScreen(),
-    RecentGamePlaceholderScreen(),
-    ProfileScreen(),
-  ];
+  static const _screensOff = [HomeScreen(), HistoryScreen(), ProfileScreen()];
 
   @override
   void initState() {
@@ -103,21 +99,32 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       case GamePhase.postGame:
         return const PostGameScreen();
       case GamePhase.offGame:
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            IndexedStack(
-              index: _index.clamp(0, _screensOff.length - 1),
-              children: _screensOff,
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: AppBottomBarOffGame(
-                currentIndex: _index.clamp(0, _screensOff.length - 1),
-                onTap: _onTabTap,
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            // If not on home tab (index 0), go back to home
+            if (_index != 0) {
+              _onTabTap(0);
+            }
+            // If on home tab, do nothing (prevent app exit)
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              IndexedStack(
+                index: _index.clamp(0, _screensOff.length - 1),
+                children: _screensOff,
               ),
-            ),
-          ],
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: AppBottomBarOffGame(
+                  currentIndex: _index.clamp(0, _screensOff.length - 1),
+                  onTap: _onTabTap,
+                ),
+              ),
+            ],
+          ),
         );
       case GamePhase.inGame:
         final List<InGameTabSpec> tabs = _buildInGameTabs();

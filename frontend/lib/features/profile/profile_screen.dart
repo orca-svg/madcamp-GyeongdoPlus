@@ -16,7 +16,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/profile_stats_provider.dart';
 import '../../providers/room_provider.dart';
-import 'widgets/history_card.dart';
 
 const neonCyan = Color(0xFF00E5FF);
 const neonPurple = Color(0xFFB026FF);
@@ -28,10 +27,21 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stats = ref.watch(profileStatsProvider);
+    final auth = ref.watch(authProvider);
+    final user = auth.user;
     final room = ref.watch(roomProvider);
     final phase = ref.watch(gamePhaseProvider);
-    final nickname = room.me?.name ?? '김선수';
+
+    // Use real user data from AuthProvider
+    final nickname = user?.nickname ?? room.me?.name ?? '김선수';
+    final policeScore = user?.policeScore ?? 0;
+    final thiefScore = user?.thiefScore ?? 0;
+    final totalGames = user?.totalGames ?? 0;
+    final wins = user?.wins ?? 0;
+    final losses = user?.losses ?? 0;
+    final mannerScore = user?.mannerScore ?? 100;
+    final totalPlaySec = user?.totalPlayTimeSec ?? 0;
+
     final bottomInset =
         (phase == GamePhase.offGame
             ? AppDimens.bottomBarHOff
@@ -85,11 +95,11 @@ class ProfileScreen extends ConsumerWidget {
                     Expanded(
                       child: RankNeonCard(
                         title: '경찰',
-                        score: stats.policeScore,
+                        score: policeScore,
                         icon: Icons.shield_rounded,
                         accent: AppColors.borderCyan,
-                        rankName: _rankNameFromScore(stats.policeScore),
-                        trend: 1, // Mock trend: Up
+                        rankName: _rankNameFromScore(policeScore),
+                        trend: RankTrend.up, // Mock trend: Up
                         isWin: true, // Mock win state
                       ),
                     ),
@@ -97,11 +107,11 @@ class ProfileScreen extends ConsumerWidget {
                     Expanded(
                       child: RankNeonCard(
                         title: '도둑',
-                        score: stats.thiefScore,
+                        score: thiefScore,
                         icon: Icons.lock_rounded,
                         accent: AppColors.red,
-                        rankName: _rankNameFromScore(stats.thiefScore),
-                        trend: -1, // Mock trend: Down
+                        rankName: _rankNameFromScore(thiefScore),
+                        trend: RankTrend.down, // Mock trend: Down
                         isWin: false, // Mock loss state
                       ),
                     ),
@@ -110,15 +120,15 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 18),
                 Text('스탯', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _statGrid(stats),
+                _statGrid(totalGames, wins, losses, totalPlaySec),
                 const SizedBox(height: 18),
                 Text('매너', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _mannerCard(stats),
+                _mannerCard(mannerScore),
                 const SizedBox(height: 18),
                 Text('업적', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _achievementRow(stats.achievements),
+                _achievementRow(_mockAchievements()),
                 const SizedBox(height: 18),
                 Text(
                   '총 플레이 시간',
@@ -130,38 +140,13 @@ class ProfileScreen extends ConsumerWidget {
                   glowColor: neonCyan,
                   borderColor: neonCyan.withOpacity(0.6),
                   child: Text(
-                    _formatDuration(stats.totalPlaySec),
+                    _formatDuration(totalPlaySec),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text('최근 전적', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                // Mock History Data
-                HistoryCard(
-                  isWin: true,
-                  teamType: Team.police,
-                  scoreDelta: 30,
-                  date: '2024.05.20 14:00',
-                  resultText: '경찰 승리 (도둑 전원 검거)',
-                ),
-                HistoryCard(
-                  isWin: false,
-                  teamType: Team.thief,
-                  scoreDelta: -15,
-                  date: '2024.05.19 18:30',
-                  resultText: '패배 (검거됨)',
-                ),
-                HistoryCard(
-                  isWin: true,
-                  teamType: Team.thief,
-                  scoreDelta: 45,
-                  date: '2024.05.18 12:00',
-                  resultText: '도둑 승리 (탈출 성공)',
                 ),
               ],
             ),
@@ -224,7 +209,11 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _statGrid(ProfileStats stats) {
+  Widget _statGrid(int totalGames, int wins, int losses, int totalPlaySec) {
+    final winRate = totalGames > 0
+        ? (wins / totalGames * 100).toStringAsFixed(1)
+        : '0.0';
+
     return GridView.count(
       crossAxisCount: 2,
       mainAxisSpacing: 12,
@@ -233,10 +222,10 @@ class ProfileScreen extends ConsumerWidget {
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 1.6,
       children: [
-        _statCard('평균 체포 수', stats.avgCaught.toStringAsFixed(1)),
-        _statCard('평균 해방 수', stats.avgRescued.toStringAsFixed(1)),
-        _statCard('총 이동거리', '128.4 km'),
-        _statCard('총 플레이', _formatDuration(stats.totalPlaySec)),
+        _statCard('총 경기', '$totalGames게임'),
+        _statCard('승률', '$winRate%'),
+        _statCard('승/패', '$wins승 $losses패'),
+        _statCard('플레이 시간', _formatDuration(totalPlaySec)),
       ],
     );
   }
@@ -280,8 +269,8 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _mannerCard(ProfileStats stats) {
-    final progress = stats.mannerScore / 100.0;
+  Widget _mannerCard(int mannerScore) {
+    final progress = mannerScore / 100.0;
     return GlowCard(
       glow: true,
       glowColor: neonLime,
@@ -290,7 +279,7 @@ class ProfileScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${stats.mannerScore}점',
+            '${mannerScore}점',
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w900,
@@ -379,10 +368,23 @@ class ProfileScreen extends ConsumerWidget {
     if (hours <= 0) return '${minutes}분';
     return '${hours}시간 ${minutes}분';
   }
+
+  List<AchievementSummary> _mockAchievements() {
+    return const [
+      AchievementSummary(title: '첫 체포', unlocked: true),
+      AchievementSummary(title: '첫 경기', unlocked: true),
+      AchievementSummary(title: '3연승', unlocked: false),
+      AchievementSummary(title: '구출 전문가', unlocked: false),
+      AchievementSummary(title: '100km 달성', unlocked: false),
+      AchievementSummary(title: '10경기 완주', unlocked: true),
+    ];
+  }
 }
 
 String _rankNameFromScore(int score) {
-  if (score >= 1500) return '전문가';
-  if (score >= 1000) return '숙련';
-  return '초보';
+  if (score >= 3000) return '전문가';
+  if (score >= 1500) return '숙련';
+  if (score >= 600) return '초보';
+  if (score > 0) return '입문';
+  return 'Unranked';
 }

@@ -176,6 +176,16 @@ class RoomController extends Notifier<RoomState> {
             } catch (_) {}
           }
           break;
+
+        case 'full_rules_update':
+          try {
+            ref
+                .read(matchRulesProvider.notifier)
+                .applyOfflineRoomConfig(event.payload);
+          } catch (e) {
+            debugPrint('[ROOM] Rules sync error: $e');
+          }
+          break;
       }
     });
   }
@@ -236,6 +246,18 @@ class RoomController extends Notifier<RoomState> {
         ],
         config: GameConfig.initial(),
       );
+
+      // Connect to Socket.IO with JWT token
+      final jwtToken = ref.read(authProvider).accessToken;
+      if (jwtToken != null) {
+        await ref
+            .read(socketIoClientProvider.notifier)
+            .connect(jwtToken: jwtToken, matchId: info.roomId);
+        ref.read(socketIoClientProvider.notifier).emitJoinRoom(info.roomId);
+        debugPrint('[ROOM] Socket connected for room: ${info.roomId}');
+      } else {
+        debugPrint('[ROOM] No JWT token available for socket connection');
+      }
     } else {
       state = RoomState.initial().copyWith(
         status: RoomStatus.error,

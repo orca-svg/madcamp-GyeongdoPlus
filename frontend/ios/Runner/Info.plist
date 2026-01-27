@@ -25,7 +25,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>KAKAO_JS_APP_KEY</key>
-	<string></string>
+	<string>$(KAKAO_JS_APP_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>io.flutter.embedded_views_preview</key>
@@ -33,7 +33,7 @@
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
-		<false/>
+		<true/>
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
@@ -41,6 +41,7 @@
 	<string>This app needs to connect to your local network to communicate with the game server.</string>
 	<key>NSBonjourServices</key>
 	<array>
+	
 		<string>_http._tcp</string>
 		<string>_ws._tcp</string>
 	</array>

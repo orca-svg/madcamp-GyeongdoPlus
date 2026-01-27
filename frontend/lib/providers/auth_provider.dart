@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/models/user_model.dart';
+
 enum AuthStatus { signedOut, signingIn, signedIn }
 
 class AuthState {
@@ -11,12 +13,14 @@ class AuthState {
   final AuthStatus status;
   final String? accessToken;
   final String? displayName;
+  final UserModel? user;
 
   const AuthState({
     required this.initialized,
     required this.status,
     required this.accessToken,
     required this.displayName,
+    this.user,
   });
 
   AuthState copyWith({
@@ -24,12 +28,14 @@ class AuthState {
     AuthStatus? status,
     String? accessToken,
     String? displayName,
+    UserModel? user,
   }) {
     return AuthState(
       initialized: initialized ?? this.initialized,
       status: status ?? this.status,
       accessToken: accessToken ?? this.accessToken,
       displayName: displayName ?? this.displayName,
+      user: user ?? this.user,
     );
   }
 }
@@ -41,8 +47,10 @@ final authProvider = NotifierProvider<AuthController, AuthState>(
 class AuthController extends Notifier<AuthState> {
   static const _kAccessToken = 'auth_access_token';
   static const _kDisplayName = 'auth_display_name';
-  static const _allowInmemAuth =
-      bool.fromEnvironment('ALLOW_INMEM_AUTH', defaultValue: false);
+  static const _allowInmemAuth = bool.fromEnvironment(
+    'ALLOW_INMEM_AUTH',
+    defaultValue: false,
+  );
 
   bool _loadStarted = false;
 
@@ -132,12 +140,14 @@ class AuthController extends Notifier<AuthState> {
 
       final token = 'stub_token_${DateTime.now().millisecondsSinceEpoch}';
       const name = '익명';
+      final guestUser = UserModel.guest().copyWith(nickname: name);
 
       state = state.copyWith(
         initialized: true,
         status: AuthStatus.signedIn,
         accessToken: token,
         displayName: name,
+        user: guestUser,
       );
       final prefs = await _tryPrefs();
       if (prefs == null) {
@@ -203,12 +213,26 @@ class AuthController extends Notifier<AuthState> {
 
       final token = 'stub_local_${DateTime.now().millisecondsSinceEpoch}';
       const name = 'test';
+      final testUser = UserModel.guest().copyWith(
+        nickname: name,
+        policeScore: 1240,
+        thiefScore: 980,
+        policeRank: 'BRONZE',
+        thiefRank: 'SILVER',
+        totalGames: 15,
+        wins: 8,
+        losses: 7,
+        winRate: 0.533,
+        mannerScore: 85,
+        totalPlayTimeSec: 13400,
+      );
 
       state = state.copyWith(
         initialized: true,
         status: AuthStatus.signedIn,
         accessToken: token,
         displayName: name,
+        user: testUser,
       );
       final prefs = await _tryPrefs();
       if (prefs == null) {

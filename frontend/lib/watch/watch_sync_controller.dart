@@ -9,6 +9,7 @@ import '../providers/active_tab_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/watch_provider.dart';
 import '../providers/room_provider.dart';
+import '../providers/match_rules_provider.dart';
 import '../services/watch_sync_service.dart';
 import 'state_snapshot_builder.dart';
 import 'watch_debug_overrides.dart';
@@ -130,6 +131,12 @@ class WatchSyncController extends Notifier<WatchSyncState> {
           prev?.isReady != next.isReady) {
         _sendSnapshot();
       }
+    });
+
+    // Rules 변경 시 즉시 전송 (시간, 모드 등)
+    ref.listen<MatchRulesState>(matchRulesProvider, (prev, next) {
+      // 규칙 변경은 중요하므로 변경 시 항상 전송
+      _sendSnapshot();
     });
 
     _scheduleForPhase(phase);

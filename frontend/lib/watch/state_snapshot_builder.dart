@@ -3,6 +3,7 @@ import 'dart:math';
 import '../features/match/match_state_model.dart';
 import '../net/ws/dto/radar_ping.dart';
 import '../providers/active_tab_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/match_rules_provider.dart';
 import '../providers/match_state_sim_provider.dart';
@@ -17,6 +18,8 @@ class StateSnapshotBuilder {
     final room = read(roomProvider);
     final sim = read(matchStateSimProvider);
     final sync = read(matchSyncProvider);
+    final auth = read(authProvider);
+    final user = auth.user;
 
     final matchId =
         sync.currentMatchId ??
@@ -52,6 +55,12 @@ class StateSnapshotBuilder {
 
     final allyCount10m = _allyCount10m(team: team, radar: radarPayload);
 
+    // Use real user data from AuthProvider
+    final nickname = user?.nickname ?? room.me?.name ?? 'PLAYER';
+    final policeRank = user?.policeRank ?? 'UNRANKED';
+    final thiefRank = user?.thiefRank ?? 'UNRANKED';
+    final isReady = room.me?.ready ?? false;
+
     final payload = <String, dynamic>{
       'phase': _phaseWire(phase),
       'activeTab': read(activeTabWireProvider),
@@ -74,12 +83,12 @@ class StateSnapshotBuilder {
         'hr': null,
         'hrMax': null, // PostGame용 최대 심박수
       },
-      // 프로필 정보 (OffGame/Lobby용)
+      // 프로필 정보 (OffGame/Lobby용) - Use real user data
       'profile': {
-        'nickname': room.me?.name ?? 'PLAYER',
-        'policeRank': 'BRONZE', // TODO: 실제 랭크 provider 연결
-        'thiefRank': 'BRONZE', // TODO: 실제 랭크 provider 연결
-        'isReady': room.me?.ready ?? false,
+        'nickname': nickname,
+        'policeRank': policeRank,
+        'thiefRank': thiefRank,
+        'isReady': isReady,
       },
       'rulesLite': {
         'contactMode': _safeWire(rules.contactMode) ?? 'CONTACT',

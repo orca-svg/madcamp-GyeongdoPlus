@@ -24,11 +24,16 @@ class HomeScreen extends ConsumerWidget {
     final watchConnected = ref.watch(watchConnectedProvider);
     final phase = ref.watch(gamePhaseProvider);
 
-    final bottomPad =
-        (phase == GamePhase.offGame) ? AppDimens.bottomBarHOff : AppDimens.bottomBarHIn;
+    final bottomPad = (phase == GamePhase.offGame)
+        ? AppDimens.bottomBarHOff
+        : AppDimens.bottomBarHIn;
     final bottomInset = bottomPad + 18;
 
-    final rankItems = _stubRanks();
+    // Use real user data from AuthProvider
+    final user = auth.user;
+    final displayName = user?.nickname ?? auth.displayName ?? '김선수';
+    final policeScore = user?.policeScore ?? 0;
+    final thiefScore = user?.thiefScore ?? 0;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -48,10 +53,9 @@ class HomeScreen extends ConsumerWidget {
                     children: [
                       Text(
                         '환영합니다',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.textMuted),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textMuted,
+                        ),
                       ),
                       const SizedBox(height: 6),
 
@@ -60,12 +64,10 @@ class HomeScreen extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              auth.displayName ?? '김선수',
+                              displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                           ),
@@ -93,20 +95,23 @@ class HomeScreen extends ConsumerWidget {
                           Expanded(
                             child: RankNeonCard(
                               title: '경찰',
-                              score: rankItems[0].score,
+                              score: policeScore,
                               icon: Icons.shield_rounded,
                               accent: AppColors.borderCyan,
-                              rankName: rankItems[0].rankName,
+                              rankName: _rankNameFromScore(
+                                policeScore,
+                                'POLICE',
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: RankNeonCard(
                               title: '도둑',
-                              score: rankItems[1].score,
+                              score: thiefScore,
                               icon: Icons.lock_rounded,
                               accent: AppColors.red,
-                              rankName: rankItems[1].rankName,
+                              rankName: _rankNameFromScore(thiefScore, 'THIEF'),
                             ),
                           ),
                         ],
@@ -134,7 +139,10 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           );
                         },
-                        leading: const Icon(Icons.add_rounded, color: Colors.white),
+                        leading: const Icon(
+                          Icons.add_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 18),
                       GradientButton(
@@ -149,7 +157,10 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           );
                         },
-                        leading: const Icon(Icons.login_rounded, color: Colors.white),
+                        leading: const Icon(
+                          Icons.login_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -162,33 +173,17 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  List<_RankInfo> _stubRanks() {
-    return const [
-      _RankInfo(role: 'POLICE', score: 1240),
-      _RankInfo(role: 'THIEF', score: 980),
-    ];
-  }
-}
-
-class _RankInfo {
-  final String role; // 'POLICE' | 'THIEF'
-  final int score;
-
-  const _RankInfo({
-    required this.role,
-    required this.score,
-  });
-
-  String get rankName {
+  String _rankNameFromScore(int score, String role) {
     final r = role.toUpperCase();
 
-    // ✅ “내 정보 탭에서처럼” 역할별 랭크명 제공 (필요하면 구간표를 더 확장 가능)
+    // ✅ "내 정보 탭에서처럼" 역할별 랭크명 제공
     if (r == 'POLICE') {
       if (score >= 3000) return '특수요원';
       if (score >= 2000) return '강력반';
       if (score >= 1200) return '경사';
       if (score >= 600) return '순경';
-      return '훈련생';
+      if (score > 0) return '훈련생';
+      return 'Unranked';
     }
 
     // THIEF
@@ -196,6 +191,7 @@ class _RankInfo {
     if (score >= 2000) return '괴도';
     if (score >= 1200) return '전문털이범';
     if (score >= 600) return '소매치기';
-    return '연습생';
+    if (score > 0) return '연습생';
+    return 'Unranked';
   }
 }
