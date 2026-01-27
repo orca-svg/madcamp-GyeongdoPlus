@@ -47,7 +47,23 @@ final class WatchBridge: NSObject, WCSessionDelegate {
 
     func sendHapticAlert(json: String) {
         print("[WatchBridge] sendHapticAlert len=\(json.count)")
-        sendMessage(type: "HAPTIC_ALERT", json: json)
+        // HAPTIC_ALERT는 즉시 전달이 필요하므로 sendMessage only (applicationContext 사용 안함)
+        guard WCSession.isSupported() else { return }
+        let s = WCSession.default
+        
+        let payload: [String: Any] = [
+            "type": "HAPTIC_ALERT",
+            "json": json,
+            "ts": Int(Date().timeIntervalSince1970 * 1000)
+        ]
+        
+        if s.isReachable {
+            s.sendMessage(payload, replyHandler: nil) { error in
+                print("[WatchBridge] sendHapticAlert error: \(error.localizedDescription)")
+            }
+        } else {
+            print("[WatchBridge] HAPTIC_ALERT skipped - watch not reachable (immediate delivery required)")
+        }
     }
 
     private func sendMessage(type: String, json: String) {

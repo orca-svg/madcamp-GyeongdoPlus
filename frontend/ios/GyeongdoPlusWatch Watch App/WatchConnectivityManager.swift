@@ -28,13 +28,23 @@ struct StateSnapshotEnvelope: Codable {
 
 struct StateSnapshotPayload: Codable {
     let phase: String
+    let activeTab: String?
     let team: String
     let mode: String
     let timeRemainSec: Int
     let counts: SnapshotCounts
     let my: SnapshotMy
+    let profile: SnapshotProfile?
     let rulesLite: SnapshotRulesLite
     let nearby: SnapshotNearby
+    let modeOptions: [String: String]?
+}
+
+struct SnapshotProfile: Codable {
+    let nickname: String
+    let policeRank: String
+    let thiefRank: String
+    let isReady: Bool
 }
 
 struct SnapshotCounts: Codable {
@@ -50,6 +60,7 @@ struct SnapshotMy: Codable {
     let rescues: Int
     let escapeSec: Int
     let hr: Int?
+    let hrMax: Int?
 }
 
 struct SnapshotRulesLite: Codable {

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/active_tab_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/watch_provider.dart';
 import 'state_snapshot_builder.dart';
@@ -21,11 +22,8 @@ class WatchSyncState {
     required this.lastHapticTs,
   });
 
-  factory WatchSyncState.initial(GamePhase phase) => WatchSyncState(
-        phase: phase,
-        lastSnapshotTs: 0,
-        lastHapticTs: 0,
-      );
+  factory WatchSyncState.initial(GamePhase phase) =>
+      WatchSyncState(phase: phase, lastSnapshotTs: 0, lastHapticTs: 0);
 
   WatchSyncState copyWith({
     GamePhase? phase,
@@ -42,8 +40,8 @@ class WatchSyncState {
 
 final watchSyncControllerProvider =
     NotifierProvider<WatchSyncController, WatchSyncState>(
-  WatchSyncController.new,
-);
+      WatchSyncController.new,
+    );
 
 class WatchSyncController extends Notifier<WatchSyncState> {
   Timer? _snapshotTimer;
@@ -56,7 +54,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
   WatchSyncState build() {
     ref.onDispose(_disposeTimers);
 
-    final phase = effectiveWatchPhase(ref.read);
+    final phase = effectiveWatchPhase((p) => ref.read(p));
     state = WatchSyncState.initial(phase);
 
     // watch 초기화 (1회)
@@ -66,7 +64,9 @@ class WatchSyncController extends Notifier<WatchSyncState> {
 
     // phase 변경 시 주기 재스케줄
     ref.listen<GamePhase>(gamePhaseProvider, (prev, next) {
-      final override = kDebugMode ? ref.read(debugWatchPhaseOverrideProvider) : null;
+      final override = kDebugMode
+          ? ref.read(debugWatchPhaseOverrideProvider)
+          : null;
       if (override != null) return;
       _scheduleForPhase(next);
       state = state.copyWith(phase: next);
@@ -75,7 +75,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     // Debug override 변경 시에도 재스케줄
     ref.listen<GamePhase?>(debugWatchPhaseOverrideProvider, (prev, next) {
       if (!kDebugMode) return;
-      final effective = next ?? ref.read(gamePhaseProvider);
+      final GamePhase effective = next ?? ref.read(gamePhaseProvider);
       _scheduleForPhase(effective);
       state = state.copyWith(phase: effective);
     });
@@ -85,6 +85,11 @@ class WatchSyncController extends Notifier<WatchSyncState> {
       if (next == true) {
         _sendSnapshot();
       }
+    });
+
+    // activeTab 변경 시 즉시 전송 (탭 미러링)
+    ref.listen<ActiveTab>(activeTabProvider, (prev, next) {
+      _sendSnapshot();
     });
 
     // 초기 스케줄 + 즉시 1회 전송
@@ -119,7 +124,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
       case GamePhase.lobby:
         return const Duration(seconds: 2);
       case GamePhase.inGame:
-        return const Duration(seconds: 1);
+        return const Duration(seconds: 3);
       case GamePhase.postGame:
         return const Duration(seconds: 5);
     }
@@ -162,11 +167,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
       'type': 'HAPTIC_ALERT',
       'ts': now,
       'matchId': snapshot['matchId'],
-      'payload': {
-        'kind': 'ENEMY_NEAR_5M',
-        'cooldownSec': 5,
-        'durationMs': 300,
-      },
+      'payload': {'kind': 'ENEMY_NEAR_5M', 'cooldownSec': 5, 'durationMs': 300},
     };
     await ref.read(watchBridgeProvider).sendHapticAlert(haptic);
     final len = jsonEncode(haptic).length;
