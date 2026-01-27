@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/room_repository.dart';
+import '../models/game_config.dart';
 import '../net/socket/socket_io_client_provider.dart';
 import 'auth_provider.dart';
 import 'match_rules_provider.dart';
@@ -52,6 +53,7 @@ class RoomState {
   final String myId;
   final String? errorMessage;
   final List<RoomMember> members;
+  final GameConfig? config;
 
   const RoomState({
     required this.inRoom,
@@ -61,6 +63,7 @@ class RoomState {
     required this.myId,
     required this.errorMessage,
     required this.members,
+    required this.config,
   });
 
   factory RoomState.initial() => const RoomState(
@@ -71,6 +74,7 @@ class RoomState {
     myId: '',
     errorMessage: null,
     members: [],
+    config: null,
   );
 
   RoomState copyWith({
@@ -81,6 +85,7 @@ class RoomState {
     String? myId,
     String? errorMessage,
     List<RoomMember>? members,
+    GameConfig? config,
   }) {
     return RoomState(
       inRoom: inRoom ?? this.inRoom,
@@ -90,6 +95,7 @@ class RoomState {
       myId: myId ?? this.myId,
       errorMessage: errorMessage ?? this.errorMessage,
       members: members ?? this.members,
+      config: config ?? this.config,
     );
   }
 
@@ -108,8 +114,6 @@ class RoomState {
   int get policeCount => members.where((m) => m.team == Team.police).length;
   int get thiefCount => members.where((m) => m.team == Team.thief).length;
 
-  /// Team counts for validation even when member list is not yet hydrated (offline/early stage).
-  /// If there are no members but we have a local player id, treat it as "me=police".
   int get effectivePoliceCount {
     if (members.isNotEmpty) return policeCount;
     if (myId.isNotEmpty) return 1;
@@ -121,6 +125,13 @@ class RoomState {
     if (myId.isNotEmpty) return 0;
     return 0;
   }
+
+  bool isGameStartable(int maxPlayers) {
+    if (members.length != maxPlayers) return false;
+    if (!allReady) return false;
+    if (policeCount < 1 || thiefCount < 1) return false;
+    return true;
+  }
 }
 
 final roomProvider = NotifierProvider<RoomController, RoomState>(
@@ -131,7 +142,51 @@ class RoomController extends Notifier<RoomState> {
   final _rand = Random();
 
   @override
-  RoomState build() => RoomState.initial();
+  RoomState build() {
+    _listenSocketEvents();
+    return RoomState.initial();
+  }
+
+  void _listenSocketEvents() {
+    final eventStream = ref.read(socketIoClientProvider.notifier).events;
+    eventStream.listen((event) {
+      if (!state.inRoom) return;
+
+      switch (event.name) {
+        case 'settings_updated':
+          try {
+            final cfg = GameConfig.fromJson(event.payload);
+            state = state.copyWith(config: cfg);
+          } catch (e) {
+            debugPrint('[ROOM] Config parse error: $e');
+          }
+          break;
+
+        case 'team_changed':
+          // Simplified: In a real app, parse payload to find which user changed team.
+          // For now, we rely on 'room_updated' or 'joined_room' for full sync,
+          // or optimistic updates are enough for 'me'.
+          break;
+
+        case 'room_updated':
+          if (event.payload.containsKey('config')) {
+            try {
+              final cfg = GameConfig.fromJson(event.payload['config']);
+              state = state.copyWith(config: cfg);
+            } catch (_) {}
+          }
+          break;
+      }
+    });
+  }
+
+  void updateConfig(GameConfig config) {
+    if (!state.amIHost) return;
+    state = state.copyWith(config: config);
+    ref
+        .read(socketIoClientProvider.notifier)
+        .emit('update_settings', config.toJson());
+  }
 
   void enterLobbyOffline({required String myName}) {
     final myId = _newId();
@@ -151,12 +206,12 @@ class RoomController extends Notifier<RoomState> {
           isHost: true,
         ),
       ],
+      config: GameConfig.initial(),
     );
   }
 
   Future<RoomResult<RoomInfo>> createRoom({required String myName}) async {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
-    debugPrint('[ROOM] create start/name=$name');
     state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
     final repo = ref.read(roomRepositoryProvider);
     final result = await repo.createRoom(myName: name);
@@ -179,14 +234,13 @@ class RoomController extends Notifier<RoomState> {
             isHost: true,
           ),
         ],
+        config: GameConfig.initial(),
       );
-      debugPrint('[ROOM] create success/code=${info.code}');
     } else {
       state = RoomState.initial().copyWith(
         status: RoomStatus.error,
         errorMessage: result.errorMessage,
       );
-      debugPrint('[ROOM] create fail/error=${result.errorMessage}');
     }
     return result;
   }
@@ -197,13 +251,13 @@ class RoomController extends Notifier<RoomState> {
   }) async {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
     final normalizedCode = _normalizeCode(code);
-    debugPrint('[ROOM] join start/code=$normalizedCode');
     state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
     final repo = ref.read(roomRepositoryProvider);
     final result = await repo.joinRoom(myName: name, code: normalizedCode);
     if (result.ok) {
       final info = result.data!;
       final myId = _newId();
+      // Mock participants
       final host = RoomMember(
         id: _newId(),
         name: info.hostName,
@@ -211,24 +265,10 @@ class RoomController extends Notifier<RoomState> {
         ready: false,
         isHost: true,
       );
-      final other1 = RoomMember(
-        id: _newId(),
-        name: '참가자A',
-        team: Team.thief,
-        ready: false,
-        isHost: false,
-      );
-      final other2 = RoomMember(
-        id: _newId(),
-        name: '참가자B',
-        team: Team.police,
-        ready: true,
-        isHost: false,
-      );
       final me = RoomMember(
         id: myId,
         name: name,
-        team: Team.police,
+        team: Team.thief,
         ready: false,
         isHost: false,
       );
@@ -240,28 +280,22 @@ class RoomController extends Notifier<RoomState> {
         roomCode: normalizedCode,
         myId: myId,
         errorMessage: null,
-        members: [host, other1, other2, me],
+        members: [host, me],
+        config: GameConfig.initial(),
       );
-      debugPrint('[ROOM] join success/roomId=${info.roomId}');
 
-      // Connect Socket.IO with JWT
       final jwtToken = ref.read(authProvider).accessToken;
       if (jwtToken != null) {
         await ref
             .read(socketIoClientProvider.notifier)
             .connect(jwtToken: jwtToken, matchId: info.roomId);
-        // Emit join_room event
         ref.read(socketIoClientProvider.notifier).emitJoinRoom(info.roomId);
-        debugPrint('[ROOM] Socket.IO connected and joined room');
-      } else {
-        debugPrint('[ROOM] No JWT token available for Socket.IO');
       }
     } else {
-      state = RoomState.initial().copyWith(
+      state = state.copyWith(
         status: RoomStatus.error,
         errorMessage: result.errorMessage,
       );
-      debugPrint('[ROOM] join fail/error=${result.errorMessage}');
     }
     return result;
   }
@@ -269,9 +303,7 @@ class RoomController extends Notifier<RoomState> {
   void leaveRoom() {
     state = RoomState.initial();
     ref.read(matchRulesProvider.notifier).reset();
-    // Disconnect Socket.IO
     ref.read(socketIoClientProvider.notifier).disconnect();
-    debugPrint('[ROOM] Socket.IO disconnected');
   }
 
   void reset() {
@@ -287,6 +319,7 @@ class RoomController extends Notifier<RoomState> {
           if (m.id == state.myId) m.copyWith(ready: !m.ready) else m,
       ],
     );
+    // TODO: emit ready
   }
 
   void setMyReady(bool ready) {
@@ -299,6 +332,7 @@ class RoomController extends Notifier<RoomState> {
           if (m.id == state.myId) m.copyWith(ready: ready) else m,
       ],
     );
+    // TODO: emit ready
   }
 
   void setMyTeam(Team team) {
@@ -311,6 +345,10 @@ class RoomController extends Notifier<RoomState> {
           if (m.id == state.myId) m.copyWith(team: team) else m,
       ],
     );
+    // Send socket event
+    ref.read(socketIoClientProvider.notifier).emit('change_team', {
+      'team': team == Team.police ? 'POLICE' : 'THIEF',
+    });
   }
 
   void setHostId(String memberId) {

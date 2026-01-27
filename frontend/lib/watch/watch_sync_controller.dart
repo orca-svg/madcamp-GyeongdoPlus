@@ -4,22 +4,26 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/game/providers/ability_provider.dart';
 import '../providers/active_tab_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/watch_provider.dart';
+import '../providers/room_provider.dart';
+import '../services/watch_sync_service.dart';
 import 'state_snapshot_builder.dart';
-import 'watch_bridge.dart';
 import 'watch_debug_overrides.dart';
 
 class WatchSyncState {
   final GamePhase phase;
   final int lastSnapshotTs;
   final int lastHapticTs;
+  final int? currentHeartRate;
 
   const WatchSyncState({
     required this.phase,
     required this.lastSnapshotTs,
     required this.lastHapticTs,
+    this.currentHeartRate,
   });
 
   factory WatchSyncState.initial(GamePhase phase) =>
@@ -29,11 +33,13 @@ class WatchSyncState {
     GamePhase? phase,
     int? lastSnapshotTs,
     int? lastHapticTs,
+    int? currentHeartRate,
   }) {
     return WatchSyncState(
       phase: phase ?? this.phase,
       lastSnapshotTs: lastSnapshotTs ?? this.lastSnapshotTs,
       lastHapticTs: lastHapticTs ?? this.lastHapticTs,
+      currentHeartRate: currentHeartRate ?? this.currentHeartRate,
     );
   }
 }
@@ -57,8 +63,27 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     final phase = effectiveWatchPhase((p) => ref.read(p));
     state = WatchSyncState.initial(phase);
 
-    // watch 초기화 (1회)
+    // Watch Service init & Listen
+    final service = ref.read(watchSyncServiceProvider);
+
+    final sub = service.actionStream.listen((msg) {
+      final payload = msg['payload'] as Map<String, dynamic>?;
+      if (payload != null && payload['action'] == 'HEART_RATE') {
+        final val = payload['value'];
+        if (val is int) {
+          state = state.copyWith(currentHeartRate: val);
+        } else if (val is double) {
+          state = state.copyWith(currentHeartRate: val.round());
+        }
+      } else if (payload != null && payload['action'] == 'USE_SKILL') {
+        ref.read(abilityProvider.notifier).useSkill();
+      }
+    });
+    ref.onDispose(sub.cancel);
+
+    // Init Native
     Future.microtask(() async {
+      await service.init();
       await ref.read(watchConnectedProvider.notifier).init();
     });
 
@@ -80,19 +105,33 @@ class WatchSyncController extends Notifier<WatchSyncState> {
       state = state.copyWith(phase: effective);
     });
 
-    // watch 연결이 true로 바뀌는 순간 즉시 1회 전송(“연결됐는데 5초 기다리는” UX 방지)
+    // watch 연결이 true로 바뀌는 순간 즉시 1회 전송
     ref.listen<bool>(watchConnectedProvider, (prev, next) {
       if (next == true) {
         _sendSnapshot();
       }
     });
 
-    // activeTab 변경 시 즉시 전송 (탭 미러링)
+    // activeTab 변경 시 즉시 전송
     ref.listen<ActiveTab>(activeTabProvider, (prev, next) {
       _sendSnapshot();
     });
 
-    // 초기 스케줄 + 즉시 1회 전송
+    // Room 상태 변경 시(팀 변경 등) 즉시 전송
+    ref.listen<RoomState>(roomProvider, (prev, next) {
+      if (prev?.me?.team != next.me?.team) {
+        _sendSnapshot();
+      }
+    });
+
+    // Ability 변경 시 즉시 전송 (쿨타임 등)
+    ref.listen<AbilityState>(abilityProvider, (prev, next) {
+      if (prev?.cooldownRemainSec != next.cooldownRemainSec ||
+          prev?.isReady != next.isReady) {
+        _sendSnapshot();
+      }
+    });
+
     _scheduleForPhase(phase);
     _sendSnapshot();
 
@@ -109,7 +148,6 @@ class WatchSyncController extends Notifier<WatchSyncState> {
       _sendSnapshot();
     });
 
-    // enemy check는 IN_GAME에서만 5초 주기로 수행
     if (phase == GamePhase.inGame) {
       _enemyTimer = Timer.periodic(_enemyCheckInterval, (_) {
         _checkEnemyNear();
@@ -135,10 +173,25 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     if (!connected) return;
 
     final snapshot = StateSnapshotBuilder.build((p) => ref.read(p));
-    await ref.read(watchBridgeProvider).sendStateSnapshot(snapshot);
+
+    // Inject Ability State
+    final ability = ref.read(abilityProvider);
+    if (snapshot['payload'] is Map && snapshot['payload']['my'] is Map) {
+      final my = snapshot['payload']['my'] as Map<String, dynamic>;
+      my['skill'] = {
+        'type': ability.type.name,
+        'label': ability.type.label,
+        'sf': ability.type.sfSymbol,
+        'remain': ability.cooldownRemainSec,
+        'total': ability.totalCooldownSec,
+        'ready': ability.isReady,
+      };
+    }
+
+    await ref.read(watchSyncServiceProvider).sendStateSnapshot(snapshot);
     final len = jsonEncode(snapshot).length;
     final matchId = snapshot['matchId'];
-    debugPrint('[WATCH][FLUTTER][TX] STATE_SNAPSHOT matchId=$matchId len=$len');
+    // debugPrint('[WATCH][FLUTTER][TX] STATE_SNAPSHOT matchId=$matchId len=$len');
 
     state = state.copyWith(
       lastSnapshotTs: DateTime.now().millisecondsSinceEpoch,
@@ -155,12 +208,10 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     final nearby = payload['nearby'] as Map<String, dynamic>? ?? {};
     final enemyNear = nearby['enemyNear'] == true;
 
-    // 도둑 + 적 근접일 때만
     if (team != 'THIEF' || !enemyNear) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    // 쿨다운(5초) 강제
     if (now - state.lastHapticTs < _enemyCooldownMs) return;
 
     final haptic = {
@@ -169,7 +220,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
       'matchId': snapshot['matchId'],
       'payload': {'kind': 'ENEMY_NEAR_5M', 'cooldownSec': 5, 'durationMs': 300},
     };
-    await ref.read(watchBridgeProvider).sendHapticAlert(haptic);
+    await ref.read(watchSyncServiceProvider).sendHapticAlert(haptic);
     final len = jsonEncode(haptic).length;
     final matchId = haptic['matchId'];
     debugPrint('[WATCH][FLUTTER][TX] HAPTIC_ALERT matchId=$matchId len=$len');

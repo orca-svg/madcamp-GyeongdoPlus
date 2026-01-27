@@ -120,19 +120,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         onPressed: busy
                             ? null
                             : () => _handleLocalLogin(
-                                  context: context,
-                                  ref: ref,
-                                  id: _idCtrl.text,
-                                  password: _pwCtrl.text,
-                                ),
+                                context: context,
+                                ref: ref,
+                                id: _idCtrl.text,
+                                password: _pwCtrl.text,
+                              ),
                         leading: busy
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Icon(
@@ -167,9 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 '현재: ${auth.displayName ?? '익명'}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: AppColors.textSecondary),
                               ),
                             ),
@@ -177,10 +176,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               onPressed: () async {
                                 await ref.read(authProvider.notifier).signOut();
                                 if (!context.mounted) return;
-                                showAppSnackBar(
-                                  context,
-                                  message: '로그아웃 완료',
-                                );
+                                showAppSnackBar(context, message: '로그아웃 완료');
                               },
                               style: TextButton.styleFrom(
                                 foregroundColor: AppColors.red,
@@ -235,14 +231,15 @@ class _KakaoButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 56,
+      height: 50,
       child: ElevatedButton(
         onPressed: busy ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFEE500),
-          foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          foregroundColor: const Color(0xD9191919), // #191919 with 85% opacity
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           elevation: 0,
+          padding: EdgeInsets.zero,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -253,14 +250,16 @@ class _KakaoButton extends StatelessWidget {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xD9191919),
+                      ),
                     ),
                   )
-                : const Icon(Icons.chat_bubble_rounded),
-            const SizedBox(width: 10),
+                : const Icon(Icons.chat_bubble, size: 20),
+            const SizedBox(width: 8),
             Text(
               busy ? '로그인 중...' : '카카오 로그인',
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),

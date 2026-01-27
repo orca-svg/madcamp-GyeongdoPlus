@@ -15,6 +15,8 @@ class RankNeonCard extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final String? rankName;
+  final int? trend; // 1: Up, -1: Down, 0: Same
+  final bool isWin; // For glow control
 
   const RankNeonCard({
     super.key,
@@ -23,15 +25,28 @@ class RankNeonCard extends StatelessWidget {
     required this.icon,
     required this.accent,
     this.rankName,
+    this.trend = 0,
+    this.isWin = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final resolvedRank = rankName ?? _rankNameFromScore(score);
+    // Loss: Grayscale border, No glow
+    final borderColor = isWin
+        ? accent.withOpacity(0.7)
+        : const Color(0xFF4A4A4A);
+    final glowColor = isWin ? accent : Colors.transparent;
+    final iconColor = isWin ? accent : const Color(0xFF808080);
+    final iconBgColor = isWin
+        ? accent.withOpacity(0.18)
+        : const Color(0xFF2A2A2A);
+
     return GlowCard(
-      glow: true,
-      glowColor: accent,
-      borderColor: accent.withOpacity(0.7),
+      glow: isWin,
+      glowColor: glowColor,
+      blurRadius: isWin ? 10 : 0,
+      borderColor: borderColor,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
@@ -39,12 +54,16 @@ class RankNeonCard extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.18),
+              color: iconBgColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: accent.withOpacity(0.5)),
+              border: Border.all(
+                color: isWin
+                    ? accent.withOpacity(0.5)
+                    : const Color(0xFF4A4A4A),
+              ),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 18, color: accent),
+            child: Icon(icon, size: 18, color: iconColor),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -62,14 +81,36 @@ class RankNeonCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  '$resolvedRank · $score',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w900,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$resolvedRank · $score',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    if (trend != null) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        trend == 1
+                            ? Icons.arrow_upward_rounded
+                            : trend == -1
+                            ? Icons.arrow_downward_rounded
+                            : Icons.remove_rounded,
+                        size: 14,
+                        color: trend == 1
+                            ? Colors.greenAccent
+                            : trend == -1
+                            ? Colors.redAccent
+                            : Colors.grey,
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

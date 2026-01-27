@@ -28,6 +28,8 @@
 	<string></string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -42,6 +44,14 @@
 		<string>_http._tcp</string>
 		<string>_ws._tcp</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>게임 진행(도둑/경찰 위치 추적)을 위해 위치 정보가 필요합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>게임 진행(도둑/경찰 위치 추적)을 위해 위치 정보가 필요합니다.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>게임 진행(도둑/경찰 위치 추적)을 위해 위치 정보가 필요합니다.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>게임 진행(도둑/경찰 위치 추적)을 위해 위치 정보가 필요합니다.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

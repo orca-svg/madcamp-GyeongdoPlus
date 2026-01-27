@@ -2,9 +2,11 @@ import Foundation
 import WatchConnectivity
 import Combine
 import WatchKit
+import HealthKit
+import CoreLocation
 
 struct RadarPing: Codable, Identifiable {
-    let id = UUID()
+    var id = UUID()
     let kind: String
     let bearingDeg: Double
     let distanceM: Double
@@ -61,6 +63,16 @@ struct SnapshotMy: Codable {
     let escapeSec: Int
     let hr: Int?
     let hrMax: Int?
+    let skill: SnapshotSkill?
+}
+
+struct SnapshotSkill: Codable {
+    let type: String
+    let label: String
+    let sf: String
+    let remain: Int
+    let total: Int
+    let ready: Bool
 }
 
 struct SnapshotRulesLite: Codable {
@@ -90,13 +102,32 @@ struct HapticPayload: Codable {
     let durationMs: Int
 }
 
-final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate {
+final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate, CLLocationManagerDelegate, HKLiveWorkoutBuilderDelegate {
     @Published var latest: RadarPacket? = nil
-    @Published var snapshot: StateSnapshotEnvelope? = nil
+    @Published var snapshot: StateSnapshotEnvelope? = nil {
+        didSet {
+            checkSensorState()
+        }
+    }
     @Published var isReachable: Bool = false
+    @Published var currentHeartRate: Int = 0
+    @Published var currentHeading: Double = 0.0
+    
     static let shared = WatchConnectivityManager()
 
     private var lastHapticByKind: [String: Int] = [:]
+    
+    // Sensors
+    private let healthStore = HKHealthStore()
+    private let locationManager = CLLocationManager()
+    private var session: HKWorkoutSession?
+    private var builder: HKLiveWorkoutBuilder?
+    private var isSensorActive = false
+
+    override init() {
+        super.init()
+        setupSensors()
+    }
 
     func setup() {
         guard WCSession.isSupported() else { return }
@@ -104,14 +135,114 @@ final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDeleg
         s.delegate = self
         s.activate()
     }
+    
+    private func setupSensors() {
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        
+        let types: Set = [HKQuantityType.quantityType(forIdentifier: .heartRate)!]
+        healthStore.requestAuthorization(toShare: [], read: types) { success, error in
+            print("[WatchWC] HealthKit Auth: \(success)")
+        }
+    }
+    
+    // MARK: - Sensor Logic (Battery Efficient)
+    private func checkSensorState() {
+        guard let phase = snapshot?.payload.phase else { return }
+        let shouldBeActive = (phase == "IN_GAME")
+        
+        if shouldBeActive && !isSensorActive {
+            startSensors()
+        } else if !shouldBeActive && isSensorActive {
+            stopSensors()
+        }
+    }
+    
+    private func startSensors() {
+        print("[WatchWC] Starting Sensors (HR & Compass)")
+        isSensorActive = true
+        
+        // Compass
+        locationManager.startUpdatingHeading()
+        
+        // Heart Rate (Start Workout Session)
+        let config = HKWorkoutConfiguration()
+        config.activityType = .running
+        config.locationType = .outdoor
+        
+        do {
+            session = try HKWorkoutSession(healthStore: healthStore, configuration: config)
+            builder = session?.associatedWorkoutBuilder()
+            
+            builder?.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: config)
+            session?.delegate = nil // Simple usage
+            builder?.delegate = self
+            
+            session?.startActivity(with: Date())
+            builder?.beginCollection(withStart: Date()) { success, error in
+                print("[WatchWC] Workout Session Started: \(success)")
+            }
+        } catch {
+            print("[WatchWC] HK Session Error: \(error)")
+        }
+    }
+    
+    private func stopSensors() {
+        print("[WatchWC] Stopping Sensors")
+        isSensorActive = false
+        
+        locationManager.stopUpdatingHeading()
+        
+        session?.end()
+        builder?.endCollection(withEnd: Date()) { _, _ in }
+        session = nil
+        builder = nil
+    }
 
+    // MARK: - CLLocationManagerDelegate
+    func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        // -180 ~ 180 or 0 ~ 360
+        DispatchQueue.main.async {
+            self.currentHeading = newHeading.magneticHeading
+        }
+    }
+    
+    // MARK: - HKLiveWorkoutBuilderDelegate
+    func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
+        for type in collectedTypes {
+            guard let quantityType = type as? HKQuantityType else { continue }
+            if quantityType.identifier == HKQuantityTypeIdentifier.heartRate.rawValue {
+                let statistics = workoutBuilder.statistics(for: quantityType)
+                let heartRateUnit = HKUnit.count().unitDivided(by: HKUnit.minute())
+                let value = statistics?.mostRecentQuantity()?.doubleValue(for: heartRateUnit)
+                if let value = value {
+                    updateHeartRate(value)
+                }
+            }
+        }
+    }
+    
+    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
+        // No-op
+    }
+    
+    // MARK: - Heart Rate Update
+    func updateHeartRate(_ hr: Double) {
+        let bpm = Int(hr)
+        DispatchQueue.main.async {
+            self.currentHeartRate = bpm
+        }
+        // Send to Phone
+        sendAction(action: "HEART_RATE", value: bpm)
+    }
+
+    // MARK: - WCSessionDelegate
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         print("[WatchWC] activationDidComplete state=\(activationState.rawValue) error=\(String(describing: error))")
         DispatchQueue.main.async {
             switch activationState {
             case .activated:
                 self.isReachable = session.isReachable
-                print("[WatchWC] Session activated, reachable=\(session.isReachable)")
             case .inactive, .notActivated:
                 self.isReachable = false
             @unknown default:
@@ -169,7 +300,12 @@ final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDeleg
         lastHapticByKind[kind] = now
 
         let device = WKInterfaceDevice.current()
-        device.play(.notification)
+        // Heavy Haptic for Thief Warning
+        if kind.contains("ENEMY") || kind.contains("NEAR") {
+            device.play(.retry) // Stronger than notification
+        } else {
+            device.play(.notification)
+        }
     }
 
     func sendAction(action: String, value: Any?) {
@@ -191,7 +327,6 @@ final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDeleg
         } else {
             do {
                 try s.updateApplicationContext(payload)
-                print("[WatchWC] updateApplicationContext success action=\(action)")
             } catch {
                 print("[WatchWC] updateApplicationContext error: \(error.localizedDescription)")
             }

@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+
+import '../../core/env.dart';
 
 enum SocketIoConnStatus { disconnected, connecting, connected, reconnecting }
 
@@ -62,18 +63,17 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
       return;
     }
 
-    final baseUrl = dotenv.env['SOCKET_IO_URL'] ?? 'http://localhost:3000';
+    final baseUrl = Env.socketIoUrl;
 
     state = state.copyWith(status: SocketIoConnStatus.connecting);
     _epoch += 1;
 
     try {
       _socket = io.io(
-        baseUrl,
+        '$baseUrl/game', // Add /game namespace
         io.OptionBuilder()
             .setTransports(['websocket'])
             .disableAutoConnect()
-            .setPath('/socket.io')
             .setExtraHeaders({'origin': baseUrl})
             .setAuth(jwtToken != null ? {'token': jwtToken} : {})
             .setQuery(matchId != null ? {'matchId': matchId} : {})
@@ -161,6 +161,10 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
       'play_siren',
       'reset_channeling',
       'clown_taunt',
+      'settings_updated',
+      'member_updated',
+      'room_updated',
+      'team_changed',
     ];
 
     for (final eventName in serverEvents) {

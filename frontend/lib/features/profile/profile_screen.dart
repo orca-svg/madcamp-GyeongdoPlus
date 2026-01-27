@@ -12,9 +12,11 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/rank_neon_card.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/profile_stats_provider.dart';
 import '../../providers/room_provider.dart';
+import 'widgets/history_card.dart';
 
 const neonCyan = Color(0xFF00E5FF);
 const neonPurple = Color(0xFFB026FF);
@@ -30,9 +32,10 @@ class ProfileScreen extends ConsumerWidget {
     final room = ref.watch(roomProvider);
     final phase = ref.watch(gamePhaseProvider);
     final nickname = room.me?.name ?? '김선수';
-    final bottomInset = (phase == GamePhase.offGame
-        ? AppDimens.bottomBarHOff
-        : AppDimens.bottomBarHIn) +
+    final bottomInset =
+        (phase == GamePhase.offGame
+            ? AppDimens.bottomBarHOff
+            : AppDimens.bottomBarHIn) +
         18;
 
     return Scaffold(
@@ -44,14 +47,33 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('내정보', style: Theme.of(context).textTheme.titleLarge),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('내정보', style: Theme.of(context).textTheme.titleLarge),
+                    IconButton(
+                      onPressed: () async {
+                        await ref.read(authProvider.notifier).signOut();
+                        if (context.mounted) {
+                          Navigator.of(
+                            context,
+                          ).pushNamedAndRemoveUntil('/', (route) => false);
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      tooltip: '로그아웃',
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Text(
                   '프로필 및 통계',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.textMuted),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 14),
                 _profileHeader(context, nickname),
@@ -67,6 +89,8 @@ class ProfileScreen extends ConsumerWidget {
                         icon: Icons.shield_rounded,
                         accent: AppColors.borderCyan,
                         rankName: _rankNameFromScore(stats.policeScore),
+                        trend: 1, // Mock trend: Up
+                        isWin: true, // Mock win state
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -77,6 +101,8 @@ class ProfileScreen extends ConsumerWidget {
                         icon: Icons.lock_rounded,
                         accent: AppColors.red,
                         rankName: _rankNameFromScore(stats.thiefScore),
+                        trend: -1, // Mock trend: Down
+                        isWin: false, // Mock loss state
                       ),
                     ),
                   ],
@@ -94,7 +120,10 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _achievementRow(stats.achievements),
                 const SizedBox(height: 18),
-                Text('총 플레이 시간', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  '총 플레이 시간',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 10),
                 GlowCard(
                   glow: true,
@@ -108,6 +137,31 @@ class ProfileScreen extends ConsumerWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
+                ),
+                const SizedBox(height: 24),
+                Text('최근 전적', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                // Mock History Data
+                HistoryCard(
+                  isWin: true,
+                  teamType: Team.police,
+                  scoreDelta: 30,
+                  date: '2024.05.20 14:00',
+                  resultText: '경찰 승리 (도둑 전원 검거)',
+                ),
+                HistoryCard(
+                  isWin: false,
+                  teamType: Team.thief,
+                  scoreDelta: -15,
+                  date: '2024.05.19 18:30',
+                  resultText: '패배 (검거됨)',
+                ),
+                HistoryCard(
+                  isWin: true,
+                  teamType: Team.thief,
+                  scoreDelta: 45,
+                  date: '2024.05.18 12:00',
+                  resultText: '도둑 승리 (탈출 성공)',
                 ),
               ],
             ),
@@ -129,12 +183,14 @@ class ProfileScreen extends ConsumerWidget {
             height: 62,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [neonCyan, neonPurple],
-              ),
+              gradient: LinearGradient(colors: [neonCyan, neonPurple]),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.person_rounded, color: Colors.white, size: 32),
+            child: const Icon(
+              Icons.person_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -156,10 +212,9 @@ class ProfileScreen extends ConsumerWidget {
                   '오늘도 안전하게!',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.textSecondary),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -290,7 +345,9 @@ class ProfileScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
-                      item.unlocked ? Icons.emoji_events_rounded : Icons.lock_rounded,
+                      item.unlocked
+                          ? Icons.emoji_events_rounded
+                          : Icons.lock_rounded,
                       color: item.unlocked ? neonAmber : AppColors.textMuted,
                     ),
                     const SizedBox(height: 8),

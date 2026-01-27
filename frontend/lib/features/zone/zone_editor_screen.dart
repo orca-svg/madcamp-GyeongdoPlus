@@ -1,14 +1,15 @@
 // Zone editor: fix polygon rendering when points are removed or preview-only.
 // Why: polygon should appear only with 3+ confirmed points and disappear immediately otherwise.
-// Prevents preview point from creating a closed polygon (no "first pin fixed" feel).
-// Keeps map markers for confirmed/preview points while suppressing fill until confirmed.
-// Adjusts polygon stroke/fill to lighter neon values for clarity.
-// Retains existing save flow and jail editing UX.
+// GPS Init: Centers map on user location if available.
+// Instant Pin: Tap to add immediately with haptic feedback.
+// Legacy "Confirm" logic removed.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import '../../core/app_dimens.dart';
@@ -32,16 +33,19 @@ const double _radiusStepM = 5.0;
 
 class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   late List<GeoPointDto> _pointsConfirmed;
-  GeoPointDto? _pointPreview;
   GeoPointDto? _jailCenter;
   double? _jailRadiusM;
   _EditMode _mode = _EditMode.polygonPoint;
+
   KakaoMapController? _mapController;
   bool _mapBuilt = false;
   String? _mapDiag;
   bool _mapDiagScheduled = false;
   Timer? _mapDiagTimer;
   bool _keyLogged = false;
+
+  // Initial GPS Location
+  LatLng? _initialPos;
 
   static const bool _mapRenderDisabledThisStage = false;
   static const double _defaultJailRadiusM = 15.0;
@@ -56,30 +60,48 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     _jailCenter = rules.jailCenter;
     _jailRadiusM = rules.jailRadiusM;
 
-    final kakaoJsAppKey =
-        (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
-            ?.trim() ??
-        '';
-    final masked = (kakaoJsAppKey.length >= 4)
-        ? '${kakaoJsAppKey.substring(0, 4)}••••'
-        : (kakaoJsAppKey.isEmpty ? 'EMPTY' : 'SET');
-    final showMap = !_mapRenderDisabledThisStage && kakaoJsAppKey.isNotEmpty;
-    // ignore: avoid_print
-    print(
-      '[ZoneEditor ${DateTime.now().toIso8601String()}] initState points=${_pointsConfirmed.length}',
-    );
-    // ignore: avoid_print
-    print(
-      '[ZoneEditor] key=$masked len=${kakaoJsAppKey.length} showMap=$showMap',
-    );
+    _initGps(); // Fire and forget
+
     _keyLogged = true;
+  }
+
+  Future<void> _initGps() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        // Handle service disabled
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+
+      if (permission == LocationPermission.deniedForever) return;
+
+      final pos = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+
+      setState(() {
+        _initialPos = LatLng(pos.latitude, pos.longitude);
+      });
+      debugPrint('[ZoneEditor] GPS found: ${pos.latitude}, ${pos.longitude}');
+
+      // If map is already ready, move camera
+      if (_mapController != null) {
+        debugPrint('[ZoneEditor] PanTo GPS location (late)');
+        _mapController!.panTo(_initialPos!);
+      }
+    } catch (e) {
+      debugPrint('[ZoneEditor] GPS init failed: $e');
+    }
   }
 
   @override
   void dispose() {
     _mapDiagTimer?.cancel();
-    // ignore: avoid_print
-    print('[ZoneEditor ${DateTime.now().toIso8601String()}] dispose');
     super.dispose();
   }
 
@@ -95,26 +117,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: avoid_print
-    print(
-      '[ZoneEditor ${DateTime.now().toIso8601String()}] build mapRenderDisabled=$_mapRenderDisabledThisStage key=${dotenv.isInitialized ? 'loaded' : 'not_loaded'}',
-    );
-
     final showMap = !_mapRenderDisabledThisStage && _mapEnabled;
-    if (!_keyLogged) {
-      final kakaoJsAppKey =
-          (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
-              ?.trim() ??
-          '';
-      final masked = (kakaoJsAppKey.length >= 4)
-          ? '${kakaoJsAppKey.substring(0, 4)}••••'
-          : (kakaoJsAppKey.isEmpty ? 'EMPTY' : 'SET');
-      // ignore: avoid_print
-      print(
-        '[ZoneEditor] key=$masked len=${kakaoJsAppKey.length} showMap=$showMap',
-      );
-      _keyLogged = true;
-    }
     _scheduleMapDiag(showMap);
 
     // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
@@ -193,22 +196,18 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   points: _pointsConfirmed,
                   jailCenter: _jailCenter,
                   jailRadiusM: _jailRadiusM,
-                  onUndo: (_pointPreview == null &&
-                          _pointsConfirmed.isEmpty)
+                  onUndo: (_pointsConfirmed.isEmpty)
                       ? null
                       : () => setState(() {
-                        if (_pointPreview != null) {
-                          _pointPreview = null;
-                        } else if (_pointsConfirmed.isNotEmpty) {
-                          _pointsConfirmed = _pointsConfirmed.sublist(
-                            0,
-                            _pointsConfirmed.length - 1,
-                          );
-                        }
-                      }),
+                          if (_pointsConfirmed.isNotEmpty) {
+                            _pointsConfirmed = _pointsConfirmed.sublist(
+                              0,
+                              _pointsConfirmed.length - 1,
+                            );
+                          }
+                        }),
                   onClear: () => setState(() {
                     _pointsConfirmed = [];
-                    _pointPreview = null;
                     _jailCenter = null;
                     _jailRadiusM = null;
                   }),
@@ -222,7 +221,9 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   },
                   radiusEnabled: _jailCenter != null,
                   onAddPointFallback: showMap ? null : _addPointFallback,
-                  onSetJailCenterFallback: showMap ? null : _setJailCenterFallback,
+                  onSetJailCenterFallback: showMap
+                      ? null
+                      : _setJailCenterFallback,
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
@@ -234,7 +235,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'TODO: zone_update / rules_update 스키마 확정 후 WS로 전송',
+                  '지도 탭: 즉시 추가 (햅틱 피드백)',
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
@@ -248,17 +249,11 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   }
 
   Widget _buildMapCard(BuildContext context, {required bool showMap}) {
-    // ignore: avoid_print
-    print('[MAP] ZoneEditor: _buildMapCard called, _mapEnabled=$_mapEnabled');
     final confirmed = _pointsConfirmed
         .map((p) => LatLng(p.lat, p.lng))
         .toList(growable: false);
-    final preview = _pointPreview == null
-        ? const <LatLng>[]
-        : [LatLng(_pointPreview!.lat, _pointPreview!.lng)];
-    final points = [...confirmed, ...preview];
-    final center = _previewCenter(points, _jailCenter);
 
+    // Polygon appears only when points >= 3
     final polygonOverlay = (_pointsConfirmed.length >= 3)
         ? Polygon(
             polygonId: 'edit_polygon',
@@ -295,14 +290,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
           height: 24,
           zIndex: 3,
         ),
-      if (_pointPreview != null)
-        Marker(
-          markerId: 'preview',
-          latLng: LatLng(_pointPreview!.lat, _pointPreview!.lng),
-          width: 18,
-          height: 22,
-          zIndex: 2,
-        ),
       if (_jailCenter != null)
         Marker(
           markerId: 'jail',
@@ -312,6 +299,14 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
           zIndex: 4,
         ),
     ];
+
+    // Determine initial center: User GPS -> Confirmed Center -> Seoul City Hall
+    LatLng center;
+    if (confirmed.isNotEmpty) {
+      center = _centroid(confirmed);
+    } else {
+      center = _initialPos ?? LatLng(37.5665, 126.9780);
+    }
 
     return GlowCard(
       glow: false,
@@ -332,14 +327,17 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 circles: jailCircle == null ? null : [jailCircle],
                 markers: markers,
                 onMapCreated: (controller) {
-                  // ignore: avoid_print
-                  print('[MAP] ZoneEditor: onMapCreated called');
                   _mapController = controller;
                   if (mounted) {
                     setState(() {
                       _mapBuilt = true;
                       _mapDiag = 'onMapCreated OK';
                     });
+                    // Move to GPS buffer if available
+                    if (_initialPos != null && confirmed.isEmpty) {
+                      debugPrint('[ZoneEditor] PanTo GPS location (init)');
+                      controller.panTo(_initialPos!);
+                    }
                   }
                 },
                 onMapTap: (latLng) {
@@ -347,8 +345,13 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     lat: latLng.latitude,
                     lng: latLng.longitude,
                   ).clamp();
+
+                  HapticFeedback.lightImpact();
+
                   if (_mode == _EditMode.polygonPoint) {
-                    setState(() => _pointPreview = p);
+                    setState(() {
+                      _pointsConfirmed = [..._pointsConfirmed, p];
+                    });
                   } else {
                     setState(() {
                       _jailCenter = p;
@@ -362,9 +365,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 right: 10,
                 child: _DebugPill(
                   keyOk: (dotenv.isInitialized
-                      ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '')
-                            .trim()
-                            .isNotEmpty
+                      ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty
                       : false),
                   built: _mapBuilt,
                   showMap: showMap,
@@ -384,7 +385,9 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     border: Border.all(color: AppColors.outlineLow),
                   ),
                   child: Text(
-                    _mode == _EditMode.polygonPoint ? '탭: 점 추가' : '탭: 감옥 중심',
+                    _mode == _EditMode.polygonPoint
+                        ? '터치: 핀 추가 (즉시)'
+                        : '터치: 감옥 설정',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11,
@@ -397,9 +400,13 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 bottom: 10,
                 right: 10,
                 child: IconButton(
-                  tooltip: '서울 시청으로 이동',
-                  onPressed: () {
-                    _mapController?.panTo(LatLng(37.5665, 126.9780));
+                  tooltip: '내 위치로 이동',
+                  onPressed: () async {
+                    if (_initialPos != null) {
+                      _mapController?.panTo(_initialPos!);
+                    } else {
+                      await _initGps(); // retry
+                    }
                   },
                   icon: const Icon(
                     Icons.my_location_rounded,
@@ -414,46 +421,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   ),
                 ),
               ),
-              if (_mapDiag != null)
-                Positioned(
-                  left: 10,
-                  bottom: 10,
-                  right: 60,
-                  child: Text(
-                    _mapDiag!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              if (_mode == _EditMode.polygonPoint && _pointPreview != null)
-                Positioned(
-                  bottom: 10,
-                  left: 10,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      final p = _pointPreview;
-                      if (p == null) return;
-                      setState(() {
-                        _pointsConfirmed = [..._pointsConfirmed, p];
-                        _pointPreview = null;
-                      });
-                    },
-                    icon: const Icon(Icons.check_rounded, size: 16),
-                    label: const Text('점 확정'),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: AppColors.surface2.withOpacity(0.75),
-                      side: const BorderSide(color: AppColors.outlineLow),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -475,8 +442,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
         _mapDiag =
             'Map not created yet. Check Kakao Web domain (localhost/127.0.0.1) & key.';
       });
-      // ignore: avoid_print
-      print('[MAP] onMapCreated not fired yet (3s). Check web domain/key.');
     });
   }
 
@@ -505,12 +470,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     );
   }
 
-  LatLng _previewCenter(List<LatLng> points, GeoPointDto? jailCenter) {
-    if (jailCenter != null) return LatLng(jailCenter.lat, jailCenter.lng);
-    if (points.isNotEmpty) return _centroid(points);
-    return LatLng(37.5665, 126.9780);
-  }
-
   LatLng _centroid(List<LatLng> points) {
     var lat = 0.0;
     var lng = 0.0;
@@ -530,7 +489,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     ).clamp();
     setState(() {
       _pointsConfirmed = [..._pointsConfirmed, p];
-      _pointPreview = null;
     });
   }
 
@@ -799,52 +757,36 @@ class _ControlsCard extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                tooltip: '-',
-                onPressed: () => onRadiusDelta(-_radiusStepM),
-                icon: const Icon(Icons.remove_circle_outline_rounded),
-                color: AppColors.textSecondary,
+                onPressed: radiusEnabled
+                    ? () => onRadiusDelta(-_radiusStepM)
+                    : null,
+                icon: const Icon(Icons.remove_rounded),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.surface1,
+                  foregroundColor: AppColors.textPrimary,
+                ),
               ),
               Expanded(
-                child: Center(
-                  child: Text(
-                    (jailRadiusM == null) ? '—' : '${jailRadiusM!.round()}m',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                child: Slider(
+                  value: jailRadiusM ?? 15.0,
+                  min: 1.0,
+                  max: 200.0,
+                  divisions: 199,
+                  label: '${(jailRadiusM ?? 15.0).round()}m',
+                  onChanged: radiusEnabled ? onRadiusChanged : null,
                 ),
               ),
               IconButton(
-                tooltip: '+',
-                onPressed: () => onRadiusDelta(_radiusStepM),
-                icon: const Icon(Icons.add_circle_outline_rounded),
-                color: AppColors.textSecondary,
+                onPressed: radiusEnabled
+                    ? () => onRadiusDelta(_radiusStepM)
+                    : null,
+                icon: const Icon(Icons.add_rounded),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.surface1,
+                  foregroundColor: AppColors.textPrimary,
+                ),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          Opacity(
-            opacity: radiusEnabled ? 1 : 0.4,
-            child: IgnorePointer(
-              ignoring: !radiusEnabled,
-              child: Slider(
-                min: 1,
-                max: 200,
-                divisions: 199,
-                value: (jailRadiusM ?? 15.0)
-                    .clamp(1.0, 200.0),
-                onChanged: onRadiusChanged,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '폴리곤은 최소 3점이 필요합니다.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
           ),
         ],
       ),
