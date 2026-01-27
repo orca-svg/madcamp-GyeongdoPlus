@@ -128,4 +128,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async zrem(key: string, member: string) {
     return this.redis.zrem(key, member);
   }
+
+  async georadius(key: string, lng: number, lat: number, radius: number, unit: 'm' | 'km' = 'm') : Promise<[string, string][]>{
+    // ioredis의 georadius 메서드 사용
+    // WITHDIST: 거리도 같이 반환
+    // ASC: 가까운 순서대로 정렬
+    return this.redis.georadius(key, lng, lat, radius, unit, 'WITHDIST', 'ASC') as any;
+  }
 }

@@ -36,7 +36,7 @@ enum Team {
 
 enum MatchResult {
   WIN
-  LOSE  // 기획서 오타(LOSW) 수정됨
+  LOSE
   DRAW
   ABANDON
 }
