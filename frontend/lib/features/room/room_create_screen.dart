@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
@@ -34,6 +36,8 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
       setState(() => _form = _form.copyWith(releaseScope: v));
   void _setReleaseOrder(RoomReleaseOrder v) =>
       setState(() => _form = _form.copyWith(releaseOrder: v));
+  void _setPoliceRatio(double v) =>
+      setState(() => _form = _form.copyWith(policeRatio: v));
 
   Future<void> _openZoneSetup() async {
     debugPrint(
@@ -87,12 +91,71 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
     );
   }
 
+  Widget _buildMapPreview(BuildContext context) {
+    // Only show map if API key exists
+    final hasKey =
+        dotenv.isInitialized &&
+        (dotenv.env['KAKAO_JS_APP_KEY']?.isNotEmpty ?? false);
+    if (!hasKey) {
+      return const Center(child: Text('Map Key Missing'));
+    }
+
+    final points = _form.polygon ?? [];
+    final center = points.isNotEmpty
+        ? _centroid(points)
+        : LatLng(37.5665, 126.9780); // Default Seoul
+
+    return KakaoMap(
+      center: center,
+      currentLevel: 4,
+      zoomControl: false,
+      mapTypeControl: false,
+      polygons: points.length >= 3
+          ? [
+              Polygon(
+                polygonId: 'preview_poly',
+                points: points.map((p) => LatLng(p.lat, p.lng)).toList(),
+                strokeWidth: 2,
+                strokeColor: AppColors.borderCyan,
+                strokeOpacity: 0.9,
+                fillColor: AppColors.borderCyan,
+                fillOpacity: 0.14,
+                zIndex: 1,
+              ),
+            ]
+          : null,
+      circles: (_form.jailCenter != null)
+          ? [
+              Circle(
+                circleId: 'preview_jail',
+                center: LatLng(_form.jailCenter!.lat, _form.jailCenter!.lng),
+                radius: _form.jailRadiusM ?? 15.0,
+                strokeWidth: 2,
+                strokeColor: AppColors.purple,
+                strokeOpacity: 0.9,
+                fillColor: AppColors.purple,
+                fillOpacity: 0.12,
+                zIndex: 2,
+              ),
+            ]
+          : null,
+      // No markers as requested
+    );
+  }
+
+  LatLng _centroid(List<GeoPointDto> points) {
+    if (points.isEmpty) return LatLng(37.5665, 126.9780);
+    double lat = 0;
+    double lng = 0;
+    for (var p in points) {
+      lat += p.lat;
+      lng += p.lng;
+    }
+    return LatLng(lat / points.length, lng / points.length);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final polygonCount = _form.polygon?.length ?? 0;
-    final jailCenter = _form.jailCenter;
-    final jailRadius = _form.jailRadiusM ?? 12;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,
@@ -115,10 +178,19 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _SectionCard(
-                        title: '모드 / 인원 / 시간',
+                        title: null,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text(
+                              '모드',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textMuted,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
                             _ModeSegmented(
                               mode: _form.mode,
                               onChanged: _setMode,
@@ -143,7 +215,47 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                             ),
                             const SizedBox(height: 6),
                             _LabeledRow(
-                              label: '시간 제한',
+                              label: '비율',
+                              trailing: Text(
+                                '${(_form.policeRatio * 100).round()}%',
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            Slider(
+                              min: 0.1,
+                              max: 0.5,
+                              divisions: 4,
+                              value: _form.policeRatio,
+                              onChanged: _setPoliceRatio,
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Text(
+                                  '경찰 ${(_form.maxPlayers * _form.policeRatio).round()}명',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: AppColors.borderCyan,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '도둑 ${(_form.maxPlayers - (_form.maxPlayers * _form.policeRatio).round())}명',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: AppColors.red,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _LabeledRow(
+                              label: '시간',
                               trailing: Text(
                                 _fmtTime(_form.timeLimitSec),
                                 style: const TextStyle(
@@ -165,36 +277,20 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                       ),
                       const SizedBox(height: 14),
                       _SectionCard(
-                        title: '구역 설정',
+                        title: '경기장 설정',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              polygonCount >= 3
-                                  ? '폴리곤: ${polygonCount}점'
-                                  : '폴리곤: 미설정',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              jailCenter == null
-                                  ? '감옥: 미설정'
-                                  : '감옥: ${jailCenter.lat.toStringAsFixed(4)}, ${jailCenter.lng.toStringAsFixed(4)}',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '감옥 반경: ${jailRadius.round()}m',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '감옥 위치/구역은 구역 설정에서 관리',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textMuted),
+                            Container(
+                              height: 200,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.outlineLow),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: _buildMapPreview(context),
+                              ),
                             ),
                             const SizedBox(height: 12),
                             SizedBox(
@@ -202,7 +298,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                               child: OutlinedButton.icon(
                                 onPressed: _openZoneSetup,
                                 icon: const Icon(Icons.tune_rounded, size: 18),
-                                label: const Text('구역 설정'),
+                                label: const Text('경기장 설정'),
                               ),
                             ),
                           ],
@@ -212,61 +308,77 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                       _SectionCard(
                         title: '해방 규칙',
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment
+                              .stretch, // Stretch for full width buttons
                           children: [
-                            _LabeledRow(
-                              label: '접촉 방식',
-                              trailing: _ToggleChips<RoomContactMode>(
-                                value: _form.contactMode,
-                                onChanged: _setContactMode,
-                                items: const [
-                                  _ToggleItem(
-                                    value: RoomContactMode.nonContact,
-                                    label: '비접촉',
-                                  ),
-                                  _ToggleItem(
-                                    value: RoomContactMode.contact,
-                                    label: '접촉',
-                                  ),
-                                ],
-                              ),
+                            _ToggleChips<RoomContactMode>(
+                              value: _form.contactMode,
+                              onChanged: _setContactMode,
+                              items: const [
+                                _ToggleItem(
+                                  value: RoomContactMode.nonContact,
+                                  label: '비접촉',
+                                ),
+                                _ToggleItem(
+                                  value: RoomContactMode.contact,
+                                  label: '접촉',
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 12),
-                            _LabeledRow(
-                              label: '해방 범위',
-                              trailing: _ToggleChips<RoomReleaseScope>(
-                                value: _form.releaseScope,
-                                onChanged: _setReleaseScope,
+                            _ToggleChips<RoomReleaseScope>(
+                              value: _form.releaseScope,
+                              onChanged: _setReleaseScope,
+                              items: const [
+                                _ToggleItem(
+                                  value: RoomReleaseScope.partial,
+                                  label: '일부\n(인원수 제한)',
+                                ),
+                                _ToggleItem(
+                                  value: RoomReleaseScope.all,
+                                  label: '전체\n(모두 해방)',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _form.releaseScope == RoomReleaseScope.partial
+                                  ? '설정된 인원수만큼만 해방됩니다.'
+                                  : '감옥의 모든 사람이 해방됩니다.',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.textMuted),
+                            ),
+                            const SizedBox(height: 12),
+                            // Always show Order options, or conditionally?
+                            // User request: "Split order choices... remove labels"
+                            // Assuming we show it. Logic: if scope is All, maybe order doesn't matter?
+                            // Existing logic: if (_form.releaseScope == RoomReleaseScope.partial)
+                            if (_form.releaseScope ==
+                                RoomReleaseScope.partial) ...[
+                              _ToggleChips<RoomReleaseOrder>(
+                                value: _form.releaseOrder,
+                                onChanged: _setReleaseOrder,
                                 items: const [
                                   _ToggleItem(
-                                    value: RoomReleaseScope.partial,
-                                    label: '일부 해방',
+                                    value: RoomReleaseOrder.fifo,
+                                    label: '선착순\n(먼저 잡힌 순)',
                                   ),
                                   _ToggleItem(
-                                    value: RoomReleaseScope.all,
-                                    label: '전체 해방',
+                                    value: RoomReleaseOrder.lifo,
+                                    label: '후착순\n(나중에 잡힌 순)',
                                   ),
                                 ],
                               ),
-                            ),
-                            if (_form.releaseScope ==
-                                RoomReleaseScope.partial) ...[
-                              const SizedBox(height: 12),
-                              _LabeledRow(
-                                label: '해방 순서',
-                                trailing: _ToggleChips<RoomReleaseOrder>(
-                                  value: _form.releaseOrder,
-                                  onChanged: _setReleaseOrder,
-                                  items: const [
-                                    _ToggleItem(
-                                      value: RoomReleaseOrder.fifo,
-                                      label: '선착순 해방',
-                                    ),
-                                    _ToggleItem(
-                                      value: RoomReleaseOrder.lifo,
-                                      label: '후착순 해방',
-                                    ),
-                                  ],
+                              const SizedBox(height: 6),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  _form.releaseOrder == RoomReleaseOrder.fifo
+                                      ? '먼저 잡힌 사람이 우선 해방됩니다.'
+                                      : '나중에 잡힌 사람이 우선 해방됩니다.',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(color: AppColors.textMuted),
+                                  textAlign: TextAlign.right,
                                 ),
                               ),
                             ],
@@ -318,7 +430,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
 }
 
 class _SectionCard extends StatelessWidget {
-  final String title;
+  final String? title;
   final Widget child;
 
   const _SectionCard({required this.title, required this.child});
@@ -331,8 +443,10 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 12),
+          if (title != null) ...[
+            Text(title!, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 12),
+          ],
           child,
         ],
       ),
@@ -440,6 +554,7 @@ class _ToggleChips<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
+      alignment: WrapAlignment.end,
       spacing: 8,
       runSpacing: 8,
       children: [
@@ -481,5 +596,5 @@ class _ToggleChips<T> extends StatelessWidget {
 
 String _fmtTime(int sec) {
   final m = (sec / 60).round();
-  return '$m분 ($sec s)';
+  return '$m분';
 }

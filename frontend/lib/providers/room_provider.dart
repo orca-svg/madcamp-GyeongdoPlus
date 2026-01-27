@@ -478,8 +478,8 @@ class RoomController extends Notifier<RoomState> {
       ],
     );
     // Send socket event
-    ref.read(socketIoClientProvider.notifier).emit('change_team', {
-      'team': team == Team.police ? 'POLICE' : 'THIEF',
+    ref.read(socketIoClientProvider.notifier).emit('change_role', {
+      'role': team == Team.police ? 'POLICE' : 'THIEF',
     });
   }
 

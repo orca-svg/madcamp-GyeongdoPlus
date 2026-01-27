@@ -255,6 +255,20 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
           )
         : null;
 
+    final userLocationCircle = (_initialPos != null)
+        ? Circle(
+            circleId: 'user_location_circle',
+            center: _initialPos!,
+            radius: 10, // 10m approximate accuracy
+            strokeWidth: 1,
+            strokeColor: AppColors.graphBlue,
+            strokeOpacity: 0.5,
+            fillColor: AppColors.graphBlue,
+            fillOpacity: 0.15,
+            zIndex: 0,
+          )
+        : null;
+
     final jailCircle = (_jailCenter != null && _jailRadiusM != null)
         ? Circle(
             circleId: 'jail_circle',
@@ -272,7 +286,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     final markers = <Marker>[
       for (var i = 0; i < confirmed.length; i++)
         Marker(
-          markerId: 'p_$i',
+          markerId: 'p_${confirmed[i].latitude}_${confirmed[i].longitude}',
           latLng: confirmed[i],
           width: 20,
           height: 24,
@@ -280,7 +294,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
         ),
       if (_jailCenter != null)
         Marker(
-          markerId: 'jail',
+          markerId: 'jail_${_jailCenter!.lat}_${_jailCenter!.lng}',
           latLng: LatLng(_jailCenter!.lat, _jailCenter!.lng),
           width: 26,
           height: 30,
@@ -311,8 +325,11 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 currentLevel: 4,
                 zoomControl: false,
                 mapTypeControl: false,
-                polygons: polygonOverlay == null ? null : [polygonOverlay],
-                circles: jailCircle == null ? null : [jailCircle],
+                polygons: polygonOverlay == null ? [] : [polygonOverlay],
+                circles: [
+                  if (jailCircle != null) jailCircle,
+                  if (userLocationCircle != null) userLocationCircle,
+                ],
                 markers: markers,
 
                 onMapCreated: (controller) {

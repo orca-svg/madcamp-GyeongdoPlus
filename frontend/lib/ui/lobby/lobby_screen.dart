@@ -15,7 +15,7 @@ import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 
 import '../../providers/game_phase_provider.dart';
-import '../../providers/match_rules_provider.dart' hide GameMode;
+
 import '../../providers/room_provider.dart';
 
 import 'widgets/game_config_card.dart';
@@ -32,15 +32,14 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final room = ref.watch(roomProvider);
-    final rules = ref.watch(matchRulesProvider);
+
     final me = room.me;
     final isHost = room.amIHost;
     final allReady = room.allReady;
     final totalPlayers = room.members.length;
-    final totalForRules = totalPlayers > 0 ? totalPlayers : rules.maxPlayers;
-    final policeCount = rules.policeCount.clamp(0, totalForRules);
-    final thiefCount = (totalForRules - policeCount).clamp(0, 99);
-    final teamOk = policeCount >= 1 && thiefCount >= 1;
+    final actualPolice = room.policeCount;
+    final actualThief = room.thiefCount;
+    final teamOk = actualPolice >= 1 && actualThief >= 1;
     final canStart = isHost && allReady && totalPlayers >= 2 && teamOk;
     final bottomBarHeight = 68.0;
     final safeBottom = MediaQuery.of(context).padding.bottom;
@@ -115,8 +114,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                       _lobbyActionBar(
                         context,
                         ref,
-                        canStart:
-                            room.isGameStartable(rules.maxPlayers) && isHost,
+                        canStart: canStart,
                         height: bottomBarHeight,
                       ),
                     ],
@@ -147,16 +145,51 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 '멤버 (${room.members.length})',
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              if (myId != null)
-                Text(
-                  '내 카드를 탭하여 변경',
+              Row(
+                children: [
+                  Icon(
+                    Icons.shield_rounded,
+                    size: 14,
+                    color: AppColors.borderCyan,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${room.policeCount}',
+                    style: const TextStyle(
+                      color: AppColors.borderCyan,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.lock_rounded, size: 14, color: AppColors.red),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${room.thiefCount}',
+                    style: const TextStyle(
+                      color: AppColors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (myId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '내 카드를 탭하여 팀 변경',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 10,
                     color: AppColors.textMuted,
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
           const SizedBox(height: 12),
           ListView.separated(
             shrinkWrap: true,

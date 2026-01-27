@@ -141,6 +141,26 @@ class UserController extends Notifier<UserState> {
     fetchMatchHistory(page: state.currentPage + 1);
   }
 
+  // Calculate dynamic stats from history
+  Map<String, int> get calculatedStats {
+    if (state.matchHistory.isEmpty) {
+      return {'policeGames': 0, 'thiefGames': 0};
+    }
+
+    int policeGames = 0;
+    int thiefGames = 0;
+
+    for (var match in state.matchHistory) {
+      if (match.role == 'POLICE') {
+        policeGames++;
+      } else if (match.role == 'THIEF') {
+        thiefGames++;
+      }
+    }
+
+    return {'policeGames': policeGames, 'thiefGames': thiefGames};
+  }
+
   void reset() {
     state = const UserState();
   }

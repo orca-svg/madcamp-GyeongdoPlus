@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/app_dimens.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glow_card.dart';
-import '../../../models/game_config.dart';
+
 import '../../../providers/room_provider.dart';
 import '../../../providers/match_rules_provider.dart' as rules;
 import '../../../net/socket/socket_io_client_provider.dart';
@@ -15,8 +15,23 @@ class GameConfigCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final room = ref.watch(roomProvider);
-    final config = room.config ?? GameConfig.initial();
+    final rulesState = ref.watch(rules.matchRulesProvider);
     final isHost = room.amIHost;
+
+    // Derived values
+    final pCount = rulesState.policeCount;
+    final maxP = rulesState.maxPlayers;
+    final tCount = maxP - pCount;
+    final ratio = (maxP > 0) ? (pCount / maxP) : 0.0;
+
+    // Formatting
+    final contactLabel = rulesState.contactMode == 'CONTACT' ? '접촉' : '비접촉';
+    final releaseScopeLabel = rulesState.rescueReleaseScope == 'PARTIAL'
+        ? '일부'
+        : '전체';
+    final releaseOrderLabel = rulesState.rescueReleaseOrder == 'FIFO'
+        ? '선착순'
+        : '후착순';
 
     return GlowCard(
       glow: true,
@@ -26,43 +41,69 @@ class GameConfigCard extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isHost ? () => _showEditDialog(context, ref, config) : null,
+          onTap: isHost
+              ? () => _showEditDialog(context, ref, rulesState)
+              : null,
           borderRadius: BorderRadius.circular(AppDimens.radiusCard),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            child: Row(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInfoItem(
+                Row(
+                  children: [
+                    Text(
+                      '경기 규칙',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const Spacer(),
+                    if (isHost)
+                      const Icon(
+                        Icons.edit_rounded,
+                        color: AppColors.textMuted,
+                        size: 16,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildRow(
                   context,
-                  icon: Icons.sports_esports_rounded,
-                  label: '모드',
-                  value: config.gameMode.label,
+                  '모드',
+                  rulesState.gameMode.label,
+                  Icons.sports_esports_rounded,
                   highlight: true,
                 ),
-                const SizedBox(width: 24),
-                _buildInfoItem(
+                const SizedBox(height: 8),
+                _buildRow(
                   context,
-                  icon: Icons.timer_rounded,
-                  label: '제한 시간',
-                  value: '${config.durationMin}분',
-                  highlight: false,
+                  '인원 / 시간',
+                  '$maxP명 / ${rulesState.durationMin}분',
+                  Icons.timer_rounded,
                 ),
-                const SizedBox(width: 24),
-                _buildInfoItem(
+                const SizedBox(height: 8),
+                _buildRow(
                   context,
-                  icon: Icons.lock_open_rounded,
-                  label: '감옥 해방',
-                  value: config.jailEnabled ? '가능' : '불가',
-                  highlight: false,
+                  '경찰 비율',
+                  '${(ratio * 100).round()}% (경찰 $pCount vs 도둑 $tCount)',
+                  Icons.people_alt_rounded,
                 ),
-                if (isHost) ...[
-                  const Spacer(),
-                  const Icon(
-                    Icons.edit_rounded,
-                    color: AppColors.textMuted,
-                    size: 18,
+                const SizedBox(height: 8),
+                _buildRow(
+                  context,
+                  '접촉 여부',
+                  contactLabel,
+                  Icons.call_missed_outgoing_rounded,
+                ),
+                const SizedBox(height: 8),
+                if (rulesState.jailEnabled)
+                  _buildRow(
+                    context,
+                    '해방 규칙',
+                    '$releaseScopeLabel · $releaseOrderLabel',
+                    Icons.lock_open_rounded,
                   ),
-                ],
+                if (!rulesState.jailEnabled)
+                  _buildRow(context, '감옥 해방', '불가', Icons.lock_rounded),
               ],
             ),
           ),
@@ -71,44 +112,28 @@ class GameConfigCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool highlight,
+  Widget _buildRow(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon, {
+    bool highlight = false,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: AppColors.textMuted),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textMuted,
-                fontSize: 12,
-              ),
-            ),
-          ],
+        Icon(icon, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
         ),
-        const SizedBox(height: 4),
+        const Spacer(),
         Text(
           value,
           style: TextStyle(
             color: highlight ? AppColors.borderCyan : AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            shadows: highlight
-                ? [
-                    BoxShadow(
-                      color: AppColors.borderCyan.withOpacity(0.6),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : null,
+            fontSize: 14,
+            fontWeight: highlight ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
       ],
@@ -118,81 +143,97 @@ class GameConfigCard extends ConsumerWidget {
   void _showEditDialog(
     BuildContext context,
     WidgetRef ref,
-    GameConfig current,
+    rules.MatchRulesState currentState,
   ) {
     showDialog(
       context: context,
-      builder: (context) => _ConfigDialog(initialConfig: current),
+      builder: (context) => _ConfigDialog(initialState: currentState),
     ).then((result) {
-      if (result is GameConfig) {
-        // 1. Update Room Config (Legacy)
-        ref.read(roomProvider.notifier).updateConfig(result);
-
-        // 2. Update Match Rules (Local)
+      if (result is rules.MatchRulesState) {
+        // 1. Update Match Rules (Local)
         final rulesNotifier = ref.read(rules.matchRulesProvider.notifier);
-        rulesNotifier.setGameMode(
-          rules.GameMode.fromWire(result.gameMode.wireName),
-        ); // match_rules uses its own enum
-        rulesNotifier.setDurationMin(result.durationMin);
-        rulesNotifier.setJailEnabled(result.jailEnabled);
+        rulesNotifier.setGameMode(result.gameMode);
+        rulesNotifier.setTimeLimitSec(result.timeLimitSec);
+        rulesNotifier.setMaxPlayers(result.maxPlayers);
+        rulesNotifier.setPoliceCount(result.policeCount);
+        rulesNotifier.setContactMode(result.contactMode);
+        // Helper method for release settings?
+        // We might need to manually apply logic if not exposed getters.
+        // Actually MatchRulesState has them.
+        // But the notifier methods are setReleaseMode (string), setContactMode..
+        // Logic for complex state update isn't 1:1 with setters.
+        // Easiest is to generate payload and applyOfflineRoomConfig.
 
-        // 3. Emit Full Rules Sync for clients
-        // We construct a payload similar to what applyOfflineRoomConfig expects
-        final currentState = ref.read(rules.matchRulesProvider);
+        // Construct payload
         final payload = {
-          'mode': result.gameMode.wireName,
-          'timeLimit': result.durationMin * 60,
+          'mode': result.gameMode.wire,
+          'maxPlayers': result.maxPlayers,
+          'timeLimit': result.timeLimitSec,
           'rules': {
-            'contactMode': currentState.contactMode,
+            'contactMode': result.contactMode,
             'jailRule': {
               'rescue': {
-                'queuePolicy': currentState.rescueReleaseOrder,
-                'releaseCount': currentState.rescueReleaseScope == 'PARTIAL'
+                'queuePolicy': result.rescueReleaseOrder,
+                'releaseCount': result.rescueReleaseScope == 'PARTIAL'
                     ? 1
                     : 999,
               },
             },
           },
+          // Preserve Map Config
           'mapConfig': {
-            'polygon': currentState.zonePolygon
-                ?.map((p) => p.toJson())
-                .toList(),
-            'jail': {
-              'lat': currentState.jailCenter?.lat,
-              'lng': currentState.jailCenter?.lng,
-              'radiusM': currentState.jailRadiusM,
-            },
+            'polygon': result.zonePolygon?.map((p) => p.toJson()).toList(),
+            'jail': result.jailCenter != null
+                ? {
+                    'lat': result.jailCenter!.lat,
+                    'lng': result.jailCenter!.lng,
+                    'radiusM': result.jailRadiusM,
+                  }
+                : null,
           },
         };
 
+        rulesNotifier.applyOfflineRoomConfig(payload);
+
+        // 2. Emit Settings Update to Server
+        // As per request: socket.emit('update_settings', newSettings)
         ref
             .read(socketIoClientProvider.notifier)
-            .emit('full_rules_update', payload);
+            .emit('update_settings', payload);
       }
     });
   }
 }
 
 class _ConfigDialog extends StatefulWidget {
-  final GameConfig initialConfig;
+  final rules.MatchRulesState initialState;
 
-  const _ConfigDialog({required this.initialConfig});
+  const _ConfigDialog({required this.initialState});
 
   @override
   State<_ConfigDialog> createState() => _ConfigDialogState();
 }
 
 class _ConfigDialogState extends State<_ConfigDialog> {
-  late GameConfig _config;
+  late rules.MatchRulesState _state;
 
   @override
   void initState() {
     super.initState();
-    _config = widget.initialConfig;
+    _state = widget.initialState;
   }
+
+  // Helpers
+  void _update(rules.MatchRulesState newState) =>
+      setState(() => _state = newState);
 
   @override
   Widget build(BuildContext context) {
+    // Calculate Ratio for slider
+    final ratio = (_state.maxPlayers > 0)
+        ? (_state.policeCount / _state.maxPlayers)
+        : 0.0;
+
     return AlertDialog(
       backgroundColor: AppColors.surface1,
       shape: RoundedRectangleBorder(
@@ -200,19 +241,176 @@ class _ConfigDialogState extends State<_ConfigDialog> {
         side: const BorderSide(color: AppColors.outlineLow),
       ),
       title: const Text(
-        '게임 설정',
-        style: TextStyle(color: AppColors.textPrimary),
+        '게임 설정 편집',
+        style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildDropdown(),
-            const SizedBox(height: 20),
-            _buildSlider(),
-            const SizedBox(height: 20),
-            _buildSwitch(),
-          ],
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _section('게임 모드'),
+              Wrap(
+                spacing: 8,
+                children: rules.GameMode.values
+                    .map(
+                      (m) => ChoiceChip(
+                        label: Text(m.label),
+                        selected: _state.gameMode == m,
+                        onSelected: (sel) {
+                          if (sel) _update(_state.copyWith(gameMode: m));
+                        },
+                        selectedColor: AppColors.borderCyan.withOpacity(0.3),
+                        backgroundColor: AppColors.surface2,
+                        labelStyle: TextStyle(
+                          color: _state.gameMode == m
+                              ? AppColors.borderCyan
+                              : AppColors.textMuted,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        side: BorderSide(
+                          color: _state.gameMode == m
+                              ? AppColors.borderCyan
+                              : AppColors.outlineLow,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+
+              _section('인원: ${_state.maxPlayers}명'),
+              Slider(
+                min: 3,
+                max: 50,
+                divisions: 47,
+                value: _state.maxPlayers.toDouble(),
+                activeColor: AppColors.borderCyan,
+                inactiveColor: AppColors.outlineLow,
+                onChanged: (v) {
+                  // Logic to auto-adjust police count needed?
+                  // MatchRulesController has logic, but we are local.
+                  // Simple logic: keep ratio.
+                  final mp = v.round();
+                  final pc = (mp * 0.4).round().clamp(
+                    1,
+                    mp - 1,
+                  ); // fallback 40%
+                  _update(_state.copyWith(maxPlayers: mp, policeCount: pc));
+                },
+              ),
+
+              _section('경찰 비율: ${(ratio * 100).round()}%'),
+              Slider(
+                min: 0.1,
+                max: 0.5,
+                divisions: 4,
+                value: ratio.clamp(0.1, 0.5), // safety
+                activeColor: AppColors.borderCyan,
+                inactiveColor: AppColors.outlineLow,
+                onChanged: (v) {
+                  final pc = (_state.maxPlayers * v).round().clamp(
+                    1,
+                    _state.maxPlayers - 1,
+                  );
+                  _update(
+                    _state.copyWith(
+                      policeCount: pc,
+                      policeCountCustomized: true,
+                    ),
+                  );
+                },
+              ),
+              Text(
+                '경찰 ${_state.policeCount}명 vs 도둑 ${_state.maxPlayers - _state.policeCount}명',
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              _section('시간: ${_state.durationMin}분'),
+              Slider(
+                min: 300,
+                max: 1800,
+                divisions: 25,
+                value: _state.timeLimitSec.toDouble(),
+                activeColor: AppColors.borderCyan,
+                inactiveColor: AppColors.outlineLow,
+                onChanged: (v) {
+                  final s = v.round();
+                  _update(
+                    _state.copyWith(
+                      timeLimitSec: s,
+                      durationMin: (s / 60).round(),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+              _section('접촉 설정'),
+              Row(
+                children: [
+                  _chip(
+                    '비접촉',
+                    _state.contactMode == 'NON_CONTACT',
+                    () => _update(_state.copyWith(contactMode: 'NON_CONTACT')),
+                  ),
+                  const SizedBox(width: 8),
+                  _chip(
+                    '접촉',
+                    _state.contactMode == 'CONTACT',
+                    () => _update(_state.copyWith(contactMode: 'CONTACT')),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+              _section('해방 범위'),
+              Row(
+                children: [
+                  _chip(
+                    '일부',
+                    _state.rescueReleaseScope == 'PARTIAL',
+                    () =>
+                        _update(_state.copyWith(rescueReleaseScope: 'PARTIAL')),
+                  ),
+                  const SizedBox(width: 8),
+                  _chip(
+                    '전체',
+                    _state.rescueReleaseScope == 'ALL',
+                    () => _update(_state.copyWith(rescueReleaseScope: 'ALL')),
+                  ),
+                ],
+              ),
+              if (_state.rescueReleaseScope == 'PARTIAL') ...[
+                const SizedBox(height: 12),
+                _section('해방 순서'),
+                Row(
+                  children: [
+                    _chip(
+                      '선착순',
+                      _state.rescueReleaseOrder == 'FIFO',
+                      () =>
+                          _update(_state.copyWith(rescueReleaseOrder: 'FIFO')),
+                    ),
+                    const SizedBox(width: 8),
+                    _chip(
+                      '후착순',
+                      _state.rescueReleaseOrder == 'LIFO',
+                      () =>
+                          _update(_state.copyWith(rescueReleaseOrder: 'LIFO')),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -225,79 +423,49 @@ class _ConfigDialogState extends State<_ConfigDialog> {
             backgroundColor: AppColors.borderCyan,
             foregroundColor: Colors.black,
           ),
-          onPressed: () {
-            Navigator.of(context).pop(_config);
-          },
+          onPressed: () => Navigator.of(context).pop(_state),
           child: const Text('적용'),
         ),
       ],
     );
   }
 
-  Widget _buildDropdown() {
-    return DropdownButtonFormField<GameMode>(
-      value: _config.gameMode,
-      dropdownColor: AppColors.surface2,
-      style: const TextStyle(color: AppColors.textPrimary),
-      decoration: const InputDecoration(
-        labelText: '게임 모드',
-        labelStyle: TextStyle(color: AppColors.textSecondary),
-        enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: AppColors.outlineLow),
+  Widget _section(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      title,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  );
+
+  Widget _chip(String label, bool sel, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: sel
+              ? AppColors.borderCyan.withOpacity(0.2)
+              : AppColors.surface2,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: sel ? AppColors.borderCyan : AppColors.outlineLow,
+          ),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: AppColors.borderCyan),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: sel ? AppColors.borderCyan : AppColors.textMuted,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
         ),
       ),
-      items: GameMode.values.map((mode) {
-        return DropdownMenuItem(value: mode, child: Text(mode.label));
-      }).toList(),
-      onChanged: (val) {
-        if (val != null) {
-          setState(() => _config = _config.copyWith(gameMode: val));
-        }
-      },
-    );
-  }
-
-  Widget _buildSlider() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '제한 시간: ${_config.durationMin}분',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-        ),
-        Slider(
-          value: _config.durationMin.toDouble(),
-          min: 5,
-          max: 60,
-          divisions: 11, // 5, 10, ... 60
-          label: '${_config.durationMin}분',
-          activeColor: AppColors.borderCyan,
-          inactiveColor: AppColors.outlineLow,
-          onChanged: (val) {
-            setState(
-              () => _config = _config.copyWith(durationMin: val.round()),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSwitch() {
-    return SwitchListTile(
-      title: const Text(
-        '감옥 해방 가능',
-        style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-      ),
-      value: _config.jailEnabled,
-      activeColor: AppColors.borderCyan,
-      contentPadding: EdgeInsets.zero,
-      onChanged: (val) {
-        setState(() => _config = _config.copyWith(jailEnabled: val));
-      },
     );
   }
 }
