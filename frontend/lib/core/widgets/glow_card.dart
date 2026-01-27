@@ -21,10 +21,11 @@ class GlowCard extends StatelessWidget {
     this.glowColor,
     this.glow = true,
     this.gradientSurface = true,
-    this.glowSigma = 14,
+    double glowSigma = 14,
     this.glowSpread = 1.0,
     this.glowOpacity = 0.28,
-  });
+    double? blurRadius,
+  }) : glowSigma = blurRadius ?? glowSigma;
 
   @override
   Widget build(BuildContext context) {

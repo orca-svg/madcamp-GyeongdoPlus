@@ -161,6 +161,10 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
       'play_siren',
       'reset_channeling',
       'clown_taunt',
+      'settings_updated',
+      'member_updated',
+      'room_updated',
+      'team_changed',
     ];
 
     for (final eventName in serverEvents) {

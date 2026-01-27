@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/active_tab_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/watch_provider.dart';
+import '../providers/room_provider.dart';
 import 'state_snapshot_builder.dart';
 import 'watch_bridge.dart';
 import 'watch_debug_overrides.dart';
@@ -90,6 +91,13 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     // activeTab 변경 시 즉시 전송 (탭 미러링)
     ref.listen<ActiveTab>(activeTabProvider, (prev, next) {
       _sendSnapshot();
+    });
+
+    // Room 상태 변경 시(팀 변경 등) 즉시 전송
+    ref.listen<RoomState>(roomProvider, (prev, next) {
+      if (prev?.me?.team != next.me?.team) {
+        _sendSnapshot();
+      }
     });
 
     // 초기 스케줄 + 즉시 1회 전송
