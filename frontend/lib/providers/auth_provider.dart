@@ -138,57 +138,84 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// 카카오 로그인 (실제 API 호출)
+  Future<bool> signInWithTestCredentials({
+    required String id,
+    required String password,
+  }) async {
+    if (state.status == AuthStatus.signingIn) return false;
+    state = state.copyWith(status: AuthStatus.signingIn);
+    debugPrint('[AUTH] signIn(test) start');
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      // Mock validation
+      if (id.isNotEmpty) {
+        final token = 'test_token_${DateTime.now().millisecondsSinceEpoch}';
+        final user = UserModel.guest().copyWith(nickname: id);
+
+        state = state.copyWith(
+          initialized: true,
+          status: AuthStatus.signedIn,
+          accessToken: token,
+          displayName: id,
+          user: user,
+        );
+
+        final prefs = await _tryPrefs();
+        if (prefs != null) {
+          await prefs.setString(_kAccessToken, token);
+          await prefs.setString(_kDisplayName, id);
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      state = state.copyWith(status: AuthStatus.signedOut);
+      return false;
+    }
+  }
+
   Future<void> signInWithKakao(String kakaoAccessToken) async {
     if (state.status == AuthStatus.signingIn) return;
     state = state.copyWith(status: AuthStatus.signingIn);
     debugPrint('[AUTH] signIn(kakao) start');
 
     try {
-      final authApi = ref.read(authApiProvider);
+      final api = ref.read(authApiProvider);
       final request = KakaoLoginRequest(kakaoAccessToken: kakaoAccessToken);
-      final response = await authApi.loginWithKakao(request);
+      final response = await api.loginWithKakao(request);
 
-      if (!response.success || response.data == null) {
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        state = state.copyWith(
+          initialized: true,
+          status: AuthStatus.signedIn,
+          accessToken: data.accessToken,
+          displayName: data.user?.nickname ?? '익명',
+          user: data.user,
+        );
+
+        final prefs = await _tryPrefs();
+        if (prefs != null) {
+          await prefs.setString(_kAccessToken, data.accessToken);
+          await prefs.setString(_kDisplayName, data.user?.nickname ?? '익명');
+        }
+        debugPrint('[AUTH] signIn(kakao) success');
+      } else {
         debugPrint('[AUTH] signIn(kakao) failed: ${response.error}');
         state = state.copyWith(
           initialized: true,
           status: AuthStatus.signedOut,
           accessToken: null,
-          refreshToken: null,
           displayName: null,
         );
-        return;
       }
-
-      final data = response.data!;
-      final user = data.user ?? UserModel.guest();
-
-      state = state.copyWith(
-        initialized: true,
-        status: AuthStatus.signedIn,
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        displayName: user.nickname,
-        user: user,
-      );
-
-      // Save tokens to SharedPreferences
-      final prefs = await _tryPrefs();
-      if (prefs != null) {
-        await prefs.setString(_kAccessToken, data.accessToken);
-        await prefs.setString(_kRefreshToken, data.refreshToken);
-        await prefs.setString(_kDisplayName, user.nickname);
-      }
-
-      debugPrint('[AUTH] signIn(kakao) result=signedIn');
     } catch (e, st) {
       debugPrint('[AUTH] signIn(kakao) error=$e\n$st');
       state = state.copyWith(
         initialized: true,
         status: AuthStatus.signedOut,
         accessToken: null,
-        refreshToken: null,
         displayName: null,
       );
     } finally {
@@ -197,9 +224,42 @@ class AuthController extends Notifier<AuthState> {
           initialized: true,
           status: AuthStatus.signedOut,
           accessToken: null,
-          refreshToken: null,
           displayName: null,
         );
+      }
+    }
+  }
+
+  /// 카카오 로그인 (실제 API 호출)
+  Future<void> signInWithKakaoStub() async {
+    if (state.status == AuthStatus.signingIn) return;
+    state = state.copyWith(status: AuthStatus.signingIn);
+    debugPrint('[AUTH] signIn(kakao-stub) start');
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final token = 'stub_token_${DateTime.now().millisecondsSinceEpoch}';
+      const name = '익명(Stub)';
+      final guestUser = UserModel.guest().copyWith(nickname: name);
+
+      state = state.copyWith(
+        initialized: true,
+        status: AuthStatus.signedIn,
+        accessToken: token,
+        displayName: name,
+        user: guestUser,
+      );
+
+      final prefs = await _tryPrefs();
+      if (prefs != null) {
+        await prefs.setString(_kAccessToken, token);
+        await prefs.setString(_kDisplayName, name);
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      if (state.status == AuthStatus.signingIn) {
+        state = state.copyWith(status: AuthStatus.signedOut);
       }
     }
   }

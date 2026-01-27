@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -15,7 +16,6 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
@@ -53,15 +53,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 12),
                       _KakaoButton(
                         busy: busy,
-                        onPressed: () {
-                          // TODO: Implement real Kakao SDK integration
-                          // For now, show message
-                          showAppSnackBar(
-                            context,
-                            message: '카카오 로그인 연동 중입니다. 잠시만 기다려주세요.',
-                            isError: true,
-                          );
-                        },
+                        onPressed: () => _handleKakaoLogin(context),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -108,6 +100,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleKakaoLogin(BuildContext context) async {
+    // 1. Check if KakaoTalk installed
+    bool isInstalled = await isKakaoTalkInstalled();
+    OAuthToken? token;
+
+    try {
+      if (isInstalled) {
+        try {
+          token = await UserApi.instance.loginWithKakaoTalk();
+        } catch (e) {
+          // Fallback
+          if (e is KakaoAuthException &&
+              (e.message?.contains('cancelled') ?? false)) {
+            return;
+          }
+          token = await UserApi.instance.loginWithKakaoAccount();
+        }
+      } else {
+        token = await UserApi.instance.loginWithKakaoAccount();
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      showAppSnackBar(context, message: '카카오 로그인 실패: $e', isError: true);
+      return;
+    }
+
+    if (!context.mounted) return;
+    await ref.read(authProvider.notifier).signInWithKakao(token.accessToken);
+  }
+
+  // ignore: unused_element
+  Future<void> _handleLocalLogin({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String id,
+    required String password,
+  }) async {
+    final ok = await ref
+        .read(authProvider.notifier)
+        .signInWithTestCredentials(id: id, password: password);
+    if (!context.mounted) return;
+    if (!ok) {
+      showAppSnackBar(
+        context,
+        message: '아이디 또는 비밀번호가 올바르지 않습니다',
+        isError: true,
+      );
+      return;
+    }
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(true);
+    }
   }
 }
 

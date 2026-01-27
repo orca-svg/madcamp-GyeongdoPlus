@@ -223,8 +223,47 @@ class RoomController extends Notifier<RoomState> {
   Future<RoomResult<RoomInfo>> createRoom({required String myName}) async {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
     state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
+
+    final rulesState = ref.read(matchRulesProvider);
     final repo = ref.read(roomRepositoryProvider);
-    final result = await repo.createRoom(myName: name);
+
+    // Build Rules Map
+    final rulesMap = {
+      'contactMode': rulesState.contactMode,
+      'jailRule': {
+        'rescue': {
+          'queuePolicy': rulesState.rescueReleaseOrder,
+          'releaseCount': rulesState.rescueReleaseScope == 'PARTIAL' ? 1 : 999,
+        },
+      },
+    };
+
+    // Build MapConfig
+    final polygon =
+        rulesState.zonePolygon?.map((p) => p.toJson()).toList() ?? [];
+    final jail = rulesState.jailCenter != null
+        ? {
+            'lat': rulesState.jailCenter!.lat,
+            'lng': rulesState.jailCenter!.lng,
+            'radiusM': rulesState.jailRadiusM ?? 15.0,
+          }
+        : null;
+
+    final mapConfig = {
+      'polygon': polygon,
+      'jail':
+          jail ??
+          {'lat': 37.5665, 'lng': 126.9780, 'radiusM': 15.0}, // Fallback
+    };
+
+    final result = await repo.createRoom(
+      myName: name,
+      mode: rulesState.gameMode.wire,
+      maxPlayers: rulesState.maxPlayers,
+      timeLimit: rulesState.timeLimitSec,
+      rules: rulesMap,
+      mapConfig: mapConfig,
+    );
     if (result.ok) {
       final info = result.data!;
       final myId = _newId();
