@@ -1,6 +1,7 @@
-import 'dart:math';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'api/lobby_api.dart';
+import 'dto/lobby_dto.dart';
 
 class RoomInfo {
   final String roomId;
@@ -28,45 +29,79 @@ class RoomResult<T> {
 }
 
 final roomRepositoryProvider = Provider<RoomRepository>((ref) {
-  return RoomRepository();
+  final lobbyApi = ref.watch(lobbyApiProvider);
+  return RoomRepository(lobbyApi);
 });
 
 class RoomRepository {
-  final Random _rand = Random();
+  final LobbyApi _lobbyApi;
 
-  Future<RoomResult<RoomInfo>> createRoom({required String myName}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    final code = _newRoomCode();
-    final info = RoomInfo(
-      roomId: _newRoomId(),
-      code: code,
-      hostName: myName.isEmpty ? '김선수' : myName,
-    );
-    return RoomResult.ok(info);
+  RoomRepository(this._lobbyApi);
+
+  Future<RoomResult<RoomInfo>> createRoom({
+    required String myName,
+    String mode = 'NORMAL',
+    int maxPlayers = 5,
+    int timeLimit = 600,
+  }) async {
+    try {
+      final request = CreateRoomRequest(
+        mode: mode,
+        maxPlayers: maxPlayers,
+        timeLimit: timeLimit,
+        rules: {
+          'contactMode': 'NON_CONTACT',
+          'jailRule': {
+            'rescue': {'queuePolicy': 'FIFO', 'releaseCount': 1},
+          },
+        },
+        mapConfig: {
+          'polygon': [],
+          'jail': {'lat': 37.5665, 'lng': 126.9780, 'radiusM': 15},
+        },
+      );
+
+      final response = await _lobbyApi.createRoom(request);
+
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        return RoomResult.ok(
+          RoomInfo(
+            roomId: data.matchId,
+            code: data.roomCode,
+            hostName: myName.isEmpty ? '김선수' : myName,
+          ),
+        );
+      } else {
+        return RoomResult.fail(response.error ?? '방 생성 실패');
+      }
+    } catch (e) {
+      return RoomResult.fail('네트워크 오류: $e');
+    }
   }
 
   Future<RoomResult<RoomInfo>> joinRoom({
     required String myName,
     required String code,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (code.toUpperCase() == 'AAAA') {
-      return RoomResult.fail('유효하지 않은 방 코드입니다');
+    try {
+      final request = JoinRoomRequest(roomCode: code.toUpperCase());
+      final response = await _lobbyApi.joinRoom(request);
+
+      if (response.success && response.data != null) {
+        final data = response.data!;
+        return RoomResult.ok(
+          RoomInfo(
+            roomId: data.matchId,
+            code: code.toUpperCase(),
+            hostName: '방장', // Backend should provide this
+          ),
+        );
+      } else {
+        return RoomResult.fail(response.error ?? '방 참가 실패');
+      }
+    } catch (e) {
+      return RoomResult.fail('네트워크 오류: $e');
     }
-    final info = RoomInfo(
-      roomId: 'room_${code.toUpperCase()}',
-      code: code.toUpperCase(),
-      hostName: '방장',
-    );
-    return RoomResult.ok(info);
-  }
-
-  String _newRoomId() =>
-      'room_${DateTime.now().microsecondsSinceEpoch}_${_rand.nextInt(1 << 16)}';
-
-  String _newRoomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final len = 4 + _rand.nextInt(3);
-    return List.generate(len, (_) => chars[_rand.nextInt(chars.length)]).join();
   }
 }
