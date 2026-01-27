@@ -124,12 +124,14 @@ export class LobbyService {
       joined_at: Date.now().toString(),
     });
 
-    this.eventsGateway.server.to(matchId).emit('user_joined', {
-      userId,
-      nickname,
-      isHost: false,
-      ready: false
-    });
+    if (matchId) {
+      this.eventsGateway.server.to(matchId).emit('user_joined', {
+        userId,
+        nickname,
+        isHost: false,
+        ready: false
+      });
+    }
 
     return {
       success: true,
