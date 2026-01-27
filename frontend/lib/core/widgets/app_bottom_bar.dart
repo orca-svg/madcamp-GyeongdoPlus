@@ -18,7 +18,9 @@ class AppBottomBarInGame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = tabs.map((t) => _BarItem(icon: t.icon, label: t.label)).toList();
+    final items = tabs
+        .map((t) => _BarItem(icon: t.icon, label: t.label))
+        .toList();
     return _AppBottomBarBase(
       height: AppDimens.bottomBarHIn,
       items: items,
@@ -32,13 +34,16 @@ class AppBottomBarOffGame extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  const AppBottomBarOffGame({super.key, required this.currentIndex, required this.onTap});
+  const AppBottomBarOffGame({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     const items = [
       _BarItem(icon: Icons.home_rounded, label: '홈'),
-      _BarItem(icon: Icons.bar_chart_rounded, label: '전적'),
       _BarItem(icon: Icons.person_rounded, label: '내정보'),
     ];
     return _AppBottomBarBase(
@@ -84,7 +89,9 @@ class _AppBottomBarBase extends StatelessWidget {
               height: totalHeight,
               decoration: BoxDecoration(
                 color: AppColors.surface1.withOpacity(0.72),
-                border: const Border(top: BorderSide(color: AppColors.outlineLow, width: 1)),
+                border: const Border(
+                  top: BorderSide(color: AppColors.outlineLow, width: 1),
+                ),
               ),
               child: Padding(
                 padding: EdgeInsets.only(bottom: safeInset),
@@ -114,7 +121,11 @@ class _BottomBarButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _BottomBarButton({required this.item, required this.selected, required this.onTap});
+  const _BottomBarButton({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

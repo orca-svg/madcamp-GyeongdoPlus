@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -68,8 +69,17 @@ class WearMainActivity : ComponentActivity() {
                 }
             }
         }
-        registerReceiver(receiver, IntentFilter(WearMessageService.ACTION_RADAR))
-        registerReceiver(receiver, IntentFilter(WearMessageService.ACTION_STATE))
+        // Register receiver with proper flags for Android 13+
+        val radarFilter = IntentFilter(WearMessageService.ACTION_RADAR)
+        val stateFilter = IntentFilter(WearMessageService.ACTION_STATE)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, radarFilter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(receiver, stateFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(receiver, radarFilter)
+            registerReceiver(receiver, stateFilter)
+        }
 
         setContent {
             MaterialTheme {
