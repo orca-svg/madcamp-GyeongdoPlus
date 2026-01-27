@@ -45,6 +45,9 @@ dependencies:
   json_annotation: ^4.9.0
   kakao_flutter_sdk: ^1.10.0
   retrofit: ^4.0.0
+  flutter_blue_plus: ^1.30.0
+  permission_handler: ^11.0.0
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.1

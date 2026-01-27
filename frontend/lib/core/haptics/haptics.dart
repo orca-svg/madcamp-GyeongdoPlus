@@ -8,6 +8,10 @@ enum HapticPattern {
   enemyPing,
   captureNearlyDone,
   warning,
+  // Proximity-based haptics for auto-arrest
+  proximityMedium,   // 5m zone - Light tick
+  proximityClose,    // 3m zone - Medium click
+  proximityExtreme,  // 1m zone - Heavy heartbeat
 }
 
 class Haptics {
@@ -33,6 +37,20 @@ class Haptics {
         return;
       case HapticPattern.warning:
         await HapticFeedback.selectionClick();
+        return;
+      case HapticPattern.proximityMedium:
+        await HapticFeedback.selectionClick();
+        return;
+      case HapticPattern.proximityClose:
+        await HapticFeedback.mediumImpact();
+        return;
+      case HapticPattern.proximityExtreme:
+        // Heartbeat pattern: Heavy-Medium-Medium
+        await HapticFeedback.heavyImpact();
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await HapticFeedback.mediumImpact();
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await HapticFeedback.mediumImpact();
         return;
     }
   }

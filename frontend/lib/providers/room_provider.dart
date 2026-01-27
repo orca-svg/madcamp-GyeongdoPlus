@@ -9,6 +9,7 @@ import '../net/socket/socket_io_client_provider.dart';
 import 'app_providers.dart';
 import 'auth_provider.dart';
 import 'match_rules_provider.dart';
+import 'game_phase_provider.dart';
 
 enum Team { police, thief }
 
@@ -147,6 +148,10 @@ class RoomController extends Notifier<RoomState> {
       if (!state.inRoom) return;
 
       switch (event.name) {
+        case 'game_started':
+          ref.read(gamePhaseProvider.notifier).toInGame();
+          break;
+
         case 'joined_room':
           // Full sync on join
           if (event.payload.containsKey('room')) {

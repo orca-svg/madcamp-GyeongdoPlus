@@ -15,8 +15,10 @@ import '../../ui/lobby/lobby_screen.dart';
 import '../../ui/post_game/post_game_screen.dart';
 import '../home/home_screen.dart';
 import '../ingame/ingame_capture_screen.dart';
-import '../ingame/ingame_map_screen.dart';
+
+import '../../features/game/game_screen.dart';
 import '../ingame/ingame_settings_placeholder_screen.dart';
+
 import '../radar/radar_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../history/history_screen.dart';
@@ -152,15 +154,11 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   /// 모드에 따라 IN_GAME 탭 구성을 동적으로 생성
   List<InGameTabSpec> _buildInGameTabs() {
     return [
+      InGameTabSpec(icon: Icons.map_rounded, label: '지도', screen: GameScreen()),
       InGameTabSpec(
         icon: Icons.sports_esports_rounded,
         label: '게임',
         screen: RadarScreen(),
-      ),
-      InGameTabSpec(
-        icon: Icons.map_rounded,
-        label: '지도',
-        screen: InGameMapScreen(),
       ),
       InGameTabSpec(
         icon: Icons.lock_rounded,
