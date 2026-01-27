@@ -21,19 +21,43 @@ class WsUiStatusModel {
   final String text;
   final Color dotColor;
   final bool showReconnect;
+  final String? lastRawEvent;
+  final String? lastRawJson;
 
   const WsUiStatusModel({
     required this.status,
     required this.text,
     required this.dotColor,
     required this.showReconnect,
+    this.lastRawEvent,
+    this.lastRawJson,
   });
 
   bool get isSynced => status == WsUiStatus.synced;
+
+  WsUiStatusModel copyWith({
+    WsUiStatus? status,
+    String? text,
+    Color? dotColor,
+    bool? showReconnect,
+    String? lastRawEvent,
+    String? lastRawJson,
+  }) {
+    return WsUiStatusModel(
+      status: status ?? this.status,
+      text: text ?? this.text,
+      dotColor: dotColor ?? this.dotColor,
+      showReconnect: showReconnect ?? this.showReconnect,
+      lastRawEvent: lastRawEvent ?? this.lastRawEvent,
+      lastRawJson: lastRawJson ?? this.lastRawJson,
+    );
+  }
 }
 
 final wsUserReconnectIntentProvider =
-    NotifierProvider<WsUserReconnectIntentController, bool>(WsUserReconnectIntentController.new);
+    NotifierProvider<WsUserReconnectIntentController, bool>(
+      WsUserReconnectIntentController.new,
+    );
 
 class WsUserReconnectIntentController extends Notifier<bool> {
   Timer? _timer;
@@ -115,7 +139,6 @@ WsUiStatusModel deriveWsUiStatus({
       );
   }
 }
-
 
 final wsUiStatusProvider = Provider<WsUiStatusModel>((ref) {
   final wsConn = ref.watch(wsConnectionProvider);

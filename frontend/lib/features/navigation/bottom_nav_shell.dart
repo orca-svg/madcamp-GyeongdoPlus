@@ -9,6 +9,7 @@ import '../../providers/match_mode_provider.dart';
 import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
+import '../../net/socket/socket_io_router.dart';
 import '../../watch/watch_action_handler.dart';
 import '../../ui/lobby/lobby_screen.dart';
 import '../../ui/post_game/post_game_screen.dart';
@@ -44,6 +45,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
 
     unawaited(ref.read(watchConnectedProvider.notifier).init());
     ref.read(wsRouterProvider);
+    ref.read(socketIoRouterProvider); // Initialize Socket.IO router
     ref.read(
       watchActionHandlerInitProvider,
     ); // Start listening for WATCH_ACTION
