@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/room_repository.dart';
+import '../net/socket/socket_io_client_provider.dart';
+import 'auth_provider.dart';
 import 'match_rules_provider.dart';
 
 enum Team { police, thief }
@@ -61,16 +63,15 @@ class RoomState {
     required this.members,
   });
 
-  factory RoomState.initial() =>
-      const RoomState(
-        inRoom: false,
-        status: RoomStatus.idle,
-        roomId: '',
-        roomCode: '',
-        myId: '',
-        errorMessage: null,
-        members: [],
-      );
+  factory RoomState.initial() => const RoomState(
+    inRoom: false,
+    status: RoomStatus.idle,
+    roomId: '',
+    roomCode: '',
+    myId: '',
+    errorMessage: null,
+    members: [],
+  );
 
   RoomState copyWith({
     bool? inRoom,
@@ -156,10 +157,7 @@ class RoomController extends Notifier<RoomState> {
   Future<RoomResult<RoomInfo>> createRoom({required String myName}) async {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
     debugPrint('[ROOM] create start/name=$name');
-    state = state.copyWith(
-      status: RoomStatus.loading,
-      errorMessage: null,
-    );
+    state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
     final repo = ref.read(roomRepositoryProvider);
     final result = await repo.createRoom(myName: name);
     if (result.ok) {
@@ -200,15 +198,9 @@ class RoomController extends Notifier<RoomState> {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
     final normalizedCode = _normalizeCode(code);
     debugPrint('[ROOM] join start/code=$normalizedCode');
-    state = state.copyWith(
-      status: RoomStatus.loading,
-      errorMessage: null,
-    );
+    state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
     final repo = ref.read(roomRepositoryProvider);
-    final result = await repo.joinRoom(
-      myName: name,
-      code: normalizedCode,
-    );
+    final result = await repo.joinRoom(myName: name, code: normalizedCode);
     if (result.ok) {
       final info = result.data!;
       final myId = _newId();
@@ -251,6 +243,19 @@ class RoomController extends Notifier<RoomState> {
         members: [host, other1, other2, me],
       );
       debugPrint('[ROOM] join success/roomId=${info.roomId}');
+
+      // Connect Socket.IO with JWT
+      final jwtToken = ref.read(authProvider).accessToken;
+      if (jwtToken != null) {
+        await ref
+            .read(socketIoClientProvider.notifier)
+            .connect(jwtToken: jwtToken, matchId: info.roomId);
+        // Emit join_room event
+        ref.read(socketIoClientProvider.notifier).emitJoinRoom(info.roomId);
+        debugPrint('[ROOM] Socket.IO connected and joined room');
+      } else {
+        debugPrint('[ROOM] No JWT token available for Socket.IO');
+      }
     } else {
       state = RoomState.initial().copyWith(
         status: RoomStatus.error,
@@ -264,6 +269,9 @@ class RoomController extends Notifier<RoomState> {
   void leaveRoom() {
     state = RoomState.initial();
     ref.read(matchRulesProvider.notifier).reset();
+    // Disconnect Socket.IO
+    ref.read(socketIoClientProvider.notifier).disconnect();
+    debugPrint('[ROOM] Socket.IO disconnected');
   }
 
   void reset() {
