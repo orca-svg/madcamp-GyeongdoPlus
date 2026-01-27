@@ -144,7 +144,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 Row(
                   children: [
                     Text(
-                      '구역 설정',
+                      '경기장 설정',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const Spacer(),
@@ -157,11 +157,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                _SummaryCard(
-                  pointCount: _pointsConfirmed.length,
-                  jailRadiusM: _jailRadiusM,
                 ),
                 const SizedBox(height: 14),
                 _ModeToggle(
@@ -232,13 +227,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                   title: '저장',
                   onPressed: _pointsConfirmed.length >= 3 ? _save : null,
                   leading: const Icon(Icons.save_rounded, color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '지도 탭: 즉시 추가 (햅틱 피드백)',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -326,6 +314,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 polygons: polygonOverlay == null ? null : [polygonOverlay],
                 circles: jailCircle == null ? null : [jailCircle],
                 markers: markers,
+
                 onMapCreated: (controller) {
                   _mapController = controller;
                   if (mounted) {
@@ -540,45 +529,6 @@ class _DebugPill extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  final int pointCount;
-  final double? jailRadiusM;
-
-  const _SummaryCard({required this.pointCount, required this.jailRadiusM});
-
-  @override
-  Widget build(BuildContext context) {
-    final radiusText = (jailRadiusM == null)
-        ? '미설정'
-        : '${jailRadiusM!.round()}m';
-    return GlowCard(
-      glow: false,
-      borderColor: AppColors.outlineLow,
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '폴리곤 점: $pointCount / 최소 3',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '감옥: $radiusText',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ModeToggle extends StatelessWidget {
   final _EditMode mode;
   final ValueChanged<_EditMode> onChanged;
@@ -601,12 +551,12 @@ class _ModeToggle extends StatelessWidget {
           children: [
             _chip(
               selected: mode == _EditMode.polygonPoint,
-              label: '점 추가',
+              label: '경기장',
               onTap: () => onChanged(_EditMode.polygonPoint),
             ),
             _chip(
               selected: mode == _EditMode.jailCenter,
-              label: '감옥 중심',
+              label: '감옥',
               onTap: () => onChanged(_EditMode.jailCenter),
             ),
           ],
@@ -716,7 +666,7 @@ class _ControlsCard extends StatelessWidget {
                   key: const Key('zoneClear'),
                   onPressed: onClear,
                   icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: const Text('전체 초기화'),
+                  label: const Text('초기화'),
                 ),
               ),
             ],
@@ -747,11 +697,23 @@ class _ControlsCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Text(
-            '감옥 반경',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '감옥 반경',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
+              Text(
+                '${(jailRadiusM ?? 15.0).round()}m',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.borderCyan,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(

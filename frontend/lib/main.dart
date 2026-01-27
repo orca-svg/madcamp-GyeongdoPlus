@@ -52,7 +52,10 @@ Future<void> main() async {
       if (kakaoKey.isNotEmpty) {
         // ignore: avoid_print
         print('[KAKAO] init start');
-        AuthRepository.initialize(appKey: kakaoKey);
+        AuthRepository.initialize(
+          appKey: kakaoKey,
+          baseUrl: 'http://localhost',
+        );
         // ignore: avoid_print
         print('[KAKAO] init done');
       } else {
