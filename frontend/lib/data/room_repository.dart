@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/match_rules_provider.dart';
 import 'api/lobby_api.dart';
 import 'dto/lobby_dto.dart';
 
@@ -43,8 +44,29 @@ class RoomRepository {
     String mode = 'NORMAL',
     int maxPlayers = 5,
     int timeLimit = 600,
+    List<GeoPointDto>? zonePolygon,
+    GeoPointDto? jailCenter,
+    double? jailRadiusM,
   }) async {
     try {
+      // Build polygon array
+      final polygonData = (zonePolygon ?? []).map((p) {
+        return {'lat': p.lat, 'lng': p.lng};
+      }).toList();
+
+      // Build jail object
+      final jailData = jailCenter != null
+          ? {
+              'lat': jailCenter.lat,
+              'lng': jailCenter.lng,
+              'radiusM': jailRadiusM ?? 15.0,
+            }
+          : {
+              'lat': 37.5665,
+              'lng': 126.9780,
+              'radiusM': 15.0,
+            };
+
       final request = CreateRoomRequest(
         mode: mode,
         maxPlayers: maxPlayers,
@@ -56,8 +78,8 @@ class RoomRepository {
           },
         },
         mapConfig: {
-          'polygon': [],
-          'jail': {'lat': 37.5665, 'lng': 126.9780, 'radiusM': 15},
+          'polygon': polygonData,
+          'jail': jailData,
         },
       );
 

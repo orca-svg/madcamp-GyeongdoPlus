@@ -27,11 +27,11 @@ class GameApi {
     }
   }
 
-  /// POST /game/arrest
+  /// POST /game/action/arrest
   Future<ArrestResponse?> arrest(ArrestRequest request) async {
     try {
       final response = await _client.dio.post(
-        '/game/arrest',
+        '/game/action/arrest',
         data: request.toJson(),
       );
       return ArrestResponse.fromJson(response.data);
@@ -40,11 +40,11 @@ class GameApi {
     }
   }
 
-  /// POST /game/rescue
+  /// POST /game/action/rescue
   Future<RescueResponse?> rescue(RescueRequest request) async {
     try {
       final response = await _client.dio.post(
-        '/game/rescue',
+        '/game/action/rescue',
         data: request.toJson(),
       );
       return RescueResponse.fromJson(response.data);
@@ -155,14 +155,14 @@ class GameApi {
     }
   }
 
-  /// POST /game/:matchId/delegate
+  /// PATCH /game/:matchId/host
   Future<Map<String, dynamic>> delegateHost(
     String matchId,
     String targetUserId,
   ) async {
     try {
-      final response = await _client.dio.post(
-        '/game/$matchId/delegate',
+      final response = await _client.dio.patch(
+        '/game/$matchId/host',
         data: {'targetUserId': targetUserId},
       );
       return response.data;

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/api/auth_api.dart';
+import '../data/dto/auth_dto.dart';
 import '../data/models/user_model.dart';
 
 enum AuthStatus { signedOut, signingIn, signedIn }
@@ -12,6 +14,7 @@ class AuthState {
   final bool initialized;
   final AuthStatus status;
   final String? accessToken;
+  final String? refreshToken;
   final String? displayName;
   final UserModel? user;
 
@@ -19,6 +22,7 @@ class AuthState {
     required this.initialized,
     required this.status,
     required this.accessToken,
+    this.refreshToken,
     required this.displayName,
     this.user,
   });
@@ -27,6 +31,7 @@ class AuthState {
     bool? initialized,
     AuthStatus? status,
     String? accessToken,
+    String? refreshToken,
     String? displayName,
     UserModel? user,
   }) {
@@ -34,6 +39,7 @@ class AuthState {
       initialized: initialized ?? this.initialized,
       status: status ?? this.status,
       accessToken: accessToken ?? this.accessToken,
+      refreshToken: refreshToken ?? this.refreshToken,
       displayName: displayName ?? this.displayName,
       user: user ?? this.user,
     );
@@ -46,6 +52,7 @@ final authProvider = NotifierProvider<AuthController, AuthState>(
 
 class AuthController extends Notifier<AuthState> {
   static const _kAccessToken = 'auth_access_token';
+  static const _kRefreshToken = 'auth_refresh_token';
   static const _kDisplayName = 'auth_display_name';
   static const _allowInmemAuth = bool.fromEnvironment(
     'ALLOW_INMEM_AUTH',
@@ -98,6 +105,7 @@ class AuthController extends Notifier<AuthState> {
         return;
       }
       final token = prefs.getString(_kAccessToken);
+      final refreshToken = prefs.getString(_kRefreshToken);
       final name = prefs.getString(_kDisplayName);
 
       if (token != null && token.isNotEmpty) {
@@ -105,6 +113,7 @@ class AuthController extends Notifier<AuthState> {
           initialized: true,
           status: AuthStatus.signedIn,
           accessToken: token,
+          refreshToken: refreshToken,
           displayName: (name == null || name.isEmpty) ? '익명' : name,
         );
         debugPrint('[AUTH] loadFromPrefs result=signedIn');
@@ -129,52 +138,57 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  Future<void> signInWithKakaoStub() async {
+  /// 카카오 로그인 (실제 API 호출)
+  Future<void> signInWithKakao(String kakaoAccessToken) async {
     if (state.status == AuthStatus.signingIn) return;
     state = state.copyWith(status: AuthStatus.signingIn);
     debugPrint('[AUTH] signIn(kakao) start');
 
     try {
-      // TODO(next): real Kakao OAuth + exchange to JWT
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final authApi = ref.read(authApiProvider);
+      final request = KakaoLoginRequest(kakaoAccessToken: kakaoAccessToken);
+      final response = await authApi.loginWithKakao(request);
 
-      final token = 'stub_token_${DateTime.now().millisecondsSinceEpoch}';
-      const name = '익명';
-      final guestUser = UserModel.guest().copyWith(nickname: name);
+      if (!response.success || response.data == null) {
+        debugPrint('[AUTH] signIn(kakao) failed: ${response.error}');
+        state = state.copyWith(
+          initialized: true,
+          status: AuthStatus.signedOut,
+          accessToken: null,
+          refreshToken: null,
+          displayName: null,
+        );
+        return;
+      }
+
+      final data = response.data!;
+      final user = data.user ?? UserModel.guest();
 
       state = state.copyWith(
         initialized: true,
         status: AuthStatus.signedIn,
-        accessToken: token,
-        displayName: name,
-        user: guestUser,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        displayName: user.nickname,
+        user: user,
       );
+
+      // Save tokens to SharedPreferences
       final prefs = await _tryPrefs();
-      if (prefs == null) {
-        debugPrint(
-          '[AUTH] prefs unavailable (fallback=${_allowInmemAuth ? 'enabled' : 'disabled'})',
-        );
-        if (!_allowInmemAuth) {
-          state = state.copyWith(
-            initialized: true,
-            status: AuthStatus.signedOut,
-            accessToken: null,
-            displayName: null,
-          );
-        }
-      } else {
-        await prefs.setString(_kAccessToken, token);
-        await prefs.setString(_kDisplayName, name);
+      if (prefs != null) {
+        await prefs.setString(_kAccessToken, data.accessToken);
+        await prefs.setString(_kRefreshToken, data.refreshToken);
+        await prefs.setString(_kDisplayName, user.nickname);
       }
-      debugPrint(
-        '[AUTH] signIn(kakao) result=${state.status == AuthStatus.signedIn ? 'signedIn' : 'signedOut'}',
-      );
+
+      debugPrint('[AUTH] signIn(kakao) result=signedIn');
     } catch (e, st) {
       debugPrint('[AUTH] signIn(kakao) error=$e\n$st');
       state = state.copyWith(
         initialized: true,
         status: AuthStatus.signedOut,
         accessToken: null,
+        refreshToken: null,
         displayName: null,
       );
     } finally {
@@ -183,103 +197,70 @@ class AuthController extends Notifier<AuthState> {
           initialized: true,
           status: AuthStatus.signedOut,
           accessToken: null,
+          refreshToken: null,
           displayName: null,
         );
       }
     }
   }
 
-  Future<bool> signInWithTestCredentials({
-    required String id,
-    required String password,
-  }) async {
-    if (state.status == AuthStatus.signingIn) return false;
-    state = state.copyWith(status: AuthStatus.signingIn);
-    debugPrint('[AUTH] signIn(test) start');
+  /// 토큰 갱신 (ApiClient RTR에서 호출)
+  Future<String?> refreshAccessToken() async {
+    debugPrint('[AUTH] refreshAccessToken start');
 
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-
-      if (id.trim() != 'test' || password != '12341234') {
-        state = state.copyWith(
-          initialized: true,
-          status: AuthStatus.signedOut,
-          accessToken: null,
-          displayName: null,
-        );
-        debugPrint('[AUTH] signIn(test) result=invalid');
-        return false;
+      final currentRefreshToken = state.refreshToken;
+      if (currentRefreshToken == null || currentRefreshToken.isEmpty) {
+        debugPrint('[AUTH] refreshAccessToken failed: no refresh token');
+        return null;
       }
 
-      final token = 'stub_local_${DateTime.now().millisecondsSinceEpoch}';
-      const name = 'test';
-      final testUser = UserModel.guest().copyWith(
-        nickname: name,
-        policeScore: 1240,
-        thiefScore: 980,
-        policeRank: 'BRONZE',
-        thiefRank: 'SILVER',
-        totalGames: 15,
-        wins: 8,
-        losses: 7,
-        winRate: 0.533,
-        mannerScore: 85,
-        totalPlayTimeSec: 13400,
+      final authApi = ref.read(authApiProvider);
+      final request = RefreshRequest(refreshToken: currentRefreshToken);
+      final response = await authApi.refreshToken(request);
+
+      if (!response.success || response.data == null) {
+        debugPrint('[AUTH] refreshAccessToken failed: ${response.error}');
+        return null;
+      }
+
+      final data = response.data!;
+
+      // Update state with new tokens
+      state = state.copyWith(
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
       );
 
-      state = state.copyWith(
-        initialized: true,
-        status: AuthStatus.signedIn,
-        accessToken: token,
-        displayName: name,
-        user: testUser,
-      );
+      // Save new tokens to SharedPreferences
       final prefs = await _tryPrefs();
-      if (prefs == null) {
-        debugPrint(
-          '[AUTH] prefs unavailable (fallback=${_allowInmemAuth ? 'enabled' : 'disabled'})',
-        );
-        if (!_allowInmemAuth) {
-          state = state.copyWith(
-            initialized: true,
-            status: AuthStatus.signedOut,
-            accessToken: null,
-            displayName: null,
-          );
-        }
-      } else {
-        await prefs.setString(_kAccessToken, token);
-        await prefs.setString(_kDisplayName, name);
+      if (prefs != null) {
+        await prefs.setString(_kAccessToken, data.accessToken);
+        await prefs.setString(_kRefreshToken, data.refreshToken);
       }
-      debugPrint(
-        '[AUTH] signIn(test) result=${state.status == AuthStatus.signedIn ? 'signedIn' : 'signedOut'}',
-      );
-      return state.status == AuthStatus.signedIn;
+
+      debugPrint('[AUTH] refreshAccessToken success');
+      return data.accessToken;
     } catch (e, st) {
-      debugPrint('[AUTH] signIn(test) error=$e\n$st');
-      state = state.copyWith(
-        initialized: true,
-        status: AuthStatus.signedOut,
-        accessToken: null,
-        displayName: null,
-      );
-      return false;
-    } finally {
-      if (state.status == AuthStatus.signingIn) {
-        state = state.copyWith(
-          initialized: true,
-          status: AuthStatus.signedOut,
-          accessToken: null,
-          displayName: null,
-        );
-      }
+      debugPrint('[AUTH] refreshAccessToken error=$e\n$st');
+      return null;
     }
   }
 
   Future<void> signOut() async {
+    // Call logout API
+    try {
+      final authApi = ref.read(authApiProvider);
+      await authApi.logout();
+    } catch (e) {
+      debugPrint('[AUTH] logout API error: $e');
+    }
+
+    // Clear local storage
     final prefs = await _tryPrefs();
     if (prefs != null) {
       await prefs.remove(_kAccessToken);
+      await prefs.remove(_kRefreshToken);
       await prefs.remove(_kDisplayName);
     } else {
       debugPrint(
@@ -290,7 +271,9 @@ class AuthController extends Notifier<AuthState> {
       initialized: true,
       status: AuthStatus.signedOut,
       accessToken: null,
+      refreshToken: null,
       displayName: null,
+      user: null,
     );
     debugPrint('[AUTH] signOut');
   }
