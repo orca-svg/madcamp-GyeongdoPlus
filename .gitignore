@@ -52,3 +52,5 @@ code_dump.txt
 GEMINI.md
 
 docs/*
+/backend/docker-compose.yml
+/backend/Dockerfile

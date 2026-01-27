@@ -227,10 +227,22 @@ export class AuthService {
   }
 
   // ----------------------------------------------------------------
-  // 5. 로그아웃 (Logout)
+  // 5. 로그아웃 (Logout) - Blacklist 기능 추가
   // ----------------------------------------------------------------
-  async logout(userId: string) {
+  // 🚨 [수정] Access Token을 인자로 받아야 블랙리스트 등록 가능
+  async logout(userId: string, accessToken: string) {
+    // 1. Refresh Token 삭제 (기존 로직)
     await this.redisService.del(`auth:refresh_token:${userId}`);
+    
+    // 2. Access Token 블랙리스트 등록 (추가된 로직)
+    // Access Token의 남은 유효시간을 계산하거나, 단순히 표준 만료시간(30분)으로 설정
+    // 키: auth:blacklist:{token}, 값: 'true', TTL: 1800초 (30분)
+    if (accessToken) {
+        // "Bearer " 접두사가 있다면 제거
+        const token = accessToken.replace('Bearer ', '');
+        await this.redisService.set(`auth:blacklist:${token}`, 'true', 1800);
+    }
+
     return { success: true, message: '로그아웃 성공', error: null };
   }
 

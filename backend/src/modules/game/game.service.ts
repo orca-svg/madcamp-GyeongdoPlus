@@ -57,92 +57,92 @@ export class GameService {
   }
 
   // ==================================================================
-  // ⚡ 1. 능력(액티브) 사용 (8종 직업 구현)
+  // ⚡ 1. 능력(액티브) 사용 (게이지 100% 조건 반영)
   // ==================================================================
   async useAbility(userId: string, dto: UseAbilityDto) {
     const { matchId } = dto;
     const playerKey = `game:${matchId}:player:${userId}`;
     
-    // 내 직업 조회
+    // 내 상태 조회
     const playerState = await this.redisService.hgetall(playerKey);
     const myClass = playerState.class;
     
     if (!myClass) throw new BadRequestException('직업이 선택되지 않았습니다.');
 
-    // 쿨타임 및 게이지 체크 (여기서는 단순화하여 생략, 필요시 추가)
-    // const gauge = parseFloat(playerState.ability_gauge || '0');
-    // ... gauge check ...
+    // [수정] 게이지 만충(100) 확인
+    const currentGauge = parseFloat(playerState.ability_gauge || '0');
+    if (currentGauge < 100) {
+      throw new HttpException({
+        success: false, 
+        message: '게이지가 가득 차지 않았습니다.',
+        error: { code: 'GAUGE_NOT_FULL', current: currentGauge, required: 100 }
+      }, HttpStatus.BAD_REQUEST);
+    }
+
+    // [수정] 게이지 소모 (0으로 초기화)
+    await this.redisService.hset(playerKey, { ability_gauge: 0 });
 
     let message = '';
     
+    // 직업별 스킬 효과 (기존 로직 유지)
     switch (myClass) {
       // --- [경찰 액티브] ---
-      case 'SEARCHER': // 탐지자: 도둑 정적 위치 공유
+      case 'SEARCHER': // 탐지자
         this.eventsGateway.server.to(matchId).emit('reveal_thieves_static', { duration: 5 }); 
         message = '모든 도둑의 위치를 팀원에게 공유했습니다.';
         break;
 
-      case 'JAILER': // 감옥지기: 채널링 초기화
+      case 'JAILER': // 감옥지기
         this.eventsGateway.server.to(matchId).emit('reset_channeling', { area: 'JAIL' });
         message = '감옥 주변의 구조 작업을 초기화시켰습니다.';
         break;
 
-      case 'ENFORCER': // 집행자: 5초간 5m 내 상대 능력 봉인
-        // 1. 내 위치 가져오기
+      case 'ENFORCER': // 집행자
         const myPosEnforcer = await this.redisService.geopos(`game:${matchId}:geo`, userId);
-        if (!myPosEnforcer || !myPosEnforcer[0]) throw new BadRequestException('위치 정보 오류');
+        if (!myPosEnforcer || !myPosEnforcer[0]) break; // 예외 처리
 
-        // 2. 주변 5m 검색
         const nearbyThieves = (await this.redisService.georadius(
-          `game:${matchId}:geo`, 
-          parseFloat(myPosEnforcer[0][0]), 
-          parseFloat(myPosEnforcer[0][1]), 
-          5, 
-          'm'
+          `game:${matchId}:geo`, parseFloat(myPosEnforcer[0][0]), parseFloat(myPosEnforcer[0][1]), 5, 'm'
         )) as [string, string][];
 
-        // 3. 상태 부여
         for (const [thiefId] of nearbyThieves) {
           if (thiefId === userId) continue;
           const tState = await this.redisService.hgetall(`game:${matchId}:player:${thiefId}`);
           if (tState.role === 'THIEF' && tState.status === 'ALIVE') {
-             await this.redisService.set(`game:${matchId}:player:${thiefId}:silence`, 'true', 5); // 5초간 침묵
+             await this.redisService.set(`game:${matchId}:player:${thiefId}:silence`, 'true', 5);
              this.eventsGateway.server.to(matchId).emit('ability_silenced', { targetId: thiefId, duration: 5 });
           }
         }
         message = '주변 도둑들의 능력을 봉인했습니다.';
         break;
 
-      case 'CHASER': // 추격자: 가장 가까운 도둑 추적
-        // (단순 구현: 메시지만 전송, 실제 로직은 클라에서 처리하거나 별도 계산 필요)
+      case 'CHASER': // 추격자
         message = '가장 가까운 도둑을 추적합니다.';
         break;
 
       // --- [도둑 액티브] ---
-      case 'SHADOW': // 그림자: 15초간 정보 은폐
+      case 'SHADOW': // 그림자
         await this.redisService.hset(playerKey, { stealth_active: 'true' });
-        // TODO: 15초 후 해제 로직 (클라 타이머 의존 or 스케줄러)
         message = '15초간 그림자 속에 숨습니다.';
         break;
 
-      case 'BROKER': // 브로커: 3m 내 즉시 구출
-        // rescuePlayer 로직 재사용 (instant=true)
+      case 'BROKER': // 브로커 (즉시 구출)
         await this.rescuePlayer(userId, { matchId }, true); 
         message = '능력을 사용하여 즉시 구출했습니다.';
         break;
 
-      case 'HACKER': // 해커: 경찰 위치 노출
+      case 'HACKER': // 해커
         this.eventsGateway.server.to(matchId).emit('reveal_police_static', { count: 3, interval: 3000 });
         message = '경찰들의 위치를 해킹했습니다.';
         break;
 
-      case 'CLOWN': // 광대: 어그로
+      case 'CLOWN': // 광대
         this.eventsGateway.server.to(matchId).emit('clown_taunt', { userId });
         message = '광대 공연 시작! 30초간 버티면 동료가 구출됩니다.';
         break;
     }
 
-    return { success: true, message, data: { myClass } };
+    return { success: true, message, data: { myClass, remainingGauge: 0 } };
   }
 
   // ==================================================================
@@ -289,33 +289,87 @@ export class GameService {
   }
 
   // ==================================================================
-  // 🏃 3. 위치 이동 + 🛡️ 패시브 + 🚨 자동 체포
+  // 🏃 3. 위치 이동 + 🛡️ 패시브 + 🚨 자동 체포 + ⚡ 게이지 충전
   // ==================================================================
   async updatePosition(userId: string, dto: MoveDto) {
     const { matchId, lat, lng, heartRate, heading } = dto;
     const ARREST_RADIUS_M = 1.0; 
     const SCAN_RADIUS_M = 50.0;
 
-    // 1. 기본 위치 업데이트
+    // 1. 기본 위치 및 상태 업데이트
     await this.redisService.geoadd(`game:${matchId}:geo`, lng, lat, userId);
+    
     const updateData: Record<string, string | number> = {};
     if (heartRate) updateData.heart_rate = heartRate;
     if (heading) updateData.heading = heading;
-    if (Object.keys(updateData).length > 0) await this.redisService.hset(`game:${matchId}:player:${userId}`, updateData);
+    if (Object.keys(updateData).length > 0) {
+      await this.redisService.hset(`game:${matchId}:player:${userId}`, updateData);
+    }
 
+    // 소켓 전파
     this.eventsGateway.server.to(matchId).emit('player_moved', { userId, lat, lng, heading });
 
-    // 2. 직업/역할 확인
-    const playerState = await this.redisService.hgetall(`game:${matchId}:player:${userId}`);
+    // 2. 플레이어 및 게임 상태 조회
+    const playerKey = `game:${matchId}:player:${userId}`;
+    const globalState = await this.redisService.hgetall(`game:${matchId}:state`);
+    const playerState = await this.redisService.hgetall(playerKey);
+    
     const myRole = playerState.role;
     const myClass = playerState.class;
 
+    // -------------------------------------------------------------
+    // ⚡ [추가] 능력전 게이지 자동 충전 로직 (심박수 반영)
+    // -------------------------------------------------------------
+    if (globalState.game_mode === 'ABILITY' && globalState.game_status === 'PLAYING' && playerState.status === 'ALIVE') {
+      const now = Date.now();
+      const lastUpdateStr = playerState.last_gauge_update;
+      const lastUpdate = lastUpdateStr ? parseInt(lastUpdateStr) : now;
+      const deltaSec = (now - lastUpdate) / 1000; // 지난 시간 (초)
+
+      // 0.5초 이상 지났을 때만 계산 (빈번한 쓰기 방지)
+      if (deltaSec >= 0.5) {
+        let increaseRate = 1.0; // 기본: 초당 1% 증가 (밸런스에 따라 조정)
+        
+        // 심박수 보너스 적용 (120 BPM 이상)
+        const currentHeartRate = heartRate || parseInt(playerState.heart_rate || '0');
+        const HR_THRESHOLD = 120; 
+
+        if (currentHeartRate >= HR_THRESHOLD) {
+          if (myRole === 'POLICE') increaseRate += 2.0; // 경찰 +2%
+          if (myRole === 'THIEF') increaseRate += 4.0;  // 도둑 +4%
+        }
+
+        // 게이지 계산 및 저장 (최대 100)
+        const currentGauge = parseFloat(playerState.ability_gauge || '0');
+        const addedGauge = increaseRate * deltaSec;
+        const newGauge = Math.min(currentGauge + addedGauge, 100);
+
+        await this.redisService.hset(playerKey, {
+          ability_gauge: newGauge,
+          last_gauge_update: now
+        });
+      }
+    }
+
+    if (heartRate) {
+      const currentMaxStr = playerState.max_heart_rate;
+      const currentMax = currentMaxStr ? parseInt(currentMaxStr) : 0;
+      
+      // 현재 심박수가 기록된 최대치보다 크면 갱신
+      if (heartRate > currentMax) {
+        await this.redisService.hset(playerKey, { max_heart_rate: heartRate });
+      }
+    }
+    
+    // -------------------------------------------------------------
+    // 🛡️ 직업별 패시브 및 자동 체포 로직 (기존 유지)
+    // -------------------------------------------------------------
     let autoArrestStatus: AutoArrestStatusDto | null = null;
 
-    // ---------------- [경찰 로직] ----------------
+    // [경찰 로직]
     if (myRole === 'POLICE') {
       // (1) 도둑 탐지기 아이템 패시브
-      const isDetectorOn = await this.redisService.hget(`game:${matchId}:player:${userId}`, 'detector_active');
+      const isDetectorOn = await this.redisService.hget(playerKey, 'detector_active');
       if (isDetectorOn === 'true') {
         const nearby5m = (await this.redisService.georadius(`game:${matchId}:geo`, lng, lat, 5, 'm')) as [string, string][];
         for (const [tid] of nearby5m) {
@@ -323,7 +377,7 @@ export class GameService {
           const tState = await this.redisService.hgetall(`game:${matchId}:player:${tid}`);
           if (tState.role === 'THIEF') {
             this.eventsGateway.server.to(matchId).emit('detector_vibrate', { userId });
-            await this.redisService.hdel(`game:${matchId}:player:${userId}`, 'detector_active');
+            await this.redisService.hdel(playerKey, 'detector_active');
             break;
           }
         }
@@ -341,7 +395,7 @@ export class GameService {
       }
 
       // (3) 자동 체포 (집행자 패시브: 가속)
-      const arrestSpeedBonus = (myClass === 'ENFORCER') ? 1.05 : 1.0; // 5% 가속
+      const arrestSpeedBonus = (myClass === 'ENFORCER') ? 1.05 : 1.0; 
       
       const nearbyForArrest = (await this.redisService.georadius(`game:${matchId}:geo`, lng, lat, ARREST_RADIUS_M, 'm')) as [string, string][];
       for (const [targetId] of nearbyForArrest) {
@@ -355,23 +409,19 @@ export class GameService {
       }
     }
 
-    // ---------------- [도둑 로직] ----------------
+    // [도둑 로직]
     if (myRole === 'THIEF') {
       // (1) 그림자(Shadow): 경찰 10m 내 은신
       if (myClass === 'SHADOW') {
-        const nearbyPolice = (await this.redisService.georadius(`game:${matchId}:geo`, lng, lat, 10, 'm')) as [string, string][];
-        // 주변에 경찰(나 자신 제외)이 있으면 invisible 플래그 갱신
-        // (실제 구현 시 nearbyPolice 루프 돌며 role 확인 필요, 여기선 생략)
+        // (필요 시 nearby 경찰 체크 후 invisible 플래그 로직 추가)
       }
-      
       // (2) 광대(Clown): 경찰 7m 내 게이지 충전
       if (myClass === 'CLOWN') {
-         // (거리 계산 로직 후 게이지 증가)
-         // await this.redisService.hincrby(`game:${matchId}:player:${userId}`, 'ability_gauge', 2);
+         // (거리 계산 로직 후 게이지 추가 증가 로직)
       }
     }
 
-    // ---------------- [주변 정보 스캔] ----------------
+    // 3. 주변 정보 스캔 (기존 유지)
     const nearbyRaw = (await this.redisService.georadius(`game:${matchId}:geo`, lng, lat, SCAN_RADIUS_M, 'm')) as [string, string][];
     const nearbyEvents: NearbyObjectDto[] = [];
     const isRadarActive = await this.redisService.get(`game:${matchId}:state:radar_active`);
@@ -387,7 +437,6 @@ export class GameService {
       }
 
       const tState = await this.redisService.hgetall(`game:${matchId}:player:${targetId}`);
-      // 투명 체크 (레이더 있으면 무시)
       const isInvisible = (tState.invisible === 'true' || tState.stealth_active === 'true');
       if (isInvisible && !isRadarActive) return;
 
@@ -398,7 +447,7 @@ export class GameService {
   }
 
   // ==================================================================
-  // 🤝 4. 구출 (브로커 패시브 등 적용)
+  // 🤝 4. 구출 (시간 단축 및 브로커 패시브 적용)
   // ==================================================================
   async rescuePlayer(rescuerId: string, dto: RescueDto, isInstant = false) {
     const { matchId } = dto;
@@ -407,15 +456,15 @@ export class GameService {
     const isBlocked = await this.redisService.get(`game:${matchId}:state:rescue_blocked`);
     if (isBlocked) throw new BadRequestException('경찰에 의해 구출이 차단되었습니다!');
 
-    // 구조자 정보
+    // 구조자 상태 확인
     const rescuerState = await this.redisService.hgetall(`game:${matchId}:player:${rescuerId}`);
     if (rescuerState.status !== 'ALIVE') throw new BadRequestException('상태 이상');
 
-    // 패시브 & 아이템 체크
+    // [수정] 구출 촉진(RESCUE_BOOST) 아이템 확인
+    // (서버는 시간 단축 여부를 클라이언트에 알려주는 역할)
     const hasBoost = await this.redisService.get(`game:${matchId}:player:${rescuerId}:rescue_boost`);
-    const isBroker = (rescuerState.class === 'BROKER');
 
-    // 위치 검증 (Instant면 3m, 아니면 감옥 반경)
+    // 위치 검증
     const match = await this.prisma.gameMatch.findUnique({ where: { id: matchId }, select: { rules: true, mapConfig: true } });
     const jail = (match?.mapConfig as any)?.jail;
 
@@ -424,17 +473,18 @@ export class GameService {
       if (!pos || !pos[0]) throw new NotFoundException('위치 정보 오류');
       const dist = this.calculateDistance(parseFloat(pos[0][1]), parseFloat(pos[0][0]), jail.lat, jail.lng);
       
-      const limit = isInstant ? 3.0 : jail.radiusM; // 브로커 액티브는 3m
+      const limit = isInstant ? 3.0 : jail.radiusM; 
       if (dist > limit) throw new HttpException({ message: '범위 밖입니다.', error: { code: 'OUT_OF_RANGE', dist } }, HttpStatus.BAD_REQUEST);
     }
 
     // 구출 인원 산정
     const rules = match?.rules as any;
     let releaseCount = rules?.jailRule?.rescue?.releaseCount || 1;
-    if (hasBoost) releaseCount += 2; // 부스트 아이템
-    if (isInstant) releaseCount = 1; // 브로커 액티브는 1명 확정
+    
+    // [수정] 부스트는 시간 단축이므로 인원 증가는 적용하지 않음 (기획 변경 반영)
+    // if (hasBoost) releaseCount += 2; // (삭제됨)
 
-    // (참고: 브로커 패시브 "채널링 시간 감소"는 클라이언트 UI 처리 영역이 큼)
+    if (isInstant) releaseCount = 1; // 브로커 액티브는 1명 확정
 
     // 실행
     const queueKey = `game:${matchId}:prison_queue`;
@@ -453,13 +503,23 @@ export class GameService {
 
     if (rescuedUserIds.length === 0) throw new BadRequestException('감옥이 비어있습니다.');
 
+    // 점수 처리
     await this.redisService.hincrby(`game:${matchId}:state`, 'police_score', -rescuedUserIds.length);
     await this.redisService.hincrby(`game:${matchId}:player:${rescuerId}`, 'contribution', rescuedUserIds.length * 10);
+    await this.redisService.hincrby(`game:${matchId}:player:${rescuerId}`, 'release_count', rescuedUserIds.length);
 
     const remaining = await this.redisService.llen(queueKey);
     this.eventsGateway.server.to(matchId).emit('user_rescued', { matchId, rescuerId, rescuedUserIds, remainingPrisoners: remaining });
 
-    return { success: true, message: `${rescuedUserIds.length}명 구출 성공!`, data: { rescuedUserIds, remainingPrisoners: remaining } };
+    return { 
+      success: true, 
+      message: hasBoost ? '아이템 효과로 빠르게 구출했습니다!' : '구출 성공!', 
+      data: { 
+        rescuedUserIds, 
+        remainingPrisoners: remaining,
+        appliedBoost: !!hasBoost // [추가] 클라이언트 확인용 플래그
+      } 
+    };
   }
 
   // ==================================================================
@@ -600,6 +660,9 @@ export class GameService {
       const catchCount = parseInt(pData.catchCount || '0');
       const contribution = parseInt(pData.contribution || '0');
       const distance = parseFloat(pData.total_distance || '0');
+      
+      const releaseCount = parseInt(pData.release_count || '0'); // 구출 횟수
+      const heartRateMax = parseInt(pData.max_heart_rate || '0'); // 최대 심박수
       
       // MVP 계산
       const personalScore = (catchCount * 100) + contribution;
@@ -833,17 +896,28 @@ export class GameService {
 
     // 2. [방장 자동 위임] 나가는 사람이 방장이라면?
     if (currentHostId === userId) {
-      // 다른 플레이어 검색 (keys 사용 - 성능 최적화를 위해선 Set 사용 권장)
       const playerKeys = await this.redisService.keys(`game:${matchId}:player:*`);
       
-      // 나 자신을 제외한 다른 플레이어 찾기
-      const candidates = playerKeys
-        .filter(key => !key.includes('items') && !key.endsWith(userId)) // items 키 제외, 나 제외
-        .map(key => key.split(':').pop()!);
+      // 후보자들의 데이터를 모두 조회하여 정렬
+      const candidatesData = await Promise.all(
+        playerKeys
+          .filter(key => !key.includes('items') && !key.endsWith(userId)) // 나 제외
+          .map(async (key) => {
+             const uid = key.split(':').pop()!;
+             const joinedAtStr = await this.redisService.hget(key, 'joined_at');
+             return { 
+               userId: uid, 
+               joinedAt: joinedAtStr ? parseInt(joinedAtStr) : Infinity // 없으면 맨 뒤로
+             };
+          })
+      );
 
-      if (candidates.length > 0) {
+      // 입장 시간 오름차순 정렬 (먼저 들어온 사람이 우선)
+      candidatesData.sort((a, b) => a.joinedAt - b.joinedAt);
+
+      if (candidatesData.length > 0) {  
         // 랜덤 혹은 첫 번째 유저에게 위임
-        newHostId = candidates[0];
+        newHostId = candidatesData[0].userId;
 
         // DB 및 Redis 업데이트
         await this.prisma.gameMatch.update({

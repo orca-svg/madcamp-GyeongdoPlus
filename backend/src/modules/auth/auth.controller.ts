@@ -7,7 +7,8 @@ import {
   HttpCode, 
   HttpStatus, 
   UseGuards,       
-  Request,         
+  Req,
+  Headers as HttpHeaders,         
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -89,9 +90,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '로그아웃', description: 'Redis에서 Refresh Token을 삭제합니다.' })
   @ApiResponse({ status: 200, type: LogoutResponseDto })
-  async logout(@Request() req) {
+  async logout(@Req() req, @HttpHeaders('Authorization') authHeader: string) {
+    const accessToken = authHeader;
     // AuthGuard가 토큰을 해석해서 req.user에 { id, email }을 넣어줍니다.
-    return this.authService.logout(req.user.id);
+    return this.authService.logout(req.user.id, accessToken);
   }
 
   @Get('check-nickname')
