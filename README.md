@@ -2,7 +2,7 @@
 
 **도시 전체가 게임 맵이 되는 순간, 추격전이 시작됩니다.**
 
-GyeongdoPlus는 **추억의 놀이 '경찰과 도둑'**을 모바일 기술로 재해석한
+경도+는 **추억의 놀이 '경찰과 도둑'**을 모바일 기술로 재해석한
 **하이퍼 로컬 실시간 위치 기반(GPS) 추격 서바이벌 플랫폼**입니다.
 
 복잡한 컨트롤러 없이, **실제 두 다리로 뛰고 숨으며**
@@ -12,7 +12,7 @@ GyeongdoPlus는 **추억의 놀이 '경찰과 도둑'**을 모바일 기술로 �
 
 ## 🏃 Core UX: Real-World Chase
 
-**GyeongdoPlus의 핵심은 '현실감'입니다.**
+**경도+의 핵심은 '현실감'입니다.**
 
 * 🛰️ **초정밀 실시간 GPS 동기화** (0.5초 단위 위치 추적)
 * 👮‍♂️ **역동적인 역할 분담** (쫓는 경찰 vs 도망치는 도둑)
@@ -24,7 +24,7 @@ GyeongdoPlus는 **추억의 놀이 '경찰과 도둑'**을 모바일 기술로 �
 
 ---
 
-## ✨ Why GyeongdoPlus?
+## ✨ Why 경도+?
 
 ### 🔥 1. "앉아서 하는 게임"의 종말
 
@@ -103,5 +103,5 @@ GyeongdoPlus는
 
 | Name | Affiliation | Role |
 |---|---|---|
-| **신원영** | Dept. of Information System, Hanyang University | Frontend Developer (Flutter) |
-| **최영운** | School of Computing, KAIST | Backend Developer (NestJS) |
+| **이준엽** | School of Business and Technology Management, KAIST | Frontend Developer |
+| **최영운** | School of Computing, KAIST | Backend Developer |
