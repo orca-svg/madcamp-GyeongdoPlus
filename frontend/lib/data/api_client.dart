@@ -5,36 +5,21 @@ import '../core/env.dart';
 import '../providers/auth_provider.dart';
 
 /// Provider for ApiClient with automatic token injection from AuthProvider
+/// Provider for ApiClient
+/// Circular dependency fixed: AuthProvider will push token updates to this client.
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final apiClient = ApiClient.create(
+  return ApiClient.create(
     onRefreshToken: () async {
-      // Call AuthProvider's refresh method
+      // Lazy read to avoid cyclic init
       final authController = ref.read(authProvider.notifier);
       return await authController.refreshAccessToken();
     },
     onSignOut: () {
-      // Call AuthProvider's signOut method
+      // Lazy read
       final authController = ref.read(authProvider.notifier);
       authController.signOut();
     },
   );
-
-  // Listen to auth state changes and auto-update token
-  ref.listen<AuthState>(authProvider, (previous, next) {
-    final token = next.accessToken;
-    apiClient.setAuthToken(token);
-    debugPrint(
-      '[ApiClient] Auth token updated: ${token != null ? 'SET' : 'CLEARED'}',
-    );
-  });
-
-  // Initialize with current token if already signed in
-  final currentAuth = ref.read(authProvider);
-  if (currentAuth.accessToken != null) {
-    apiClient.setAuthToken(currentAuth.accessToken);
-  }
-
-  return apiClient;
 });
 
 class ApiClient {
@@ -89,7 +74,9 @@ class ApiClient {
           if (statusCode == 401 &&
               !error.requestOptions.path.contains('/auth/refresh') &&
               !client._isRefreshing) {
-            debugPrint('[ApiClient] 401 Unauthorized - Attempting token refresh');
+            debugPrint(
+              '[ApiClient] 401 Unauthorized - Attempting token refresh',
+            );
             client._isRefreshing = true;
 
             try {

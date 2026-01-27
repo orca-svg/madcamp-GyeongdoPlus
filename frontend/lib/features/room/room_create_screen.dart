@@ -40,9 +40,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
       '[KAKAO] If map is black, ensure Web platform domain includes localhost/127.0.0.1',
     );
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => const ZoneEditorScreen(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const ZoneEditorScreen()),
     );
     final rules = ref.read(matchRulesProvider);
     setState(
@@ -61,18 +59,20 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
     debugPrint('[ROOM_CREATE] payload=$payload');
 
     ref.read(matchRulesProvider.notifier).applyOfflineRoomConfig(payload);
-    final result =
-        await ref.read(roomProvider.notifier).createRoom(myName: '김선수');
+    final success = await ref
+        .read(roomProvider.notifier)
+        .createRoom(myName: '김선수');
     if (!mounted) return;
-    if (result.ok) {
+    if (success) {
       ref.read(gamePhaseProvider.notifier).toLobby();
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
     } else {
+      final roomState = ref.read(roomProvider);
       showAppSnackBar(
         context,
-        message: result.errorMessage ?? '방 생성에 실패했습니다',
+        message: roomState.errorMessage ?? '방 생성에 실패했습니다',
         isError: true,
       );
     }
@@ -249,27 +249,27 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                                 ],
                               ),
                             ),
-                            if (_form.releaseScope == RoomReleaseScope.partial)
-                              ...[
-                                const SizedBox(height: 12),
-                                _LabeledRow(
-                                  label: '해방 순서',
-                                  trailing: _ToggleChips<RoomReleaseOrder>(
-                                    value: _form.releaseOrder,
-                                    onChanged: _setReleaseOrder,
-                                    items: const [
-                                      _ToggleItem(
-                                        value: RoomReleaseOrder.fifo,
-                                        label: '선착순 해방',
-                                      ),
-                                      _ToggleItem(
-                                        value: RoomReleaseOrder.lifo,
-                                        label: '후착순 해방',
-                                      ),
-                                    ],
-                                  ),
+                            if (_form.releaseScope ==
+                                RoomReleaseScope.partial) ...[
+                              const SizedBox(height: 12),
+                              _LabeledRow(
+                                label: '해방 순서',
+                                trailing: _ToggleChips<RoomReleaseOrder>(
+                                  value: _form.releaseOrder,
+                                  onChanged: _setReleaseOrder,
+                                  items: const [
+                                    _ToggleItem(
+                                      value: RoomReleaseOrder.fifo,
+                                      label: '선착순 해방',
+                                    ),
+                                    _ToggleItem(
+                                      value: RoomReleaseOrder.lifo,
+                                      label: '후착순 해방',
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -296,8 +296,9 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(
@@ -353,9 +354,9 @@ class _LabeledRow extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.textMuted,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         trailing,
@@ -388,12 +389,16 @@ class _ModeSegmented extends StatelessWidget {
             decoration: BoxDecoration(
               color: fill,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: color.withOpacity(selected ? 0.6 : 0.9)),
+              border: Border.all(
+                color: color.withOpacity(selected ? 0.6 : 0.9),
+              ),
             ),
             child: Text(
               label,
               style: TextStyle(
-                color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                color: selected
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
                 fontWeight: FontWeight.w900,
                 fontSize: 13,
               ),
@@ -450,10 +455,11 @@ class _ToggleChips<T> extends StatelessWidget {
                     : AppColors.surface2.withOpacity(0.25),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: (value == item.value
-                          ? AppColors.borderCyan
-                          : AppColors.outlineLow)
-                      .withOpacity(0.8),
+                  color:
+                      (value == item.value
+                              ? AppColors.borderCyan
+                              : AppColors.outlineLow)
+                          .withOpacity(0.8),
                 ),
               ),
               child: Text(

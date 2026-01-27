@@ -104,8 +104,9 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(
@@ -143,17 +144,18 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
     }
 
     setState(() => _submitting = true);
-    final result = await ref
+    final success = await ref
         .read(roomProvider.notifier)
         .joinRoom(myName: _nameCtrl.text, code: code);
     if (!context.mounted) return;
-    if (result.ok) {
+    if (success) {
       ref.read(gamePhaseProvider.notifier).toLobby();
       Navigator.of(context).pop();
     } else {
+      final roomState = ref.read(roomProvider);
       showAppSnackBar(
         context,
-        message: result.errorMessage ?? '방 참여에 실패했습니다',
+        message: roomState.errorMessage ?? '방 참여에 실패했습니다',
         isError: true,
       );
     }

@@ -1,104 +1,253 @@
 import 'package:json_annotation/json_annotation.dart';
-import '../models/user_model.dart';
 
 part 'auth_dto.g.dart';
 
-/// 카카오 로그인 요청
-@JsonSerializable()
-class KakaoLoginRequest {
-  final String kakaoAccessToken;
+// ------------------------------------------------------------------
+// Shared / Common DTOs
+// ------------------------------------------------------------------
 
-  const KakaoLoginRequest({
-    required this.kakaoAccessToken,
+@JsonSerializable()
+class UserDto {
+  final String id;
+  final String email;
+  final String nickname;
+  final String? profileImage;
+  final String? provider; // Added to match backend response
+
+  UserDto({
+    required this.id,
+    required this.email,
+    required this.nickname,
+    this.profileImage,
+    this.provider,
   });
 
-  factory KakaoLoginRequest.fromJson(Map<String, dynamic> json) =>
-      _$KakaoLoginRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$KakaoLoginRequestToJson(this);
-}
-
-/// 토큰 갱신 요청
-@JsonSerializable()
-class RefreshRequest {
-  final String refreshToken;
-
-  const RefreshRequest({
-    required this.refreshToken,
-  });
-
-  factory RefreshRequest.fromJson(Map<String, dynamic> json) =>
-      _$RefreshRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$RefreshRequestToJson(this);
-}
-
-/// 인증 응답 (로그인, 토큰 갱신)
-@JsonSerializable()
-class AuthResponse {
-  final bool success;
-  final AuthResponseData? data;
-  final String? error;
-
-  const AuthResponse({
-    required this.success,
-    this.data,
-    this.error,
-  });
-
-  factory AuthResponse.fromJson(Map<String, dynamic> json) =>
-      _$AuthResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$AuthResponseToJson(this);
+  factory UserDto.fromJson(Map<String, dynamic> json) =>
+      _$UserDtoFromJson(json);
+  Map<String, dynamic> toJson() => _$UserDtoToJson(this);
 }
 
 @JsonSerializable()
-class AuthResponseData {
+class AuthDataDto {
   final String accessToken;
   final String refreshToken;
-  final UserModel? user;
+  final int expiresIn;
+  final UserDto user;
 
-  const AuthResponseData({
+  AuthDataDto({
     required this.accessToken,
     required this.refreshToken,
-    this.user,
+    required this.expiresIn,
+    required this.user,
   });
 
-  factory AuthResponseData.fromJson(Map<String, dynamic> json) =>
-      _$AuthResponseDataFromJson(json);
-
-  Map<String, dynamic> toJson() => _$AuthResponseDataToJson(this);
+  factory AuthDataDto.fromJson(Map<String, dynamic> json) =>
+      _$AuthDataDtoFromJson(json);
+  Map<String, dynamic> toJson() => _$AuthDataDtoToJson(this);
 }
 
-/// 닉네임 중복 확인 응답
 @JsonSerializable()
-class CheckNicknameResponse {
-  final bool success;
-  final CheckNicknameData? data;
-  final String? error;
+class KakaoAuthDataDto extends AuthDataDto {
+  final bool isNewUser;
 
-  const CheckNicknameResponse({
-    required this.success,
+  KakaoAuthDataDto({
+    required String accessToken,
+    required String refreshToken,
+    required int expiresIn,
+    required UserDto user,
+    required this.isNewUser,
+  }) : super(
+         accessToken: accessToken,
+         refreshToken: refreshToken,
+         expiresIn: expiresIn,
+         user: user,
+       );
+
+  factory KakaoAuthDataDto.fromJson(Map<String, dynamic> json) =>
+      _$KakaoAuthDataDtoFromJson(json);
+  @override
+  Map<String, dynamic> toJson() => _$KakaoAuthDataDtoToJson(this);
+}
+
+// ------------------------------------------------------------------
+// Signup
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class LocalSignupDto {
+  final String email;
+  final String password;
+  final String nickname;
+
+  LocalSignupDto({
+    required this.email,
+    required this.password,
+    required this.nickname,
+  });
+
+  Map<String, dynamic> toJson() => _$LocalSignupDtoToJson(this);
+}
+
+@JsonSerializable()
+class SignupResponseDto {
+  final bool? success;
+  final String? message;
+  final AuthDataDto? data;
+  final dynamic error;
+
+  SignupResponseDto({this.success, this.message, this.data, this.error});
+
+  factory SignupResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$SignupResponseDtoFromJson(json);
+}
+
+@JsonSerializable()
+class SignupConflictErrorDto {
+  final bool success;
+  final dynamic error;
+
+  SignupConflictErrorDto({required this.success, this.error});
+
+  factory SignupConflictErrorDto.fromJson(Map<String, dynamic> json) =>
+      _$SignupConflictErrorDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Login (Local)
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class LocalLoginDto {
+  final String email;
+  final String password;
+
+  LocalLoginDto({required this.email, required this.password});
+
+  Map<String, dynamic> toJson() => _$LocalLoginDtoToJson(this);
+}
+
+@JsonSerializable()
+class LoginResponseDto {
+  final bool? success;
+  final String? message;
+  final AuthDataDto? data;
+  final dynamic error;
+
+  LoginResponseDto({this.success, this.message, this.data, this.error});
+
+  factory LoginResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$LoginResponseDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Login (Kakao)
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class KakaoLoginDto {
+  final String kakaoAccessToken;
+
+  KakaoLoginDto({required this.kakaoAccessToken});
+
+  Map<String, dynamic> toJson() => _$KakaoLoginDtoToJson(this);
+}
+
+@JsonSerializable()
+class KakaoLoginResponseDto {
+  final bool? success;
+  final String? message;
+  final AuthDataDto? data; // Changed from KakaoAuthDataDto to AuthDataDto
+  final bool? isNewUser; // Added root-level field
+  final dynamic error;
+
+  KakaoLoginResponseDto({
+    this.success,
+    this.message,
     this.data,
+    this.isNewUser,
     this.error,
   });
 
-  factory CheckNicknameResponse.fromJson(Map<String, dynamic> json) =>
-      _$CheckNicknameResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$CheckNicknameResponseToJson(this);
+  factory KakaoLoginResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$KakaoLoginResponseDtoFromJson(json);
 }
+
+// ------------------------------------------------------------------
+// Refresh
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class RefreshRequestDto {
+  final String refreshToken;
+
+  RefreshRequestDto({required this.refreshToken});
+
+  Map<String, dynamic> toJson() => _$RefreshRequestDtoToJson(this);
+}
+
+@JsonSerializable()
+class RefreshResponseData {
+  final String accessToken;
+  final String refreshToken;
+
+  RefreshResponseData({required this.accessToken, required this.refreshToken});
+
+  factory RefreshResponseData.fromJson(Map<String, dynamic> json) =>
+      _$RefreshResponseDataFromJson(json);
+}
+
+@JsonSerializable()
+class RefreshResponseDto {
+  final bool? success;
+  final String? message;
+  final RefreshResponseData? data;
+  final dynamic error;
+
+  RefreshResponseDto({this.success, this.message, this.data, this.error});
+
+  factory RefreshResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$RefreshResponseDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Logout
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class LogoutResponseDto {
+  final bool? success;
+  final String? message;
+  final dynamic error;
+
+  LogoutResponseDto({this.success, this.message, this.error});
+
+  factory LogoutResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$LogoutResponseDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Check Nickname
+// ------------------------------------------------------------------
 
 @JsonSerializable()
 class CheckNicknameData {
-  final bool available;
+  final bool isAvailable;
 
-  const CheckNicknameData({
-    required this.available,
-  });
+  CheckNicknameData({required this.isAvailable});
 
   factory CheckNicknameData.fromJson(Map<String, dynamic> json) =>
       _$CheckNicknameDataFromJson(json);
+}
 
-  Map<String, dynamic> toJson() => _$CheckNicknameDataToJson(this);
+@JsonSerializable()
+class CheckNicknameResponseDto {
+  final bool? success;
+  final String? message;
+  final CheckNicknameData? data;
+  final dynamic error;
+
+  CheckNicknameResponseDto({this.success, this.message, this.data, this.error});
+
+  factory CheckNicknameResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$CheckNicknameResponseDtoFromJson(json);
 }

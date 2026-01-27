@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 
+import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
@@ -90,7 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ],
                         ),
                       ],
-                      const SizedBox(height: AppDimens.padding16),
+                      SizedBox(height: AppDimens.padding16),
                     ],
                   ),
                 ),

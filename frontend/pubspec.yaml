@@ -44,6 +44,7 @@ dependencies:
   geolocator: ^14.0.2
   json_annotation: ^4.9.0
   kakao_flutter_sdk: ^1.10.0
+  retrofit: ^4.0.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.1
@@ -51,6 +52,7 @@ dev_dependencies:
     sdk: flutter
   build_runner: ^2.4.14
   json_serializable: ^6.9.2
+  retrofit_generator: ^10.2.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

@@ -1,66 +1,27 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:retrofit/retrofit.dart';
+import '../dto/user_dto.dart';
 
-import '../api_client.dart';
-import '../models/user_model.dart';
+part 'user_api.g.dart';
 
-/// User API Provider
-final userApiProvider = Provider<UserApi>((ref) {
-  final client = ref.watch(apiClientProvider);
-  return UserApi(client.dio);
-});
+@RestApi()
+abstract class UserApi {
+  factory UserApi(Dio dio, {String baseUrl}) = _UserApi;
 
-/// User API 클래스
-class UserApi {
-  final Dio _dio;
+  @GET('/user/me')
+  Future<MyProfileResponseDto> getMyProfile();
 
-  UserApi(this._dio);
+  @GET('/user/profile/{userId}')
+  Future<OtherProfileResponseDto> getUserProfile(@Path('userId') String userId);
 
-  /// 내 프로필 조회
-  /// GET /user/me
-  Future<UserModel?> getMyProfile() async {
-    try {
-      final response = await _dio.get('/user/me');
-      if (response.data['success'] == true && response.data['data'] != null) {
-        return UserModel.fromJson(response.data['data']);
-      }
-      return null;
-    } on DioException catch (e) {
-      // ignore: avoid_print
-      print('[UserApi] getMyProfile error: ${e.message}');
-      return null;
-    }
-  }
+  @PATCH('/user/me')
+  Future<UpdateProfileResponseDto> updateProfile(@Body() UpdateProfileDto dto);
 
-  /// 전적 조회
-  /// GET /user/me/history
-  Future<List<Map<String, dynamic>>> getMyHistory() async {
-    try {
-      final response = await _dio.get('/user/me/history');
-      if (response.data['success'] == true &&
-          response.data['history'] is List) {
-        return List<Map<String, dynamic>>.from(response.data['history']);
-      }
-      return [];
-    } on DioException catch (e) {
-      // ignore: avoid_print
-      print('[UserApi] getMyHistory error: ${e.message}');
-      return [];
-    }
-  }
+  @GET('/user/me/history')
+  Future<MatchHistoryResponseDto> getMatchHistory(
+    @Queries() MatchHistoryQueryDto query,
+  );
 
-  /// 회원 탈퇴
-  /// DELETE /user/me
-  Future<Map<String, dynamic>> deleteAccount() async {
-    try {
-      final response = await _dio.delete('/user/me');
-      return response.data ?? {'success': true};
-    } on DioException catch (e) {
-      return {
-        'success': false,
-        'error':
-            e.response?.data['error'] ?? e.message ?? 'Account deletion failed',
-      };
-    }
-  }
+  @DELETE('/user/me')
+  Future<DeleteAccountResponseDto> deleteAccount(@Body() DeleteAccountDto dto);
 }

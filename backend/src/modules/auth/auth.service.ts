@@ -9,11 +9,11 @@ import { PrismaService } from '../../database/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { RedisService } from '../redis/redis.service';
 import * as bcrypt from 'bcrypt';
-import { 
-  LocalSignupDto, 
+import {
+  LocalSignupDto,
   LocalLoginDto,
   KakaoLoginDto,
-  RefreshRequestDto 
+  RefreshRequestDto
 } from './auth.dto';
 import { Provider } from '@prisma/client';
 import axios from 'axios';
@@ -25,17 +25,17 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private redisService: RedisService,
-  ) {}
+  ) { }
 
   // ----------------------------------------------------------------
   // 1. 회원가입 (Signup)
   // ----------------------------------------------------------------
   async signup(dto: LocalSignupDto) {
     const { email, password, nickname } = dto;
-    
+
     // 이메일 또는 닉네임 중복 확인
     const existingUser = await this.prisma.user.findFirst({
-        where: { OR: [{ email }, { nickname }] },
+      where: { OR: [{ email }, { nickname }] },
     });
 
     // 🚨 [수정] 사진의 409 Conflict 에러 구조와 일치시킴
@@ -51,19 +51,19 @@ export class AuthService {
         HttpStatus.CONFLICT,
       );
     }
-    
+
     // 비밀번호 해싱
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 트랜잭션으로 유저 및 스탯 생성
     return this.prisma.$transaction(async (tx) => {
-        const newUser = await tx.user.create({
-            data: { email, password: hashedPassword, nickname, provider: Provider.LOCAL },
-        });
-        await tx.userStat.create({ data: { userId: newUser.id } });
-        
-        // ✅ [수정] 메시지를 '회원가입 성공'으로 지정
-        return this.generateAuthResponse(newUser, '회원가입 성공');
+      const newUser = await tx.user.create({
+        data: { email, password: hashedPassword, nickname, provider: Provider.LOCAL },
+      });
+      await tx.userStat.create({ data: { userId: newUser.id } });
+
+      // ✅ [수정] 메시지를 '회원가입 성공'으로 지정
+      return this.generateAuthResponse(newUser, '회원가입 성공');
     });
   }
 
@@ -152,7 +152,7 @@ export class AuthService {
   // ----------------------------------------------------------------
   private async generateAuthResponse(user: any, message: string = '로그인 성공') {
     const payload = { sub: user.id, email: user.email };
-    
+
     const accessToken = this.jwtService.sign(payload, { expiresIn: '30m' });
     const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
 
@@ -170,10 +170,10 @@ export class AuthService {
         refreshToken,
         expiresIn: 1800,
         user: {
-            id: user.id,
-            email: user.email,
-            nickname: user.nickname,
-            profileImage: user.profileImage
+          id: user.id,
+          email: user.email,
+          nickname: user.nickname,
+          profileImage: user.profileImage
         }
       },
       error: null, // ✅ [수정] 사진 명세와 일치하도록 null 필드 추가
@@ -233,14 +233,14 @@ export class AuthService {
   async logout(userId: string, accessToken: string) {
     // 1. Refresh Token 삭제 (기존 로직)
     await this.redisService.del(`auth:refresh_token:${userId}`);
-    
+
     // 2. Access Token 블랙리스트 등록 (추가된 로직)
     // Access Token의 남은 유효시간을 계산하거나, 단순히 표준 만료시간(30분)으로 설정
     // 키: auth:blacklist:{token}, 값: 'true', TTL: 1800초 (30분)
     if (accessToken) {
-        // "Bearer " 접두사가 있다면 제거
-        const token = accessToken.replace('Bearer ', '');
-        await this.redisService.set(`auth:blacklist:${token}`, 'true', 1800);
+      // "Bearer " 접두사가 있다면 제거
+      const token = accessToken.replace('Bearer ', '');
+      await this.redisService.set(`auth:blacklist:${token}`, 'true', 1800);
     }
 
     return { success: true, message: '로그아웃 성공', error: null };

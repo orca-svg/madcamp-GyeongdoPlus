@@ -3,6 +3,8 @@ PODS:
   - geolocator_apple (1.2.0):
     - Flutter
     - FlutterMacOS
+  - kakao_flutter_sdk_common (1.10.0):
+    - Flutter
   - kakao_map_plugin (0.0.1):
     - Flutter
   - package_info_plus (0.4.5):
@@ -17,6 +19,7 @@ PODS:
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - geolocator_apple (from `.symlinks/plugins/geolocator_apple/darwin`)
+  - kakao_flutter_sdk_common (from `.symlinks/plugins/kakao_flutter_sdk_common/ios`)
   - kakao_map_plugin (from `.symlinks/plugins/kakao_map_plugin/ios`)
   - package_info_plus (from `.symlinks/plugins/package_info_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
@@ -27,6 +30,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   geolocator_apple:
     :path: ".symlinks/plugins/geolocator_apple/darwin"
+  kakao_flutter_sdk_common:
+    :path: ".symlinks/plugins/kakao_flutter_sdk_common/ios"
   kakao_map_plugin:
     :path: ".symlinks/plugins/kakao_map_plugin/ios"
   package_info_plus:
@@ -39,6 +44,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   geolocator_apple: ab36aa0e8b7d7a2d7639b3b4e48308394e8cef5e
+  kakao_flutter_sdk_common: 682b3606698f87467788598dc2dc09d4e6867fbd
   kakao_map_plugin: 4d54a08bb9f59383c361f6f2d5526b5359ccb728
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb

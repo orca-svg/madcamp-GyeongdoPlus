@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../data/api/auth_api.dart';
+import '../data/api_client.dart';
 import '../data/dto/auth_dto.dart';
 import '../data/models/user_model.dart';
+import 'app_providers.dart';
+import 'user_provider.dart';
 
 enum AuthStatus { signedOut, signingIn, signedIn }
 
@@ -116,6 +118,9 @@ class AuthController extends Notifier<AuthState> {
           refreshToken: refreshToken,
           displayName: (name == null || name.isEmpty) ? '익명' : name,
         );
+        // Push token to ApiClient
+        ref.read(apiClientProvider).setAuthToken(token);
+
         debugPrint('[AUTH] loadFromPrefs result=signedIn');
         return;
       }
@@ -126,6 +131,9 @@ class AuthController extends Notifier<AuthState> {
         accessToken: null,
         displayName: null,
       );
+      // Clear ApiClient
+      ref.read(apiClientProvider).clearAuthToken();
+
       debugPrint('[AUTH] loadFromPrefs result=signedOut');
     } catch (e, st) {
       debugPrint('[AUTH] loadFromPrefs error=$e\n$st');
@@ -161,6 +169,9 @@ class AuthController extends Notifier<AuthState> {
           user: user,
         );
 
+        // Push token to ApiClient
+        ref.read(apiClientProvider).setAuthToken(token);
+
         final prefs = await _tryPrefs();
         if (prefs != null) {
           await prefs.setString(_kAccessToken, token);
@@ -181,28 +192,51 @@ class AuthController extends Notifier<AuthState> {
     debugPrint('[AUTH] signIn(kakao) start');
 
     try {
-      final api = ref.read(authApiProvider);
-      final request = KakaoLoginRequest(kakaoAccessToken: kakaoAccessToken);
-      final response = await api.loginWithKakao(request);
+      final repository = ref.read(authRepositoryProvider);
+      final result = await repository.kakaoLogin(kakaoAccessToken);
 
-      if (response.success && response.data != null) {
-        final data = response.data!;
+      if (result.success && result.data != null) {
+        final data = result.data!;
+
+        // Convert UserDto to UserModel (use guest as base for stats)
+        final user = UserModel.guest().copyWith(
+          id: data.user.id,
+          email: data.user.email,
+          nickname: data.user.nickname,
+          profileImageUrl: data.user.profileImage,
+        );
+
         state = state.copyWith(
           initialized: true,
           status: AuthStatus.signedIn,
           accessToken: data.accessToken,
-          displayName: data.user?.nickname ?? '익명',
-          user: data.user,
+          refreshToken: data.refreshToken,
+          displayName: data.user.nickname,
+          user: user,
         );
+
+        // Push token to ApiClient
+        ref.read(apiClientProvider).setAuthToken(data.accessToken);
 
         final prefs = await _tryPrefs();
         if (prefs != null) {
           await prefs.setString(_kAccessToken, data.accessToken);
-          await prefs.setString(_kDisplayName, data.user?.nickname ?? '익명');
+          await prefs.setString(_kRefreshToken, data.refreshToken);
+          await prefs.setString(_kDisplayName, data.user.nickname);
         }
-        debugPrint('[AUTH] signIn(kakao) success');
+
+        debugPrint(
+          '[AUTH] signIn(kakao) success (isNewUser: ${data.isNewUser})',
+        );
+
+        // Fetch user profile after successful login (non-blocking)
+        try {
+          await ref.read(userProvider.notifier).fetchMyProfile();
+        } catch (e) {
+          debugPrint('[AUTH] Profile fetch failed (non-critical): $e');
+        }
       } else {
-        debugPrint('[AUTH] signIn(kakao) failed: ${response.error}');
+        debugPrint('[AUTH] signIn(kakao) failed: ${result.errorMessage}');
         state = state.copyWith(
           initialized: true,
           status: AuthStatus.signedOut,
@@ -250,6 +284,8 @@ class AuthController extends Notifier<AuthState> {
         user: guestUser,
       );
 
+      ref.read(apiClientProvider).setAuthToken(token);
+
       final prefs = await _tryPrefs();
       if (prefs != null) {
         await prefs.setString(_kAccessToken, token);
@@ -275,12 +311,13 @@ class AuthController extends Notifier<AuthState> {
         return null;
       }
 
+      // Use API directly for refresh (not repository) to avoid circular dependency
       final authApi = ref.read(authApiProvider);
-      final request = RefreshRequest(refreshToken: currentRefreshToken);
-      final response = await authApi.refreshToken(request);
+      final request = RefreshRequestDto(refreshToken: currentRefreshToken);
+      final response = await authApi.refresh(request);
 
-      if (!response.success || response.data == null) {
-        debugPrint('[AUTH] refreshAccessToken failed: ${response.error}');
+      if (response.success != true || response.data == null) {
+        debugPrint('[AUTH] refreshAccessToken failed: ${response.message}');
         return null;
       }
 
@@ -291,6 +328,9 @@ class AuthController extends Notifier<AuthState> {
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
       );
+
+      // Push token to ApiClient
+      ref.read(apiClientProvider).setAuthToken(data.accessToken);
 
       // Save new tokens to SharedPreferences
       final prefs = await _tryPrefs();
@@ -316,6 +356,9 @@ class AuthController extends Notifier<AuthState> {
       debugPrint('[AUTH] logout API error: $e');
     }
 
+    // Clear ApiClient token
+    ref.read(apiClientProvider).clearAuthToken();
+
     // Clear local storage
     final prefs = await _tryPrefs();
     if (prefs != null) {
@@ -335,6 +378,10 @@ class AuthController extends Notifier<AuthState> {
       displayName: null,
       user: null,
     );
+
+    // Reset user profile data
+    ref.read(userProvider.notifier).reset();
+
     debugPrint('[AUTH] signOut');
   }
 }
