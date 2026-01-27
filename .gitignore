@@ -51,5 +51,5 @@ CLAUDE.md
 code_dump.txt
 GEMINI.md
 
-./backend/docker-compose.yml
-./backend/Dockerfile
+/backend/docker-compose.yml
+/backend/Dockerfile
