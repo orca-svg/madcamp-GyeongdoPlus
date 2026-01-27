@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../features/match/match_state_model.dart';
 import '../net/ws/dto/radar_ping.dart';
+import '../providers/active_tab_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/match_rules_provider.dart';
 import '../providers/match_state_sim_provider.dart';
@@ -26,7 +27,8 @@ class StateSnapshotBuilder {
 
     // gameMode.wire 확장/필드가 있는 프로젝트도 있고 아닌 경우도 있어,
     // string 변환을 최대한 안전하게 처리합니다.
-    final mode = _safeWire(rules.gameMode) ??
+    final mode =
+        _safeWire(rules.gameMode) ??
         (sim?.mode != null ? _safeWire(sim!.mode) : null) ??
         'NORMAL';
 
@@ -36,7 +38,8 @@ class StateSnapshotBuilder {
         ? room.policeCount
         : rules.policeCount;
 
-    final thiefAlive = sim?.live.score.thiefFree ??
+    final thiefAlive =
+        sim?.live.score.thiefFree ??
         max(0, rules.maxPlayers - rules.policeCount);
 
     final thiefCaptured = sim?.live.score.thiefCaptured ?? 0;
@@ -51,6 +54,7 @@ class StateSnapshotBuilder {
 
     final payload = <String, dynamic>{
       'phase': _phaseWire(phase),
+      'activeTab': read(activeTabWireProvider),
       'team': team,
       'mode': mode,
       'timeRemainSec': timeRemainSec,
@@ -68,6 +72,14 @@ class StateSnapshotBuilder {
         'rescues': 0,
         'escapeSec': 0,
         'hr': null,
+        'hrMax': null, // PostGame용 최대 심박수
+      },
+      // 프로필 정보 (OffGame/Lobby용)
+      'profile': {
+        'nickname': room.me?.name ?? 'PLAYER',
+        'policeRank': 'BRONZE', // TODO: 실제 랭크 provider 연결
+        'thiefRank': 'BRONZE', // TODO: 실제 랭크 provider 연결
+        'isReady': room.me?.ready ?? false,
       },
       'rulesLite': {
         'contactMode': _safeWire(rules.contactMode) ?? 'CONTACT',
@@ -77,10 +89,9 @@ class StateSnapshotBuilder {
         'jailRadiusM': rules.jailRadiusM?.round(),
         'zonePoints': rules.zonePolygon?.length ?? 0,
       },
-      'nearby': {
-        'allyCount10m': allyCount10m,
-        'enemyNear': enemyNear,
-      },
+      'nearby': {'allyCount10m': allyCount10m, 'enemyNear': enemyNear},
+      // 아이템/능력 모드 확장 포인트 (빈 객체로 시작)
+      'modeOptions': <String, dynamic>{},
     };
 
     return {
