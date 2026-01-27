@@ -1,13 +1,7 @@
-// In-game map: taller map area and server-driven polygon/jail display only.
-// Why: give more space to the map without adding edit interactions.
-// Keeps polygon/circle from matchRulesProvider and shows missing config hints.
-// Adjusts height dynamically to avoid overflow on small screens.
-// Maintains neon border and legend pills.
-// Adds ArrestPanel (Police Only) and GameRulesOverlay trigger.
-// Includes Mock Location Logic for validation.
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
@@ -18,6 +12,8 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../services/watch_sync_service.dart';
+import '../map/game_map_renderer.dart';
 import 'widgets/arrest_panel.dart';
 import 'widgets/game_rules_overlay.dart';
 
@@ -30,9 +26,10 @@ class InGameMapScreen extends ConsumerStatefulWidget {
 
 class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
   // Mock Location Data for Validation
-  // Thief is fixed at Seoul City Hall
   final LatLng _thiefPos = LatLng(37.5665, 126.9780);
   late LatLng _myPos;
+
+  final _renderer = GameMapRenderer();
 
   @override
   void initState() {
@@ -77,36 +74,18 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
     // Check if I am Police (default to false if not found)
     final isPolice = room.me?.team == Team.police;
 
-    final polygon = rules.zonePolygon ?? const <GeoPointDto>[];
-    final jailCenter = rules.jailCenter;
-    final jailRadiusM = rules.jailRadiusM ?? 12;
+    // Build map overlays using renderer
+    final polygons = _renderer.buildPolygons(rules.zonePolygon);
+    final circles = _renderer.buildCircles(
+      rules.jailCenter,
+      rules.jailRadiusM ?? 12.0,
+    );
 
-    final LatLng center = polygon.isNotEmpty
-        ? LatLng(polygon.first.lat, polygon.first.lng)
-        : (jailCenter != null
-              ? LatLng(jailCenter.lat, jailCenter.lng)
+    final center = polygons.isNotEmpty && polygons[0].points.isNotEmpty
+        ? polygons[0].points[0]
+        : (rules.jailCenter != null
+              ? LatLng(rules.jailCenter!.lat, rules.jailCenter!.lng)
               : LatLng(37.5665, 126.9780));
-
-    final polygonOverlay = polygon.length >= 3
-        ? Polygon(
-            polygonId: 'arena',
-            points: [for (final p in polygon) LatLng(p.lat, p.lng)],
-            strokeColor: AppColors.borderCyan.withOpacity(0.9),
-            strokeWidth: 2,
-            fillColor: AppColors.borderCyan.withOpacity(0.14),
-          )
-        : null;
-
-    final jailCircle = jailCenter == null
-        ? null
-        : Circle(
-            circleId: 'jail',
-            center: LatLng(jailCenter.lat, jailCenter.lng),
-            radius: jailRadiusM.toDouble(),
-            strokeColor: AppColors.purple.withOpacity(0.9),
-            strokeWidth: 2,
-            fillColor: AppColors.purple.withOpacity(0.14),
-          );
 
     // Distance Calculation Logic
     final distanceToThief = _calcDistance(_myPos, _thiefPos);
@@ -162,12 +141,8 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                                 currentLevel: 4,
                                 zoomControl: true,
                                 mapTypeControl: false,
-                                polygons: polygonOverlay == null
-                                    ? null
-                                    : [polygonOverlay],
-                                circles: jailCircle == null
-                                    ? null
-                                    : [jailCircle],
+                                polygons: polygons,
+                                circles: circles,
                               ),
                               Positioned(
                                 top: 10,
@@ -203,9 +178,20 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                 ArrestPanel(
                   isEnabled: canArrest,
                   distanceM: distanceToThief, // Pass distance for feedback
-                  onArrest: () {
-                    showAppSnackBar(context, message: '도둑 체포 시도!');
-                    // TODO: Send socket event 'arrest'
+                  onArrest: () async {
+                    // Check Watch Connection
+                    final sync = ref.read(watchSyncServiceProvider);
+                    if (await sync.isPairedOrConnected()) {
+                      await sync.sendHapticCommand({'kind': 'HEAVY'});
+                      if (context.mounted) {
+                        showAppSnackBar(context, message: '워치로 체포 진동 전송!');
+                      }
+                    } else {
+                      HapticFeedback.heavyImpact();
+                      if (context.mounted) {
+                        showAppSnackBar(context, message: '도둑 체포 시도! (폰 진동)');
+                      }
+                    }
                   },
                 ),
 

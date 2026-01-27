@@ -205,3 +205,7 @@ Flutter: SOCKET_IO_URL=http://192.0.0.2:3000
 - USB-C 케이블 사용 (무선보다 빠름)
 - Release 빌드는 `flutter build ios` 사용
 - 개발 중에는 Debug 빌드 권장
+
+## 테스트 방법
+- frontend 프로젝트에서 fvm flutter pub get 실행
+- cd ios로 ios 폴더 이동 /opt/homebrew/opt/ruby/bin/bundle exec pod install

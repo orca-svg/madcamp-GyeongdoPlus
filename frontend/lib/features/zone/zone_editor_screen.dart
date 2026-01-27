@@ -87,9 +87,11 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
       setState(() {
         _initialPos = LatLng(pos.latitude, pos.longitude);
       });
+      debugPrint('[ZoneEditor] GPS found: ${pos.latitude}, ${pos.longitude}');
 
       // If map is already ready, move camera
       if (_mapController != null) {
+        debugPrint('[ZoneEditor] PanTo GPS location (late)');
         _mapController!.panTo(_initialPos!);
       }
     } catch (e) {
@@ -333,6 +335,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     });
                     // Move to GPS buffer if available
                     if (_initialPos != null && confirmed.isEmpty) {
+                      debugPrint('[ZoneEditor] PanTo GPS location (init)');
                       controller.panTo(_initialPos!);
                     }
                   }

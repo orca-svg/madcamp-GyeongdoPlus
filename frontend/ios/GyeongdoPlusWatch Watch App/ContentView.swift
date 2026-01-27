@@ -214,29 +214,90 @@ struct InGameRadarView: View {
 
     var body: some View {
         let p = wc.snapshot?.payload
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ConnectionPill(isConnected: wc.isReachable)
+        ZStack(alignment: .bottomTrailing) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    ConnectionPill(isConnected: wc.isReachable)
+                    Spacer()
+                    // Heart Rate
+                    if wc.currentHeartRate > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart.fill")
+                                .foregroundColor(.red)
+                                .font(.system(size: 10))
+                            Text("\(wc.currentHeartRate)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                }
+                
+                if (p?.nearby.enemyNear ?? false) && p?.team == "THIEF" {
+                    DangerPill()
+                }
+                
+                // Header + Compass
+                HStack {
+                    Text("레이더").font(.system(size: 16, weight: .bold))
+                    Spacer()
+                    ZStack {
+                        Circle().fill(Color.gray.opacity(0.2)).frame(width: 32, height: 32)
+                        Image(systemName: "location.north.line.fill")
+                            .foregroundColor(.cyan)
+                            .font(.system(size: 20))
+                            .rotationEffect(.degrees(-wc.currentHeading))
+                    }
+                }
+                
+                Text("아군 10m: \(p?.nearby.allyCount10m ?? 0)")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("남은 시간: \(p?.timeRemainSec ?? 0)s")
+                    .font(.system(size: 12, weight: .semibold))
+                LargeButton(title: "PING") {
+                    wc.sendAction(action: "PING", value: nil)
+                }
                 Spacer()
             }
+            .padding()
+            .background(Color.black.opacity(0.92))
+            .onTapGesture {
+                wc.sendAction(action: "OPEN_TAB", value: "INGAME_RADAR")
+            }
             
-            if (p?.nearby.enemyNear ?? false) && p?.team == "THIEF" {
-                DangerPill()
+            // Skill Button Overlay
+            if let skill = p?.my.skill, skill.type != "none" {
+                Button(action: { wc.sendAction(action: "USE_SKILL", value: nil) }) {
+                    ZStack {
+                        Circle().fill(Color.black.opacity(0.6)).frame(width: 50, height: 50)
+                        if !skill.ready {
+                            Circle()
+                                .trim(from: 0.0, to: CGFloat(1.0 - Double(skill.remain)/Double(max(1, skill.total))))
+                                .stroke(Color.cyan, lineWidth: 3)
+                                .rotationEffect(.degrees(-90))
+                                .frame(width: 48, height: 48)
+                        } else {
+                            Circle().stroke(Color.cyan, lineWidth: 3).frame(width: 50, height: 50)
+                        }
+                        
+                        Image(systemName: skill.sf)
+                            .font(.system(size: 20))
+                            .foregroundColor(skill.ready ? .white : .gray)
+                        
+                        if !skill.ready {
+                            Text("\(skill.remain)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding([.bottom, .trailing], 8)
+                .disabled(!skill.ready)
             }
-            Text("레이더").font(.system(size: 16, weight: .bold))
-            Text("아군 10m: \(p?.nearby.allyCount10m ?? 0)")
-                .font(.system(size: 12, weight: .semibold))
-            Text("남은 시간: \(p?.timeRemainSec ?? 0)s")
-                .font(.system(size: 12, weight: .semibold))
-            LargeButton(title: "PING") {
-                wc.sendAction(action: "PING", value: nil)
-            }
-            Spacer()
-        }
-        .padding()
-        .background(Color.black.opacity(0.92))
-        .onTapGesture {
-            wc.sendAction(action: "OPEN_TAB", value: "INGAME_RADAR")
         }
     }
 }

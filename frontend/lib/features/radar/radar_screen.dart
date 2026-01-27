@@ -34,6 +34,9 @@ import '../../providers/radar_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../providers/watch_provider.dart';
 import 'widgets/radar_painter.dart';
+import '../../watch/watch_sync_controller.dart';
+import '../game/widgets/skill_button.dart';
+import '../../models/game_config.dart';
 
 class RadarScreen extends ConsumerStatefulWidget {
   const RadarScreen({super.key});
@@ -112,6 +115,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final room = ref.watch(roomProvider);
     final wsConn = ref.watch(wsConnectionProvider);
     final watchConnected = ref.watch(watchConnectedProvider);
+    final watchSync = ref.watch(watchSyncControllerProvider);
     final gameMode = ref.watch(currentGameModeProvider);
 
     final match = sync.lastMatchState?.payload;
@@ -126,6 +130,13 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,
+      floatingActionButton: (gameMode == GameMode.ability)
+          ? const Padding(
+              padding: EdgeInsets.only(bottom: 60),
+              child: SkillButton(),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: GlassBackground(
         child: SafeArea(
           bottom: true,
@@ -155,13 +166,15 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   GlowCard(
                     glow: false,
                     borderColor: AppColors.outlineLow,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     child: Text(
                       _summaryLine(match: match, myTeam: myTeam, ping: ping),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: AppColors.textSecondary),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -193,7 +206,10 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(18),
                             child: CustomPaint(
-                              painter: RadarPainter(sweep01: _sweep, pings: ui.pings),
+                              painter: RadarPainter(
+                                sweep01: _sweep,
+                                pings: ui.pings,
+                              ),
                             ),
                           ),
                         ),
@@ -207,13 +223,17 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   GlowCard(
                     glow: false,
                     borderColor: AppColors.outlineLow,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '방향 미확인 신호',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 color: AppColors.textSecondary,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -222,9 +242,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                         for (final p in ui.pings.where((p) => !p.hasBearing))
                           Text(
                             '${p.kind == RadarPingKind.ally ? '아군' : '적'}: ~${p.distanceM.round()}m',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: AppColors.textMuted),
                           ),
                       ],
@@ -288,7 +306,8 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                             const SizedBox(width: 10),
                             Text(
                               ui.dangerTitle,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.orange,
                                   ),
@@ -296,7 +315,8 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                             const Spacer(),
                             Text(
                               ui.etaText,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
                                     color: AppColors.red,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -309,15 +329,14 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                             Expanded(
                               child: Text(
                                 ui.directionText,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: AppColors.textSecondary),
                               ),
                             ),
                             Text(
                               ui.distanceText,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
                                     color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -330,8 +349,12 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                           child: LinearProgressIndicator(
                             value: ui.progress01,
                             minHeight: 10,
-                            backgroundColor: AppColors.outlineLow.withOpacity(0.9),
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.orange),
+                            backgroundColor: AppColors.outlineLow.withOpacity(
+                              0.9,
+                            ),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppColors.orange,
+                            ),
                           ),
                         ),
                       ],
@@ -347,10 +370,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     collapsedIconColor: AppColors.textSecondary,
                     title: Text(
                       '추가 정보',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     children: [
                       const SizedBox(height: 8),
@@ -365,9 +387,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                                 children: [
                                   Text(
                                     '현재 상태',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
+                                    style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(color: AppColors.textMuted),
                                   ),
                                   const SizedBox(height: 10),
@@ -392,9 +412,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                                 children: [
                                   Text(
                                     '권장 행동',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
+                                    style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(color: AppColors.textMuted),
                                   ),
                                   const SizedBox(height: 10),
@@ -415,7 +433,11 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     ],
                   ),
                 ] else ...[
-                  _buildHeartRateSection(context, watchConnected),
+                  _buildHeartRateSection(
+                    context,
+                    watchConnected,
+                    watchSync.currentHeartRate,
+                  ),
                 ],
 
                 const SizedBox(height: 14),
@@ -429,35 +451,51 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     children: [
                       if (kDebugMode)
                         TextButton.icon(
-                          onPressed: () => ref.read(wsConnectionProvider.notifier).connect(),
+                          onPressed: () =>
+                              ref.read(wsConnectionProvider.notifier).connect(),
                           icon: const Icon(Icons.link_rounded, size: 18),
                           label: Text('WS 연결 (${wsConn.status.name})'),
-                          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.textSecondary,
+                          ),
                         ),
                       if (kDebugMode)
                         TextButton.icon(
-                          onPressed: () => ref.read(wsConnectionProvider.notifier).disconnect(),
+                          onPressed: () => ref
+                              .read(wsConnectionProvider.notifier)
+                              .disconnect(),
                           icon: const Icon(Icons.link_off_rounded, size: 18),
                           label: const Text('WS 해제'),
-                          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.textSecondary,
+                          ),
                         ),
                       TextButton.icon(
                         onPressed: () async {
-                          await ref.read(watchConnectedProvider.notifier).refresh();
+                          await ref
+                              .read(watchConnectedProvider.notifier)
+                              .refresh();
                           final ok = ref.read(watchConnectedProvider);
                           if (!context.mounted) return;
-                          showAppSnackBar(context, message: 'Watch connected: $ok');
+                          showAppSnackBar(
+                            context,
+                            message: 'Watch connected: $ok',
+                          );
                         },
                         icon: const Icon(Icons.watch_rounded, size: 18),
                         label: const Text('연결 확인'),
-                        style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                        ),
                       ),
                       if (kDebugMode)
                         TextButton.icon(
                           onPressed: () => _mockRadarPing(ref: ref),
                           icon: const Icon(Icons.waves_rounded, size: 18),
                           label: const Text('Mock RadarPing 수신'),
-                          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.textSecondary,
+                          ),
                         ),
                     ],
                   ),
@@ -507,9 +545,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         Text(
           remainText,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
         ),
         const SizedBox(width: 10),
         ConnectionIndicator(
@@ -556,7 +594,11 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   }
 
   /// 일반 모드: 심박수만 표시
-  Widget _buildHeartRateSection(BuildContext context, bool watchConnected) {
+  Widget _buildHeartRateSection(
+    BuildContext context,
+    bool watchConnected,
+    int? bpm,
+  ) {
     return GlowCard(
       glow: false,
       borderColor: AppColors.outlineLow,
@@ -574,18 +616,21 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
             children: [
               Text(
                 '심박수',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppColors.textMuted),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
               ),
               const SizedBox(height: 4),
               Text(
-                watchConnected ? '-- BPM' : '워치 연결 필요',
+                (watchConnected && bpm != null && bpm > 0)
+                    ? '$bpm BPM'
+                    : (watchConnected ? '-- BPM' : '워치 연결 필요'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: watchConnected ? AppColors.textPrimary : AppColors.textMuted,
-                    ),
+                  fontWeight: FontWeight.w800,
+                  color: watchConnected
+                      ? AppColors.textPrimary
+                      : AppColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -597,12 +642,20 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   /// 팀 현황 계산
   _TeamStats _computeTeamStats(MatchStateDto? match) {
     if (match == null) {
-      return const _TeamStats(policeCount: '—', thiefFree: '—', thiefCaptured: '—');
+      return const _TeamStats(
+        policeCount: '—',
+        thiefFree: '—',
+        thiefCaptured: '—',
+      );
     }
 
     final score = match.live.score;
     if (score == null) {
-      return const _TeamStats(policeCount: '—', thiefFree: '—', thiefCaptured: '—');
+      return const _TeamStats(
+        policeCount: '—',
+        thiefFree: '—',
+        thiefCaptured: '—',
+      );
     }
 
     final policeCount = match.teams.police.playerIds.length;
@@ -621,11 +674,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final room = ref.read(roomProvider);
     final now = DateTime.now().millisecondsSinceEpoch;
     final matchId =
-        ref.read(matchSyncProvider).lastMatchState?.payload.matchId ?? 'MATCH_DEMO';
+        ref.read(matchSyncProvider).lastMatchState?.payload.matchId ??
+        'MATCH_DEMO';
 
     if (ref.read(matchSyncProvider).lastMatchState == null) {
-      final ms = _buildMockMatchState(room: room, matchId: matchId, serverNowMs: now);
-      ref.read(matchSyncProvider.notifier).setMatchState(
+      final ms = _buildMockMatchState(
+        room: room,
+        matchId: matchId,
+        serverNowMs: now,
+      );
+      ref
+          .read(matchSyncProvider.notifier)
+          .setMatchState(
             WsEnvelope(
               v: 1,
               type: WsType.matchState,
@@ -641,8 +701,18 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
       forPlayerId: room.myId.isEmpty ? 'me' : room.myId,
       ttlMs: 7000,
       pings: const [
-        RadarPingVector(kind: 'ENEMY', bearingDeg: 25, distanceM: 14, confidence: 0.75),
-        RadarPingVector(kind: 'JAIL', bearingDeg: 210, distanceM: 35, confidence: 0.92),
+        RadarPingVector(
+          kind: 'ENEMY',
+          bearingDeg: 25,
+          distanceM: 14,
+          confidence: 0.75,
+        ),
+        RadarPingVector(
+          kind: 'JAIL',
+          bearingDeg: 210,
+          distanceM: 35,
+          confidence: 0.92,
+        ),
       ],
     );
     final env = WsEnvelope<RadarPingPayload>(
@@ -663,7 +733,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         .captureProgress
         ?.progress01;
 
-    ref.read(watchRadarVectorProvider.notifier).setLastRadarVector(
+    ref
+        .read(watchRadarVectorProvider.notifier)
+        .setLastRadarVector(
           WatchRadarVector(
             headingDeg: 72,
             ttlMs: payload.ttlMs,
@@ -698,7 +770,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   /// ✅ remaining time (mm:ss) with smoothing
   String _remainingTimeText(MatchStateDto? match) {
     // 1) anchor-based smoothing (preferred)
-    if (_endsAtMs != null && _lastServerNowMs != null && _lastLocalNowMs != null) {
+    if (_endsAtMs != null &&
+        _lastServerNowMs != null &&
+        _lastLocalNowMs != null) {
       final localNow = DateTime.now().millisecondsSinceEpoch;
       final elapsedLocal = localNow - _lastLocalNowMs!;
       final estServerNow = _lastServerNowMs! + elapsedLocal;
@@ -802,7 +876,10 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
       ],
     );
   }
