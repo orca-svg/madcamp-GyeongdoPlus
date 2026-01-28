@@ -255,7 +255,6 @@ private fun InGameView(
     team: String,
     mode: String,
     timeRemainSec: Int,
-    timeRemainSec: Int,
     radarState: String, // Debug text, can be ignored
     captureProgress: Float?,
     allies: List<RadarAlly>,

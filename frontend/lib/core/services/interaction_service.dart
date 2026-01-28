@@ -223,6 +223,14 @@ class InteractionService {
 
   /// Update proximity zones and trigger haptics with cooldown
   void _updateProximityZones(Map<String, PlayerDistance> distances) {
+    final roomState = _ref.read(roomProvider);
+    final myTeam = roomState.me?.team;
+
+    // Rule: Police get NO proximity vibration (unless item used, handled elsewhere)
+    if (myTeam == Team.police) {
+      return;
+    }
+
     // Find the closest enemy
     double? closestDistance;
     String? closestEnemy;
@@ -236,19 +244,27 @@ class InteractionService {
     }
 
     if (closestDistance != null && closestEnemy != null) {
-      HapticPattern? pattern;
-      if (closestDistance < ProximityZone.extreme) {
-        pattern = HapticPattern.proximityExtreme; // 1m - Heavy heartbeat
-      } else if (closestDistance < ProximityZone.close) {
-        pattern = HapticPattern.proximityClose; // 3m - Medium
-      } else if (closestDistance < ProximityZone.medium) {
-        pattern = HapticPattern.proximityMedium; // 5m - Light
+      // Rule: Thief gets vibration only if Police is within 15m
+      if (closestDistance > 15.0) {
+        return;
       }
 
-      if (pattern != null && _canTriggerHaptic(closestEnemy)) {
+      HapticPattern? pattern;
+      if (closestDistance < ProximityZone.extreme) {
+        pattern = HapticPattern.proximityExtreme; // 1m
+      } else if (closestDistance < ProximityZone.close) {
+        pattern = HapticPattern.proximityClose; // 3m
+      } else if (closestDistance < 5.0) {
+        pattern = HapticPattern.proximityMedium; // 5m
+      } else {
+        // 5m ~ 15m: Heartbeat / Warning
+        pattern = HapticPattern.warning;
+      }
+
+      // pattern is guaranteed by logic
+      if (_canTriggerHaptic(closestEnemy)) {
         _triggerHapticWithRouting(pattern);
         _hapticCooldowns[closestEnemy] = DateTime.now();
-        // Debug log moved to _triggerHapticWithRouting or kept minimal
       }
     }
   }
@@ -259,9 +275,7 @@ class InteractionService {
     if (isWatchConnected) {
       // Route to Watch
       final hapticType = _patternToWatchType(pattern);
-      debugPrint(
-        '[INTERACTION] Routing haptic $pattern as $hapticType to Watch',
-      );
+      // debugPrint('[INTERACTION] Routing haptic $pattern to Watch');
       await _ref.read(watchSyncServiceProvider).sendHapticCommand({
         'type': 'HAPTIC_COMMAND',
         'ts': DateTime.now().millisecondsSinceEpoch,
@@ -270,9 +284,10 @@ class InteractionService {
           'pattern': pattern.name,
         },
       });
+      // Rule: If Watch connected, Phone is SILENT.
     } else {
       // Fallback to Phone
-      debugPrint('[INTERACTION] Playing haptic $pattern on Phone');
+      // debugPrint('[INTERACTION] Playing haptic $pattern on Phone');
       await Haptics.pattern(pattern);
     }
   }

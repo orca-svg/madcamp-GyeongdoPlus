@@ -60,9 +60,10 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '이번 단계에서는 WS 없이도 로비 UI를 확인할 수 있도록 오프라인 참여만 제공합니다.',
+                      '서버 연결이 어려운 경우, 코드 "TEST"를 입력하면 오프라인 모드로 로비를 테스트할 수 있습니다.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
+                        height: 1.4,
                       ),
                     ),
                     const SizedBox(height: 14),

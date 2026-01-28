@@ -101,9 +101,11 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
     }
 
     final points = _form.polygon ?? [];
-    final center = points.isNotEmpty
-        ? _centroid(points)
-        : LatLng(37.5665, 126.9780); // Default Seoul
+    final center = (_form.jailCenter != null)
+        ? LatLng(_form.jailCenter!.lat, _form.jailCenter!.lng)
+        : (points.isNotEmpty
+              ? _centroid(points)
+              : LatLng(37.5665, 126.9780)); // Default Seoul
 
     return KakaoMap(
       center: center,

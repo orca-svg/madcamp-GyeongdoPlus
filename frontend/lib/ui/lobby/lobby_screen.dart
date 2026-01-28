@@ -434,22 +434,34 @@ class _InteractiveMemberRow extends StatelessWidget {
           : const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          // Role Icon (Tappable if me)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onRoleTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: teamColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
+          // Role Icon or Toggle (if isMe)
+          if (isMe)
+            _RoleToggle(
+              team: member.team,
+              onChanged: (newTeam) {
+                // Determine if we actually changed
+                if (newTeam != member.team && onRoleTap != null) {
+                  onRoleTap!();
+                }
+              },
+            )
+          else
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap:
+                    onRoleTap, // This will be null if !isMe, making it non-tappable
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: teamColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(teamIcon, size: 20, color: teamColor),
                 ),
-                child: Icon(teamIcon, size: 20, color: teamColor),
               ),
             ),
-          ),
           const SizedBox(width: 12),
           // Name and Host Badge
           Expanded(
@@ -603,6 +615,56 @@ class _RoomCodeCard extends StatelessWidget {
             tooltip: '코드 복사',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RoleToggle extends StatelessWidget {
+  final Team team;
+  final ValueChanged<Team> onChanged;
+
+  const _RoleToggle({required this.team, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.outlineLow),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _option(Team.police),
+          Container(width: 1, height: 20, color: AppColors.outlineLow),
+          _option(Team.thief),
+        ],
+      ),
+    );
+  }
+
+  Widget _option(Team t) {
+    final selected = team == t;
+    final color = t == Team.police ? AppColors.borderCyan : AppColors.red;
+    final icon = t == Team.police ? Icons.shield_rounded : Icons.lock_rounded;
+
+    return InkWell(
+      onTap: () => onChanged(t),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: selected ? color : AppColors.textPrimary,
+        ),
       ),
     );
   }

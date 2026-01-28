@@ -380,6 +380,15 @@ class RoomController extends Notifier<RoomState> {
 
   Future<bool> joinRoom({required String myName, required String code}) async {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
+    final rawInput = code.trim().toUpperCase();
+
+    // 1. Mock/Offline Fallback for Testing
+    if (['TEST', 'OFFLINE', '0000'].contains(rawInput)) {
+      debugPrint('[ROOM] Mock Join Triggered with code: $rawInput');
+      enterLobbyOffline(myName: name);
+      return true;
+    }
+
     final normalizedCode = _normalizeCode(code);
     state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
 
@@ -427,10 +436,18 @@ class RoomController extends Notifier<RoomState> {
       }
       return true;
     } else {
-      state = state.copyWith(
-        status: RoomStatus.error,
-        errorMessage: result.errorMessage ?? 'Failed to join room',
-      );
+      debugPrint('[ROOM] Join failed: ${result.errorMessage}');
+      // Simplify Dio error message for user if possible
+      var msg = result.errorMessage ?? 'Failed to join room';
+      if (msg.contains('404')) {
+        msg = '존재하지 않는 방입니다 (404)';
+      } else if (msg.contains('401') || msg.contains('403')) {
+        msg = '입장 권한이 없습니다';
+      } else if (msg.contains('connection') || msg.contains('host')) {
+        msg = '서버 연결에 실패했습니다';
+      }
+
+      state = state.copyWith(status: RoomStatus.error, errorMessage: msg);
       return false;
     }
   }

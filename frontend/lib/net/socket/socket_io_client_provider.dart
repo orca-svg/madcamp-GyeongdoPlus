@@ -64,9 +64,10 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
     }
 
     final baseUrl = Env.socketIoUrl;
-
     state = state.copyWith(status: SocketIoConnStatus.connecting);
     _epoch += 1;
+
+    final completer = Completer<void>();
 
     try {
       _socket = io.io(
@@ -84,10 +85,21 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
             .build(),
       );
 
-      _setupListeners();
+      _setupListeners(completer);
       _socket!.connect();
 
       debugPrint('[SOCKET.IO] Connecting to $baseUrl/game');
+
+      // Wait for connection or timeout (e.g. 5 seconds)
+      // We don't want to block indefinitely if server is down,
+      // but we should give it a chance to connect for correct sequencing.
+      try {
+        await completer.future.timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint('[SOCKET.IO] Connect timeout or error: $e');
+        // We don't throw here, just let it continue in background
+        // The state will remain 'connecting' or turn 'disconnected' via listeners
+      }
     } catch (e) {
       debugPrint('[SOCKET.IO] Connection error: $e');
       state = state.copyWith(
@@ -97,7 +109,7 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
     }
   }
 
-  void _setupListeners() {
+  void _setupListeners(Completer<void> completer) {
     final socket = _socket;
     if (socket == null) return;
 
@@ -108,6 +120,7 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
         lastError: null,
         epoch: _epoch,
       );
+      if (!completer.isCompleted) completer.complete();
     });
 
     socket.onDisconnect((_) {
@@ -121,6 +134,7 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
         status: SocketIoConnStatus.disconnected,
         lastError: error.toString(),
       );
+      if (!completer.isCompleted) completer.completeError(error);
     });
 
     socket.onError((error) {
