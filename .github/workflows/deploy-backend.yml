@@ -1,0 +1,97 @@
+name: Deploy to EC2 with Docker
+
+on:
+  push:
+    branches: [ "main" ] # main 브랜치에 푸시될 때 실행
+    paths:
+      - 'backend/**' 
+      - '.github/workflows/deploy-backend.yml'
+
+jobs:
+  # 1. 빌드 및 도커 허브 푸시 작업
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: Docker Hub 로그인
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker Buildx 설정
+        uses: docker/setup-buildx-action@v2
+
+      - name: 이미지 빌드 및 푸시
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend 
+          file: ./backend/Dockerfile
+          push: true
+          # 태그: 본인DockerID/이미지명:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/cops-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 2. EC2 배포 작업
+  deploy:
+    needs: build-and-push # 빌드가 성공해야 실행됨
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃 (docker-compose.yml 가져오기 위함)
+        uses: actions/checkout@v3
+
+      # 🚀 핵심: docker-compose.yml 내의 변수를 Secrets 값으로 치환합니다.
+      - name: Replace secrets in docker-compose.yml
+        shell: bash
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          # envsubst가 파일 안의 ${VAR}를 실제 환경변수 값으로 바꿔줍니다.
+          envsubst < docker-compose.yml > docker-compose.prod.yml
+
+      - name: 완성된 docker-compose.yml 파일 EC2로 전송
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/${{ secrets.EC2_USER }}/cops-backend"
+
+      - name: SSH로 서버 접속 및 배포 실행
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.EC2_USER }}/cops-backend
+            
+            # 1. .env 파일 생성 (GitHub Secrets 값을 이용해 서버에 파일 생성)
+            echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
+            echo "NODE_ENV=production" >> .env
+            echo "PORT=4000" >> .env
+            echo "REDIS_HOST=redis" >> .env
+            echo "REDIS_PORT=6379" >> .env
+            echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
+            
+            # 2. 최신 이미지 받기 (docker-compose.yml에 적힌 이미지)
+            # (주의: docker-compose.yml의 image 필드가 사용자명/cops-backend:latest로 되어 있어야 함)
+            sed -i 's|image: .*/cops-backend:latest|image: ${{ secrets.DOCKER_USERNAME }}/cops-backend:latest|g' docker-compose.yml
+            
+            docker compose pull backend
+            
+            # 3. 컨테이너 재실행
+            docker compose up -d --remove-orphans
+            
+            # 4. 불필요한 이미지 정리
+            docker image prune -f
+
+            # 5. [추가] Prisma 마이그레이션 실행 (DB 스키마 동기화) ⭐
+            docker compose exec -T backend npx prisma migrate deploy
