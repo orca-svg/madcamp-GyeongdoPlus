@@ -21,12 +21,6 @@ import '../../core/widgets/connection_indicator.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/neon_card.dart';
-import '../../core/widgets/section_title.dart';
-import '../../net/ws/dto/match_state.dart';
-import '../../net/ws/dto/radar_ping.dart';
-import '../../net/ws/ws_envelope.dart';
-import '../../net/ws/ws_client_provider.dart';
-import '../../net/ws/ws_types.dart';
 import '../../providers/match_mode_provider.dart';
 import '../../providers/match_state_sim_provider.dart';
 import '../../providers/match_sync_provider.dart';
@@ -36,7 +30,14 @@ import '../../providers/watch_provider.dart';
 import 'widgets/radar_painter.dart';
 import '../../watch/watch_sync_controller.dart';
 import '../game/widgets/skill_button.dart';
+import '../../core/widgets/section_title.dart';
+import '../../net/ws/dto/match_state.dart';
+import '../../net/ws/dto/radar_ping.dart';
+import '../../net/ws/ws_envelope.dart';
+import '../../net/ws/ws_client_provider.dart';
+import '../../net/ws/ws_types.dart';
 import '../../models/game_config.dart';
+import '../../providers/game_provider.dart';
 
 class RadarScreen extends ConsumerStatefulWidget {
   const RadarScreen({super.key});
@@ -118,11 +119,13 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final watchSync = ref.watch(watchSyncControllerProvider);
     final gameMode = ref.watch(currentGameModeProvider);
 
+    final gameState = ref.watch(gameProvider);
+
     final match = sync.lastMatchState?.payload;
     final ping = sync.lastRadarPing?.payload;
 
     final myTeam = room.me?.team == Team.thief ? 'THIEF' : 'POLICE';
-    final teamStats = _computeTeamStats(match);
+    final teamStats = _computeTeamStats(gameState);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -265,7 +268,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                     runSpacing: 10,
                     alignment: WrapAlignment.end,
                     children: [
-                      if (kDebugMode)
+                      if (kDebugMode) ...[
                         TextButton.icon(
                           onPressed: () =>
                               ref.read(wsConnectionProvider.notifier).connect(),
@@ -275,7 +278,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                             foregroundColor: AppColors.textSecondary,
                           ),
                         ),
-                      if (kDebugMode)
                         TextButton.icon(
                           onPressed: () => ref
                               .read(wsConnectionProvider.notifier)
@@ -286,6 +288,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                             foregroundColor: AppColors.textSecondary,
                           ),
                         ),
+                      ],
                       TextButton.icon(
                         onPressed: () async {
                           await ref
@@ -304,15 +307,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                           foregroundColor: AppColors.textSecondary,
                         ),
                       ),
-                      if (kDebugMode)
-                        TextButton.icon(
-                          onPressed: () => _mockRadarPing(ref: ref),
-                          icon: const Icon(Icons.waves_rounded, size: 18),
-                          label: const Text('Mock RadarPing 수신'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -455,9 +449,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     );
   }
 
-  /// 팀 현황 계산
-  _TeamStats _computeTeamStats(MatchStateDto? match) {
-    if (match == null) {
+  /// 팀 현황 계산 (GameProvider 기반)
+  _TeamStats _computeTeamStats(GameState gameState) {
+    if (gameState.players.isEmpty) {
       return const _TeamStats(
         policeCount: '—',
         thiefFree: '—',
@@ -465,108 +459,22 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
       );
     }
 
-    final score = match.live.score;
-    if (score == null) {
-      return const _TeamStats(
-        policeCount: '—',
-        thiefFree: '—',
-        thiefCaptured: '—',
-      );
-    }
-
-    final policeCount = match.teams.police.playerIds.length;
-    final totalThief = match.teams.thief.playerIds.length;
-    final thiefCaptured = score.thiefCaptured;
-    final thiefFree = (totalThief - thiefCaptured).clamp(0, 9999);
+    final policeCount = gameState.players.values
+        .where((p) => p.team == 'POLICE')
+        .length;
+    final thiefTotal = gameState.players.values
+        .where((p) => p.team == 'THIEF')
+        .length;
+    final thiefCaptured = gameState.players.values
+        .where((p) => p.team == 'THIEF' && p.isArrested)
+        .length;
+    final thiefFree = (thiefTotal - thiefCaptured).clamp(0, 9999);
 
     return _TeamStats(
       policeCount: '$policeCount',
       thiefFree: '$thiefFree',
       thiefCaptured: '$thiefCaptured',
     );
-  }
-
-  void _mockRadarPing({required WidgetRef ref}) {
-    final room = ref.read(roomProvider);
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final matchId =
-        ref.read(matchSyncProvider).lastMatchState?.payload.matchId ??
-        'MATCH_DEMO';
-
-    if (ref.read(matchSyncProvider).lastMatchState == null) {
-      final ms = _buildMockMatchState(
-        room: room,
-        matchId: matchId,
-        serverNowMs: now,
-      );
-      ref
-          .read(matchSyncProvider.notifier)
-          .setMatchState(
-            WsEnvelope(
-              v: 1,
-              type: WsType.matchState,
-              matchId: ms.matchId,
-              seq: 1,
-              ts: now,
-              payload: ms,
-            ),
-          );
-    }
-
-    final payload = RadarPingPayload(
-      forPlayerId: room.myId.isEmpty ? 'me' : room.myId,
-      ttlMs: 7000,
-      pings: const [
-        RadarPingVector(
-          kind: 'ENEMY',
-          bearingDeg: 25,
-          distanceM: 14,
-          confidence: 0.75,
-        ),
-        RadarPingVector(
-          kind: 'JAIL',
-          bearingDeg: 210,
-          distanceM: 35,
-          confidence: 0.92,
-        ),
-      ],
-    );
-    final env = WsEnvelope<RadarPingPayload>(
-      v: 1,
-      type: WsType.radarPing,
-      matchId: matchId,
-      seq: 2,
-      ts: now,
-      payload: payload,
-    );
-    ref.read(matchSyncProvider.notifier).setRadarPing(env);
-
-    final capture = ref
-        .read(matchSyncProvider)
-        .lastMatchState
-        ?.payload
-        .live
-        .captureProgress
-        ?.progress01;
-
-    ref
-        .read(watchRadarVectorProvider.notifier)
-        .setLastRadarVector(
-          WatchRadarVector(
-            headingDeg: 72,
-            ttlMs: payload.ttlMs,
-            captureProgress01: capture,
-            pings: [
-              for (final p in payload.pings)
-                WatchRadarPing(
-                  kind: p.kind,
-                  bearingDeg: p.bearingDeg,
-                  distanceM: p.distanceM,
-                  confidence: p.confidence,
-                ),
-            ],
-          ),
-        );
   }
 
   String _summaryLine({
@@ -585,7 +493,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
 
   /// ✅ remaining time (mm:ss) with smoothing
   String _remainingTimeText(MatchStateDto? match) {
-    // 1) anchor-based smoothing (preferred)
     if (_endsAtMs != null &&
         _lastServerNowMs != null &&
         _lastLocalNowMs != null) {
@@ -598,7 +505,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
       return _fmtMmSs(remainSec);
     }
 
-    // 2) fallback: direct match payload
     final time = match?.time;
     final endsAtMs = time?.endsAtMs;
     if (time == null || endsAtMs == null) return '--:--';
@@ -613,74 +519,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final m = (totalSec ~/ 60).toString().padLeft(2, '0');
     final s = (totalSec % 60).toString().padLeft(2, '0');
     return '$m:$s';
-  }
-
-  MatchStateDto _buildMockMatchState({
-    required RoomState room,
-    required String matchId,
-    required int serverNowMs,
-  }) {
-    final police = <String>[];
-    final thief = <String>[];
-    final players = <String, MatchPlayerDto>{};
-
-    for (final m in room.members) {
-      final pid = m.id.isEmpty ? 'p_${m.name}' : m.id;
-      if (m.team == Team.thief) {
-        thief.add(pid);
-        players[pid] = MatchPlayerDto(
-          team: 'THIEF',
-          displayName: m.name,
-          status: m.ready ? 'READY' : 'WAIT',
-        );
-      } else {
-        police.add(pid);
-        players[pid] = MatchPlayerDto(
-          team: 'POLICE',
-          displayName: m.name,
-          status: m.ready ? 'READY' : 'WAIT',
-        );
-      }
-    }
-
-    return MatchStateDto(
-      matchId: matchId,
-      state: 'RUNNING',
-      mode: 'NORMAL',
-      rules: const MatchRulesDto(
-        opponentReveal: OpponentRevealRulesDto(radarPingTtlMs: 7000),
-      ),
-      time: MatchTimeDto(
-        serverNowMs: serverNowMs,
-        prepEndsAtMs: null,
-        endsAtMs: serverNowMs + 120000,
-      ),
-      teams: MatchTeamsDto(
-        police: TeamPlayersDto(playerIds: police),
-        thief: TeamPlayersDto(playerIds: thief),
-      ),
-      players: players,
-      live: MatchLiveDto(
-        score: const MatchScoreDto(thiefFree: 1, thiefCaptured: 3),
-        captureProgress: const CaptureProgressDto(
-          targetId: 'p3',
-          byPoliceId: 'p1',
-          progress01: 0.72,
-          nearOk: true,
-          speedOk: true,
-          timeOk: false,
-          allOk: false,
-          allOkSinceMs: 0,
-          lastUpdateMs: 0,
-        ),
-        rescueProgress: const RescueProgressDto(
-          byThiefId: 'p4',
-          progress01: 0.35,
-          sinceMs: 0,
-        ),
-      ),
-      arena: null,
-    );
   }
 
   Widget _legendDot(Color color, String label) {
