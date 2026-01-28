@@ -569,8 +569,8 @@ class RoomController extends Notifier<RoomState> {
     final trimmed = raw.trim().toUpperCase();
     final cleaned = trimmed.replaceAll(RegExp(r'[^A-Z0-9]'), '');
     if (cleaned.isEmpty) return _newRoomCode();
-    if (cleaned.length <= 6) return cleaned;
-    return cleaned.substring(0, 6);
+    // Allow variable length codes from backend (e.g. 6-8 chars)
+    return cleaned;
   }
 
   String _newId() =>

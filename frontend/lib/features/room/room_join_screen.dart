@@ -74,7 +74,7 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                         FilteringTextInputFormatter.allow(
                           RegExp(r'[A-Za-z0-9]'),
                         ),
-                        LengthLimitingTextInputFormatter(6),
+                        LengthLimitingTextInputFormatter(12), // RELAXED LIMIT
                       ],
                       decoration: const InputDecoration(
                         labelText: '방 코드',
@@ -132,12 +132,12 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
       showAppSnackBar(context, message: '방 코드를 입력하세요', isError: true);
       return;
     }
-    final valid = RegExp(r'^[A-Z0-9]{4,6}$').hasMatch(code);
+    final valid = RegExp(r'^[A-Z0-9]{4,12}$').hasMatch(code);
     if (!valid) {
       debugPrint('[ROOM] join fail/error=INVALID_CODE_FORMAT');
       showAppSnackBar(
         context,
-        message: '방 코드는 4~6자 영문/숫자여야 합니다',
+        message: '방 코드는 4~12자 영문/숫자여야 합니다',
         isError: true,
       );
       return;

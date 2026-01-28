@@ -73,8 +73,11 @@ class WatchSyncController extends Notifier<WatchSyncState> {
         final val = payload['value'];
         if (val is int) {
           state = state.copyWith(currentHeartRate: val);
+          ref.read(abilityProvider.notifier).setHeartRate(val);
         } else if (val is double) {
-          state = state.copyWith(currentHeartRate: val.round());
+          final bpm = val.round();
+          state = state.copyWith(currentHeartRate: bpm);
+          ref.read(abilityProvider.notifier).setHeartRate(bpm);
         }
       } else if (payload != null && payload['action'] == 'USE_SKILL') {
         ref.read(abilityProvider.notifier).useSkill();
@@ -213,7 +216,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     final ability = ref.read(abilityProvider);
     if (snapshot['payload'] is Map && snapshot['payload']['my'] is Map) {
       final my = snapshot['payload']['my'] as Map<String, dynamic>;
-      my['skill'] = {
+      my['skill'] = <String, dynamic>{
         'type': ability.type.name,
         'label': ability.type.label,
         'sf': ability.type.sfSymbol,

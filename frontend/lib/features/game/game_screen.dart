@@ -17,6 +17,7 @@ import '../ingame/widgets/game_rules_overlay.dart';
 import 'providers/ability_provider.dart';
 import 'providers/item_provider.dart';
 import 'widgets/item_slot_hud.dart';
+import 'widgets/ability_button.dart';
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -120,7 +121,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
     // Ability: Finder (active reveals enemies)
     final bool isFinderActive =
-        ability.type == AbilityType.finder && ability.isSkillActive;
+        ability.type == AbilityType.scanner && ability.isSkillActive;
 
     // Filter players
     final visiblePlayers = gameState.players.values.where((p) {
@@ -273,7 +274,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               Positioned(
                 bottom: 120,
                 right: 20,
-                child: _AbilityButton(
+                child: AbilityButton(
                   ability: ability,
                   onPressed: () =>
                       ref.read(abilityProvider.notifier).useSkill(),
@@ -302,78 +303,6 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AbilityButton extends StatelessWidget {
-  final AbilityState ability;
-  final VoidCallback onPressed;
-
-  const _AbilityButton({required this.ability, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    if (ability.type == AbilityType.none) return const SizedBox.shrink();
-
-    final isReady = ability.isReady;
-    final isActive = ability.isSkillActive;
-    final remain = ability.cooldownRemainSec;
-
-    // Active Color: Lime (Neon), Cooldown: Muted, Ready: Cyan (Primary)
-    final color = isActive
-        ? AppColors.lime
-        : isReady
-        ? AppColors.borderCyan
-        : AppColors.textMuted;
-
-    final label = isActive
-        ? '사용 중'
-        : isReady
-        ? ability.type.label
-        : '$remain초';
-
-    return GestureDetector(
-      onTap: isReady ? onPressed : null,
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color: AppColors.surface1.withOpacity(0.9),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: color.withOpacity(isActive ? 1.0 : 0.5),
-            width: 2,
-          ),
-          boxShadow: [
-            if (isReady || isActive)
-              BoxShadow(
-                color: color.withOpacity(0.4),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isActive ? Icons.wifi_tethering : ability.type.icon,
-              color: color,
-              size: 28,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
         ),
       ),
     );

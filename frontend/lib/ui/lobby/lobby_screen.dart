@@ -21,6 +21,7 @@ import '../../providers/match_rules_provider.dart';
 
 import 'widgets/game_config_card.dart';
 import 'widgets/mini_map_card.dart';
+import 'widgets/ability_select_card.dart';
 
 class LobbyScreen extends ConsumerStatefulWidget {
   const LobbyScreen({super.key});
@@ -78,12 +79,20 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
                 children: [
                   // Step 0: Room Code Card (New)
-                  _RoomCodeCard(roomId: room.roomId),
+                  _RoomCodeCard(roomId: room.roomCode),
                   const SizedBox(height: 12),
 
                   // Step 1: Game Config Card
                   const GameConfigCard(),
                   const SizedBox(height: 12),
+
+                  // Step 2: Ability Selection (Conditional)
+                  if (rules.gameMode == GameMode.ability) ...[
+                    const AbilitySelectCard(),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Step 3: Members Card
                   _membersCard(context, room, me?.id),
                   const SizedBox(height: 12),
                   const MiniMapCard(),
@@ -551,7 +560,8 @@ class _RoomCodeCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
-              roomId.length > 8 ? roomId.substring(0, 8).toUpperCase() : roomId,
+              roomId
+                  .toUpperCase(), // Display full code as received from backend
               style: const TextStyle(
                 fontFamily: 'Monospace',
                 fontWeight: FontWeight.bold,
