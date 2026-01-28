@@ -144,12 +144,14 @@ class RoomSettingsDto {
   final int timeLimit;
   final int maxPlayers;
   final dynamic mapConfig;
+  final dynamic rules;
 
   RoomSettingsDto({
     required this.mode,
     required this.timeLimit,
     required this.maxPlayers,
     required this.mapConfig,
+    this.rules,
   });
 
   factory RoomSettingsDto.fromJson(Map<String, dynamic> json) =>

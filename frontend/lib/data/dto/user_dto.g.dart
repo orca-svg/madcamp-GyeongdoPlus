@@ -191,11 +191,13 @@ Map<String, dynamic> _$MatchHistoryQueryDtoToJson(
 
 MyStatDto _$MyStatDtoFromJson(Map<String, dynamic> json) => MyStatDto(
   catchCount: (json['catchCount'] as num).toInt(),
+  rescueCount: (json['rescueCount'] as num?)?.toInt(),
   contribution: (json['contribution'] as num).toInt(),
 );
 
 Map<String, dynamic> _$MyStatDtoToJson(MyStatDto instance) => <String, dynamic>{
   'catchCount': instance.catchCount,
+  'rescueCount': instance.rescueCount,
   'contribution': instance.contribution,
 };
 

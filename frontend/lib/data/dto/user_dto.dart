@@ -183,9 +183,14 @@ class MatchHistoryQueryDto {
 @JsonSerializable()
 class MyStatDto {
   final int catchCount;
+  final int? rescueCount; // Added for Thief stats
   final int contribution;
 
-  MyStatDto({required this.catchCount, required this.contribution});
+  MyStatDto({
+    required this.catchCount,
+    this.rescueCount,
+    required this.contribution,
+  });
 
   factory MyStatDto.fromJson(Map<String, dynamic> json) =>
       _$MyStatDtoFromJson(json);

@@ -60,6 +60,21 @@ class SocketIoRouter {
           '[SOCKET.IO][ROUTER] Game over: ${event.payload['winnerTeam']}',
         );
         break;
+      case 'user_joined':
+      case 'user_left':
+      case 'room_updated':
+      case 'settings_updated':
+      case 'member_updated':
+      case 'team_changed':
+      case 'role_changed':
+      case 'ready_changed':
+      case 'player_ready':
+      case 'member_ready':
+      case 'full_rules_update':
+      case 'host_changed':
+      case 'new_host':
+        debugPrint('[SOCKET.IO][ROUTER] Lobby/Room event: ${event.name}');
+        break;
       default:
         debugPrint('[SOCKET.IO][ROUTER] Unhandled event: ${event.name}');
     }

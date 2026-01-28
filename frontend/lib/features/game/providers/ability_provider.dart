@@ -8,6 +8,8 @@ import '../../../../core/services/audio_service.dart'; // Audio
 import '../../../../providers/game_provider.dart';
 import '../../../../providers/room_provider.dart';
 import '../../../../providers/interaction_service_provider.dart';
+import '../../../../providers/app_providers.dart'; // gameRepositoryProvider
+import '../../../../data/dto/game_dto.dart'; // UseAbilityDto
 import 'chaser_targets_provider.dart';
 // import '../game_screen.dart'; // Circular dependency if not careful, used for types? No.
 
@@ -237,8 +239,18 @@ class AbilityController extends Notifier<AbilityState> {
     // Play SFX
     ref.read(audioServiceProvider).playSfx(AudioType.abilityActive);
 
-    // TODO: Call API
-    // await _api.useAbility(state.type);
+    // Call API
+    final repo = ref.read(gameRepositoryProvider);
+    final roomId = ref.read(roomProvider).roomId;
+
+    // Fire and forget / check result
+    repo.useAbility(UseAbilityDto(matchId: roomId)).then((result) {
+      if (!result.success) {
+        debugPrint('Ability usage failed on server: ${result.errorMessage}');
+        // Maybe rollback?
+      }
+    });
+
     // For now, optimistic update
 
     state = state.copyWith(

@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/lobby_api.dart';
 import '../../data/dto/lobby_dto.dart';
 import 'repository_result.dart';

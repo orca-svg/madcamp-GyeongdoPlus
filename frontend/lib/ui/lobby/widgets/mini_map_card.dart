@@ -108,9 +108,6 @@ class MiniMapCard extends ConsumerWidget {
             children: [
               IgnorePointer(
                 child: KakaoMap(
-                  key: ValueKey(
-                    'map_${points.length}_${jailCenter?.latitude ?? 0}_${jailCenter?.longitude ?? 0}',
-                  ),
                   center: center,
                   currentLevel: 5,
                   polygons: polygon != null ? [polygon] : null,

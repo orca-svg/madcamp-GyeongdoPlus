@@ -62,6 +62,20 @@ class WearBridge(private val context: Context) {
         }
     }
 
+    suspend fun sendHapticCommand(json: String) {
+        try {
+            val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+            val bytes = json.toByteArray(Charsets.UTF_8)
+            for (n in nodes) {
+                Wearable.getMessageClient(context).sendMessage(n.id, "/gyeongdo/haptic_command", bytes).await()
+            }
+            val matchId = extractMatchId(json)
+            Log.d("WearBridge", "[WATCH][ANDROID][TX] HAPTIC_COMMAND matchId=$matchId len=${json.length}")
+        } catch (e: Exception) {
+            Log.w("WearBridge", "[WATCH][ANDROID][TX] sendHapticCommand error: ${e.message}")
+        }
+    }
+
     private fun extractMatchId(json: String): String {
         return try {
             val obj = JSONObject(json)

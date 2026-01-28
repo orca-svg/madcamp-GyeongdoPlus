@@ -9,6 +9,7 @@ import '../data/repositories/lobby_repository.dart';
 import '../data/repositories/game_repository.dart';
 import '../data/api_client.dart' as api_client;
 import '../data/ws_client.dart';
+import '../net/socket/socket_io_client_provider.dart';
 
 // WebSocket Client
 final wsClientProvider = Provider<WsClient>((ref) {
@@ -62,5 +63,6 @@ final lobbyRepositoryProvider = Provider<LobbyRepository>((ref) {
 
 final gameRepositoryProvider = Provider<GameRepository>((ref) {
   final gameApi = ref.watch(gameApiProvider);
-  return GameRepository(gameApi);
+  final socket = ref.watch(socketIoClientProvider.notifier);
+  return GameRepository(gameApi, socket);
 });

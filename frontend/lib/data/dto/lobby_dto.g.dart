@@ -145,6 +145,7 @@ RoomSettingsDto _$RoomSettingsDtoFromJson(Map<String, dynamic> json) =>
       timeLimit: (json['timeLimit'] as num).toInt(),
       maxPlayers: (json['maxPlayers'] as num).toInt(),
       mapConfig: json['mapConfig'],
+      rules: json['rules'],
     );
 
 Map<String, dynamic> _$RoomSettingsDtoToJson(RoomSettingsDto instance) =>
@@ -153,6 +154,7 @@ Map<String, dynamic> _$RoomSettingsDtoToJson(RoomSettingsDto instance) =>
       'timeLimit': instance.timeLimit,
       'maxPlayers': instance.maxPlayers,
       'mapConfig': instance.mapConfig,
+      'rules': instance.rules,
     };
 
 RoomPlayerDto _$RoomPlayerDtoFromJson(Map<String, dynamic> json) =>

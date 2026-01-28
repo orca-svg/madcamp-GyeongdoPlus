@@ -219,7 +219,7 @@ class MatchRulesController extends Notifier<MatchRulesState> {
 
   void setMapName(String v) => state = state.copyWith(mapName: v);
   void setMaxPlayers(int v) {
-    final nextMax = v.clamp(3, 50);
+    final nextMax = v.clamp(2, 50);
     final nextPolice = _derivePoliceCount(
       maxPlayers: nextMax,
       preferExisting: state.policeCount,
@@ -316,9 +316,7 @@ class MatchRulesController extends Notifier<MatchRulesState> {
     final ro = releaseOrderRaw.isEmpty
         ? state.rescueReleaseOrder
         : releaseOrderRaw;
-    final rc = (releaseCountRaw is num)
-        ? releaseCountRaw.toInt()
-        : null;
+    final rc = (releaseCountRaw is num) ? releaseCountRaw.toInt() : null;
     final rs = _deriveReleaseScope(
       releaseCount: rc,
       maxPlayers: mp,
@@ -328,12 +326,14 @@ class MatchRulesController extends Notifier<MatchRulesState> {
         ? jailRadiusRaw.toDouble()
         : state.jailRadiusM;
     final jc = (jailLatRaw is num && jailLngRaw is num)
-        ? GeoPointDto(lat: jailLatRaw.toDouble(), lng: jailLngRaw.toDouble())
-            .clamp()
+        ? GeoPointDto(
+            lat: jailLatRaw.toDouble(),
+            lng: jailLngRaw.toDouble(),
+          ).clamp()
         : state.jailCenter;
     final polygon = _parsePolygon(polygonRaw) ?? state.zonePolygon;
 
-    final mpClamped = mp.clamp(3, 50);
+    final mpClamped = mp.clamp(2, 50);
     final nextPolice = _derivePoliceCount(
       maxPlayers: mpClamped,
       preferExisting: state.policeCount,

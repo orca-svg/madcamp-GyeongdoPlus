@@ -113,6 +113,21 @@ class MainActivity: FlutterActivity() {
                             }
                         }
                     }
+                    "sendHapticCommand" -> {
+                        val json = (call.arguments as? Map<*, *>)?.get("json") as? String
+                        if (json == null) {
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                bridge.sendHapticCommand(json)
+                                withContext(Dispatchers.Main) { result.success(true) }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { result.success(false) }
+                            }
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -158,13 +158,21 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
     // List of all server → client events from backend
     const serverEvents = [
       'joined_room',
-      'user_joined', // Critical for Host to see new joiners
+      'user_joined',
+      'player_joined',
+      'member_joined',
       'player_moved',
       'user_arrested',
+      'player_arrested',
       'user_rescued',
+      'player_rescued',
       'game_over',
+      'game_started',
       'host_changed',
+      'new_host',
       'user_left',
+      'player_left',
+      'member_left',
       'radar_activated',
       'detector_vibrate',
       'reveal_thieves_static',
@@ -177,24 +185,30 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
       'reset_channeling',
       'clown_taunt',
       'settings_updated',
-      'member_updated',
       'room_updated',
+      'member_updated',
+      'player_update',
+      'player_updated',
       'team_changed',
+      'role_changed',
+      'change_team',
+      'change_role',
+      'ready_changed',
+      'player_ready',
+      'member_ready',
+      'ready',
+      'siren_activated',
+      'full_rules_update',
     ];
 
     for (final eventName in serverEvents) {
       socket.on(eventName, (data) {
-        debugPrint('[SOCKET.IO] Event received: $eventName');
-        final payload = data is Map<String, dynamic>
-            ? data
-            : (data is List && data.isNotEmpty && data[0] is Map
-                  ? (data[0] as Map).cast<String, dynamic>()
-                  : <String, dynamic>{});
+        debugPrint('[SOCKET.IO] Event received: $eventName - $data');
 
         _eventCtrl.add(
           SocketIoEvent(
             name: eventName,
-            payload: payload,
+            payload: data,
             timestamp: DateTime.now(),
           ),
         );
@@ -202,14 +216,14 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
     }
   }
 
-  void emit(String event, Map<String, dynamic> data) {
+  void emit(String event, dynamic data) {
     final socket = _socket;
     if (socket == null || !socket.connected) {
       debugPrint('[SOCKET.IO] Cannot emit $event: not connected');
       return;
     }
 
-    debugPrint('[SOCKET.IO] Emitting: $event');
+    debugPrint('[SOCKET.IO] Emitting: $event - $data');
     socket.emit(event, data);
   }
 
@@ -238,7 +252,7 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
 
 class SocketIoEvent {
   final String name;
-  final Map<String, dynamic> payload;
+  final dynamic payload;
   final DateTime timestamp;
 
   const SocketIoEvent({

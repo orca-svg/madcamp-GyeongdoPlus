@@ -63,12 +63,11 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     final actualPolice = room.policeCount;
     final actualThief = room.thiefCount;
 
-    final countMatch =
-        (actualPolice == targetPolice) && (actualThief == targetThief);
-    final fullRoom = totalPlayers == rules.maxPlayers;
+    // Logic: Minimum 2 players, at least one on each team, all ready
+    final hasEnoughPlayers = totalPlayers >= 2;
+    final teamsBalanced = actualPolice > 0 && actualThief > 0;
 
-    // Logic: Must be full room & correct distribution (Team numbers match rules)
-    final canStart = isHost && allReady && fullRoom && countMatch;
+    final canStart = isHost && allReady && hasEnoughPlayers && teamsBalanced;
 
     final bottomBarHeight = 68.0;
     final safeBottom = MediaQuery.of(context).padding.bottom;
@@ -77,8 +76,8 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     final startNotice = _startNotice(
       isHost: isHost,
       allReady: allReady,
-      fullRoom: fullRoom,
-      countMatch: countMatch,
+      hasEnoughPlayers: hasEnoughPlayers,
+      teamsBalanced: teamsBalanced,
       targetPolice: targetPolice,
       targetThief: targetThief,
     );
@@ -351,8 +350,19 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               height: 52,
               borderRadius: 14,
               onPressed: canStart
-                  ? () {
-                      ref.read(gamePhaseProvider.notifier).toInGame();
+                  ? () async {
+                      final success = await ref
+                          .read(roomProvider.notifier)
+                          .startGame();
+                      if (!success && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              ref.read(roomProvider).errorMessage ?? '게임 시작 실패',
+                            ),
+                          ),
+                        );
+                      }
                     }
                   : null,
               leading: const Icon(
@@ -369,15 +379,14 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   String _startNotice({
     required bool isHost,
     required bool allReady,
-    required bool fullRoom,
-    required bool countMatch,
+    required bool hasEnoughPlayers,
+    required bool teamsBalanced,
     required int targetPolice,
     required int targetThief,
   }) {
     if (!isHost) return '게임 시작은 방장만 가능합니다.';
-    if (!fullRoom)
-      return '설정된 인원(${(targetPolice + targetThief)}명)이 모두 입장해야 합니다.';
-    if (!countMatch) return '경찰($targetPolice명)/도둑($targetThief명) 팀 배정을 맞춰주세요.';
+    if (!hasEnoughPlayers) return '최소 2명의 플레이어가 필요합니다.';
+    if (!teamsBalanced) return '경찰과 도둑 팀에 각각 최소 한 명씩 있어야 합니다.';
     if (!allReady) return '모든 멤버가 준비되어야 시작할 수 있습니다.';
     return '';
   }
