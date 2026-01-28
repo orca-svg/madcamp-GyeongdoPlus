@@ -57,10 +57,8 @@ class MiniMapCard extends ConsumerWidget {
               ? jailCenter
               : LatLng(37.5665, 126.9780)); // Seoul default
 
-    // Prioritize Jail Center as per request
-    if (jailCenter != null) {
-      center = jailCenter;
-    } else if (points.isNotEmpty) {
+    // Prioritize Polygon Centroid for better visibility of the whole arena
+    if (points.isNotEmpty) {
       double sumLat = 0;
       double sumLng = 0;
       for (var p in points) {
@@ -68,6 +66,8 @@ class MiniMapCard extends ConsumerWidget {
         sumLng += p.longitude;
       }
       center = LatLng(sumLat / points.length, sumLng / points.length);
+    } else if (jailCenter != null) {
+      center = jailCenter;
     }
 
     final polygon = points.length >= 3

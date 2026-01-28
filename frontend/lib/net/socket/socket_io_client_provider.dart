@@ -158,6 +158,7 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
     // List of all server → client events from backend
     const serverEvents = [
       'joined_room',
+      'user_joined', // Critical for Host to see new joiners
       'player_moved',
       'user_arrested',
       'user_rescued',

@@ -159,6 +159,26 @@ class RoomController extends Notifier<RoomState> {
           }
           break;
 
+        case 'user_joined':
+          if (event.payload.containsKey('room')) {
+            _syncFromPayload(event.payload['room']);
+          } else if (event.payload.containsKey('member')) {
+            _addMember(event.payload['member']);
+          } else if (event.payload.containsKey('members')) {
+            _parseAndSetMembers(event.payload['members']);
+          }
+          break;
+
+        case 'user_joined':
+          if (event.payload.containsKey('room')) {
+            _syncFromPayload(event.payload['room']);
+          } else if (event.payload.containsKey('member')) {
+            _addMember(event.payload['member']);
+          } else if (event.payload.containsKey('members')) {
+            _parseAndSetMembers(event.payload['members']);
+          }
+          break;
+
         case 'room_updated':
           // Full or partial update
           if (event.payload.containsKey('room')) {
@@ -256,6 +276,21 @@ class RoomController extends Notifier<RoomState> {
       );
     }).toList();
     state = state.copyWith(members: list);
+  }
+
+  void _addMember(Map<String, dynamic> x) {
+    // Prevent duplicates
+    final id = x['userId'];
+    if (state.members.any((m) => m.id == id)) return;
+
+    final newMember = RoomMember(
+      id: x['userId'] ?? '',
+      name: x['nickname'] ?? 'Unknown',
+      team: (x['team'] == 'POLICE') ? Team.police : Team.thief,
+      ready: x['isReady'] ?? false,
+      isHost: x['isHost'] ?? false,
+    );
+    state = state.copyWith(members: [...state.members, newMember]);
   }
 
   void updateConfig(GameConfig config) {
@@ -402,7 +437,7 @@ class RoomController extends Notifier<RoomState> {
       // Mock participants (host is a placeholder since backend might not send details yet)
       final host = RoomMember(
         id: data.hostId,
-        name: 'Host', // Backend doesn't provide host name in join response
+        name: '방장 (로딩중...)', // Placeholder until socket sync
         team: Team.police,
         ready: false,
         isHost: true,
