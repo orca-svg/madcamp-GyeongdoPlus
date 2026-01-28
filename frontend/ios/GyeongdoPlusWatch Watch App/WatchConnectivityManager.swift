@@ -116,6 +116,17 @@ struct HapticPayload: Codable {
     let durationMs: Int
 }
 
+struct HapticCommandEnvelope: Codable {
+    let type: String
+    let ts: Int
+    let payload: HapticCommandPayload
+}
+
+struct HapticCommandPayload: Codable {
+    let intensity: String  // "HEAVY" | "MEDIUM" | "LIGHT"
+    let pattern: String    // Debug purpose
+}
+
 final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDelegate, CLLocationManagerDelegate, HKLiveWorkoutBuilderDelegate {
     @Published var latest: RadarPacket? = nil
     @Published var snapshot: StateSnapshotEnvelope? = nil {
@@ -300,6 +311,10 @@ final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDeleg
             if let decoded = try? JSONDecoder().decode(HapticEnvelope.self, from: data) {
                 handleHaptic(decoded)
             }
+        case "HAPTIC_COMMAND":
+            if let decoded = try? JSONDecoder().decode(HapticCommandEnvelope.self, from: data) {
+                handleHapticCommand(decoded)
+            }
         default:
             break
         }
@@ -318,6 +333,28 @@ final class WatchConnectivityManager: NSObject, ObservableObject, WCSessionDeleg
         if kind.contains("ENEMY") || kind.contains("NEAR") {
             device.play(.retry) // Stronger than notification
         } else {
+            device.play(.notification)
+        }
+    }
+
+    private func handleHapticCommand(_ env: HapticCommandEnvelope) {
+        let device = WKInterfaceDevice.current()
+
+        switch env.payload.intensity {
+        case "HEAVY":
+            // Heartbeat pattern: Heavy-Medium-Medium
+            device.play(.failure)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                device.play(.click)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) {
+                device.play(.click)
+            }
+        case "MEDIUM":
+            device.play(.notification)
+        case "LIGHT":
+            device.play(.click)
+        default:
             device.play(.notification)
         }
     }

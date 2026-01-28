@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
@@ -16,7 +17,25 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    print('[UI] AppLifecycleState: $state');
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
@@ -63,6 +82,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           color: AppColors.textSecondary,
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      // Network Status Indicator for Debugging
+                      FutureBuilder<bool>(
+                        future: _checkNetwork(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const SizedBox.shrink();
+                          final isOnline = snapshot.data!;
+                          return Text(
+                            isOnline
+                                ? 'Network: Online'
+                                : 'Network: OFFLINE (Check Wi-Fi)',
+                            style: TextStyle(
+                              color: isOnline ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          );
+                        },
+                      ),
                       if (auth.status == AuthStatus.signedIn) ...[
                         const Divider(color: AppColors.outlineLow, height: 1),
                         const SizedBox(height: 12),
@@ -104,33 +142,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleKakaoLogin(BuildContext context) async {
+    print('[UI] _handleKakaoLogin start');
     // 1. Check if KakaoTalk installed
-    bool isInstalled = await isKakaoTalkInstalled();
+    bool isInstalled = false;
+    // try {
+    //   isInstalled = await isKakaoTalkInstalled();
+    //   print('[UI] isKakaoTalkInstalled: $isInstalled');
+    // } catch (e) {
+    //   print('[UI] isKakaoTalkInstalled checking failed: $e');
+    // }
+
     OAuthToken? token;
 
     try {
-      if (isInstalled) {
+      // Force Web Login for debugging (Bypass App Switch)
+      if (false /* isInstalled */ ) {
+        print('[UI] Try loginWithKakaoTalk');
         try {
           token = await UserApi.instance.loginWithKakaoTalk();
+          print(
+            '[UI] loginWithKakaoTalk success, token=${token.accessToken.substring(0, 5)}...',
+          );
         } catch (e) {
+          print('[UI] loginWithKakaoTalk failed: $e');
           // Fallback
           if (e is KakaoAuthException &&
               (e.message?.contains('cancelled') ?? false)) {
+            print('[UI] User cancelled login');
             return;
           }
+          print('[UI] Fallback to loginWithKakaoAccount');
           token = await UserApi.instance.loginWithKakaoAccount();
+          print('[UI] loginWithKakaoAccount success');
         }
       } else {
+        print('[UI] Try loginWithKakaoAccount (Talk not installed)');
         token = await UserApi.instance.loginWithKakaoAccount();
+        print('[UI] loginWithKakaoAccount success');
       }
     } catch (e) {
+      print('[UI] Kakao Login Error: $e');
       if (!context.mounted) return;
       showAppSnackBar(context, message: '카카오 로그인 실패: $e', isError: true);
       return;
     }
 
+    if (token == null) {
+      print('[UI] Token is null');
+      return;
+    }
+
+    print('[UI] Calling authProvider.signInWithKakao...');
     if (!context.mounted) return;
     await ref.read(authProvider.notifier).signInWithKakao(token.accessToken);
+    print('[UI] authProvider.signInWithKakao done');
   }
 
   // ignore: unused_element
@@ -154,6 +219,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop(true);
+    }
+  }
+
+  Future<bool> _checkNetwork() async {
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 3);
+      final req = await client.getUrl(Uri.parse('https://www.google.com'));
+      final res = await req.close();
+      await res.drain();
+      return res.statusCode == 200;
+    } catch (e) {
+      print('[UI] Network Check Failed: $e');
+      return false;
     }
   }
 }

@@ -8,13 +8,15 @@ import '../../net/ws/builders/ws_builders.dart';
 import '../../providers/game_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
+import '../../providers/watch_provider.dart';
+import '../../services/watch_sync_service.dart';
 import 'ble_proximity_service.dart';
 import 'distance_calculator_service.dart';
 
 class ProximityZone {
-  static const extreme = 1.0;  // 1m - Heartbeat zone
-  static const close = 3.0;    // 3m - Arrest zone
-  static const medium = 5.0;   // 5m - Warning zone
+  static const extreme = 1.0; // 1m - Heartbeat zone
+  static const close = 3.0; // 3m - Arrest zone
+  static const medium = 5.0; // 5m - Warning zone
 }
 
 class InteractionState {
@@ -31,11 +33,11 @@ class InteractionState {
   });
 
   factory InteractionState.initial() => const InteractionState(
-        distances: {},
-        captureTimers: {},
-        activeZoneAlerts: {},
-        ignoredEnemiesUntil: {},
-      );
+    distances: {},
+    captureTimers: {},
+    activeZoneAlerts: {},
+    ignoredEnemiesUntil: {},
+  );
 
   InteractionState copyWith({
     Map<String, PlayerDistance>? distances,
@@ -67,9 +69,9 @@ class InteractionService {
     required BleProximityService bleService,
     required DistanceCalculatorService distanceCalc,
     required Ref ref,
-  })  : _bleService = bleService,
-        _distanceCalc = distanceCalc,
-        _ref = ref;
+  }) : _bleService = bleService,
+       _distanceCalc = distanceCalc,
+       _ref = ref;
 
   /// Start the interaction service
   Future<void> start() async {
@@ -94,7 +96,9 @@ class InteractionService {
     if (advStarted) {
       debugPrint('[INTERACTION] BLE advertising started');
     } else {
-      debugPrint('[INTERACTION] BLE advertising failed (may require platform channel)');
+      debugPrint(
+        '[INTERACTION] BLE advertising failed (may require platform channel)',
+      );
     }
 
     final scanStarted = await _bleService.startScanning();
@@ -219,27 +223,72 @@ class InteractionService {
 
   /// Update proximity zones and trigger haptics with cooldown
   void _updateProximityZones(Map<String, PlayerDistance> distances) {
-    for (final entry in distances.entries) {
-      final userId = entry.key;
-      final dist = entry.value.distanceMeters;
+    // Find the closest enemy
+    double? closestDistance;
+    String? closestEnemy;
 
-      // Determine zone
+    for (final entry in distances.entries) {
+      final dist = entry.value.distanceMeters;
+      if (closestDistance == null || dist < closestDistance) {
+        closestDistance = dist;
+        closestEnemy = entry.key;
+      }
+    }
+
+    if (closestDistance != null && closestEnemy != null) {
       HapticPattern? pattern;
-      if (dist < ProximityZone.extreme) {
+      if (closestDistance < ProximityZone.extreme) {
         pattern = HapticPattern.proximityExtreme; // 1m - Heavy heartbeat
-      } else if (dist < ProximityZone.close) {
+      } else if (closestDistance < ProximityZone.close) {
         pattern = HapticPattern.proximityClose; // 3m - Medium
-      } else if (dist < ProximityZone.medium) {
+      } else if (closestDistance < ProximityZone.medium) {
         pattern = HapticPattern.proximityMedium; // 5m - Light
       }
 
-      // Trigger haptic if pattern determined and cooldown passed
-      if (pattern != null && _canTriggerHaptic(userId)) {
-        Haptics.pattern(pattern);
-        _hapticCooldowns[userId] = DateTime.now();
-
-        debugPrint('[INTERACTION] Haptic triggered for $userId at ${dist.toStringAsFixed(2)}m (pattern: $pattern)');
+      if (pattern != null && _canTriggerHaptic(closestEnemy)) {
+        _triggerHapticWithRouting(pattern);
+        _hapticCooldowns[closestEnemy] = DateTime.now();
+        // Debug log moved to _triggerHapticWithRouting or kept minimal
       }
+    }
+  }
+
+  Future<void> _triggerHapticWithRouting(HapticPattern pattern) async {
+    final isWatchConnected = _ref.read(watchConnectedProvider);
+
+    if (isWatchConnected) {
+      // Route to Watch
+      final hapticType = _patternToWatchType(pattern);
+      debugPrint(
+        '[INTERACTION] Routing haptic $pattern as $hapticType to Watch',
+      );
+      await _ref.read(watchSyncServiceProvider).sendHapticCommand({
+        'type': 'HAPTIC_COMMAND',
+        'ts': DateTime.now().millisecondsSinceEpoch,
+        'payload': {
+          'intensity': hapticType, // 'HEAVY' | 'MEDIUM' | 'LIGHT'
+          'pattern': pattern.name,
+        },
+      });
+    } else {
+      // Fallback to Phone
+      debugPrint('[INTERACTION] Playing haptic $pattern on Phone');
+      await Haptics.pattern(pattern);
+    }
+  }
+
+  String _patternToWatchType(HapticPattern pattern) {
+    switch (pattern) {
+      case HapticPattern.proximityExtreme:
+      case HapticPattern.captureConfirmed:
+        return 'HEAVY';
+      case HapticPattern.proximityClose:
+      case HapticPattern.rescueSuccess:
+        return 'MEDIUM';
+      case HapticPattern.proximityMedium:
+      case HapticPattern.warning:
+      default:
+        return 'LIGHT';
     }
   }
 
@@ -267,14 +316,18 @@ class InteractionService {
         captureTimers[enemyId] = DateTime.now();
         _state = _state.copyWith(captureTimers: captureTimers);
 
-        debugPrint('[AUTO-ARREST] $enemyId entered 3m zone at ${distance.toStringAsFixed(2)}m, timer started');
+        debugPrint(
+          '[AUTO-ARREST] $enemyId entered 3m zone at ${distance.toStringAsFixed(2)}m, timer started',
+        );
       } else {
         // Check dwell time
         final enteredAt = captureTimers[enemyId]!;
         final dwellTime = DateTime.now().difference(enteredAt);
 
         if (dwellTime.inSeconds >= 2) {
-          debugPrint('[AUTO-ARREST] $enemyId arrest triggered after ${dwellTime.inSeconds}s dwell at ${distance.toStringAsFixed(2)}m');
+          debugPrint(
+            '[AUTO-ARREST] $enemyId arrest triggered after ${dwellTime.inSeconds}s dwell at ${distance.toStringAsFixed(2)}m',
+          );
 
           // Execute arrest
           await _executeArrest(enemyId);
@@ -290,7 +343,9 @@ class InteractionService {
         final enteredAt = captureTimers[enemyId]!;
         final dwellTime = DateTime.now().difference(enteredAt);
 
-        debugPrint('[AUTO-ARREST] $enemyId left 3m zone after ${dwellTime.inSeconds}s (now ${distance.toStringAsFixed(2)}m), timer reset');
+        debugPrint(
+          '[AUTO-ARREST] $enemyId left 3m zone after ${dwellTime.inSeconds}s (now ${distance.toStringAsFixed(2)}m), timer reset',
+        );
 
         captureTimers.remove(enemyId);
         _state = _state.copyWith(captureTimers: captureTimers);
@@ -312,12 +367,15 @@ class InteractionService {
         matchId: roomState.roomId,
         playerId: roomState.myId,
         targetId: enemyId,
-        reason: 'AUTO_BLE', // Indicate this was an automatic BLE-triggered arrest
+        reason:
+            'AUTO_BLE', // Indicate this was an automatic BLE-triggered arrest
       );
 
       wsClient.sendEnvelope(envelope, (p) => p);
 
-      debugPrint('[AUTO-ARREST] ✅ Sent CONFIRM_CAPTURE for $enemyId (reason: AUTO_BLE)');
+      debugPrint(
+        '[AUTO-ARREST] ✅ Sent CONFIRM_CAPTURE for $enemyId (reason: AUTO_BLE)',
+      );
 
       // 3. Add enemy to ignore list for 5 seconds (prevent duplicate arrests)
       final newIgnored = Map<String, DateTime>.from(_state.ignoredEnemiesUntil);

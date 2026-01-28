@@ -57,15 +57,12 @@ class AppleWatchSyncService implements WatchSyncService {
 
   @override
   Future<void> sendHapticCommand(Map<String, dynamic> payload) async {
-    await sendHapticAlert({
-      'matchId': 'CMD',
-      'type': 'HAPTIC_ALERT',
-      'payload': {
-        'kind': payload['kind'] ?? 'HEAVY',
-        'cooldownSec': 0,
-        'durationMs': 500,
-      },
-    });
+    try {
+      final json = jsonEncode(payload);
+      await _ch.invokeMethod('sendHapticCommand', {'json': json});
+    } catch (e) {
+      debugPrint('[AppleWatchSyncService] sendHapticCommand error: $e');
+    }
   }
 
   @override
@@ -142,15 +139,12 @@ class WearOsSyncService implements WatchSyncService {
 
   @override
   Future<void> sendHapticCommand(Map<String, dynamic> payload) async {
-    await sendHapticAlert({
-      'matchId': 'CMD',
-      'type': 'HAPTIC_ALERT',
-      'payload': {
-        'kind': payload['kind'] ?? 'HEAVY',
-        'cooldownSec': 0,
-        'durationMs': 500,
-      },
-    });
+    try {
+      final json = jsonEncode(payload);
+      await _ch.invokeMethod('sendHapticCommand', {'json': json});
+    } catch (e) {
+      debugPrint('[WearOsSyncService] sendHapticCommand error: $e');
+    }
   }
 
   @override

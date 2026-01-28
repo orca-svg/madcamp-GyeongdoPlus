@@ -87,13 +87,17 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> _loadFromPrefs() async {
+    final sw = Stopwatch()..start();
     debugPrint('[AUTH] loadFromPrefs start');
+
     try {
       if (state.status == AuthStatus.signedIn) {
         debugPrint('[AUTH] loadFromPrefs result=skip(already signedIn)');
         return;
       }
       final prefs = await _tryPrefs();
+      debugPrint('[AUTH] _tryPrefs took ${sw.elapsedMilliseconds}ms');
+
       if (prefs == null) {
         debugPrint(
           '[AUTH] prefs unavailable (fallback=${_allowInmemAuth ? 'enabled' : 'disabled'})',
@@ -109,6 +113,7 @@ class AuthController extends Notifier<AuthState> {
       final token = prefs.getString(_kAccessToken);
       final refreshToken = prefs.getString(_kRefreshToken);
       final name = prefs.getString(_kDisplayName);
+      debugPrint('[AUTH] reading values took ${sw.elapsedMilliseconds}ms');
 
       if (token != null && token.isNotEmpty) {
         state = state.copyWith(
@@ -121,7 +126,9 @@ class AuthController extends Notifier<AuthState> {
         // Push token to ApiClient
         ref.read(apiClientProvider).setAuthToken(token);
 
-        debugPrint('[AUTH] loadFromPrefs result=signedIn');
+        debugPrint(
+          '[AUTH] loadFromPrefs result=signedIn (total ${sw.elapsedMilliseconds}ms)',
+        );
         return;
       }
 
@@ -134,7 +141,9 @@ class AuthController extends Notifier<AuthState> {
       // Clear ApiClient
       ref.read(apiClientProvider).clearAuthToken();
 
-      debugPrint('[AUTH] loadFromPrefs result=signedOut');
+      debugPrint(
+        '[AUTH] loadFromPrefs result=signedOut (total ${sw.elapsedMilliseconds}ms)',
+      );
     } catch (e, st) {
       debugPrint('[AUTH] loadFromPrefs error=$e\n$st');
       state = state.copyWith(

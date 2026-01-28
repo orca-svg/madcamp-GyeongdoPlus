@@ -66,6 +66,22 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         }
     }
 
+    func sendHapticCommand(json: String) {
+        guard WCSession.default.isReachable else {
+            print("[WatchBridge] Watch not reachable for haptic command")
+            return
+        }
+
+        let message: [String: Any] = [
+            "type": "HAPTIC_COMMAND",
+            "json": json
+        ]
+
+        WCSession.default.sendMessage(message, replyHandler: nil) { error in
+            print("[WatchBridge] sendHapticCommand error: \(error.localizedDescription)")
+        }
+    }
+
     private func sendMessage(type: String, json: String) {
         guard WCSession.isSupported() else { return }
         let s = WCSession.default
@@ -213,6 +229,19 @@ public class WatchBridgePlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
             if let args = call.arguments as? [String: Any],
                let json = args["json"] as? String {
                 WatchBridge.shared.sendHapticAlert(json: json)
+                result(true)
+            } else {
+                result(false)
+            }
+
+        case "sendHapticCommand":
+            guard WatchBridgePlugin.watchEnabled, sessionSetup else {
+                result(false)
+                return
+            }
+            if let args = call.arguments as? [String: Any],
+               let json = args["json"] as? String {
+                WatchBridge.shared.sendHapticCommand(json: json)
                 result(true)
             } else {
                 result(false)

@@ -13,12 +13,18 @@ import 'app.dart';
 Future<void> main() async {
   await runZonedGuarded(
     () async {
+      final stopWatch = Stopwatch()..start();
+
       WidgetsFlutterBinding.ensureInitialized();
+      print('[perf] WidgetsFlutterBinding: ${stopWatch.elapsedMilliseconds}ms');
 
       // (선택) 화면 방향 고정이 필요하면 유지: UI가 폰 회전에 깨지지 않게
       await SystemChrome.setPreferredOrientations(const [
         DeviceOrientation.portraitUp,
       ]);
+      print(
+        '[perf] setPreferredOrientations: ${stopWatch.elapsedMilliseconds}ms',
+      );
 
       // (선택) 상태바 아이콘 스타일
       SystemChrome.setSystemUIOverlayStyle(
@@ -30,6 +36,7 @@ Future<void> main() async {
 
       // .env 로드 (파일 없으면 optional)
       await dotenv.load(fileName: '.env', isOptional: true);
+      print('[perf] dotenv.load: ${stopWatch.elapsedMilliseconds}ms');
 
       final kakaoJsKey =
           (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
@@ -65,9 +72,11 @@ Future<void> main() async {
         // ignore: avoid_print
         print('[KAKAO] WARN: No keys found. Login/Map may fail.');
       }
+      print('[perf] Kakao init: ${stopWatch.elapsedMilliseconds}ms');
 
       _probeNetworkIfDebug();
 
+      print('[perf] runApp start: ${stopWatch.elapsedMilliseconds}ms');
       runApp(const ProviderScope(child: GyeongdoPlusApp()));
     },
     (error, stack) {
@@ -96,7 +105,7 @@ void _probeNetworkIfDebug() {
   scheduleMicrotask(() async {
     try {
       final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 6);
+      client.connectionTimeout = const Duration(seconds: 2); // Reduced from 6s
 
       final req = await client.getUrl(Uri.parse('https://map.kakao.com'));
       // req.headers.add('User-Agent', ...);
