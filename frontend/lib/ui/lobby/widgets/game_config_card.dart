@@ -22,7 +22,6 @@ class GameConfigCard extends ConsumerWidget {
     final pCount = rulesState.policeCount;
     final maxP = rulesState.maxPlayers;
     final tCount = maxP - pCount;
-    final ratio = (maxP > 0) ? (pCount / maxP) : 0.0;
 
     // Formatting
     final contactLabel = rulesState.contactMode == 'CONTACT' ? '접촉' : '비접촉';
@@ -83,8 +82,8 @@ class GameConfigCard extends ConsumerWidget {
                 const SizedBox(height: 8),
                 _buildRow(
                   context,
-                  '경찰 비율',
-                  '${(ratio * 100).round()}% (경찰 $pCount vs 도둑 $tCount)',
+                  '팀 구성',
+                  '경찰 $pCount명 vs 도둑 $tCount명',
                   Icons.people_alt_rounded,
                 ),
                 const SizedBox(height: 8),

@@ -17,6 +17,7 @@ import '../../core/widgets/gradient_button.dart';
 import '../../providers/game_phase_provider.dart';
 
 import '../../providers/room_provider.dart';
+import '../../providers/match_rules_provider.dart';
 
 import 'widgets/game_config_card.dart';
 import 'widgets/mini_map_card.dart';
@@ -33,23 +34,37 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   Widget build(BuildContext context) {
     final room = ref.watch(roomProvider);
 
+    final rules = ref.watch(matchRulesProvider);
+
     final me = room.me;
     final isHost = room.amIHost;
     final allReady = room.allReady;
     final totalPlayers = room.members.length;
+
+    // Strict Team/Count Check
+    final targetPolice = rules.policeCount;
+    final targetThief = rules.maxPlayers - rules.policeCount;
     final actualPolice = room.policeCount;
     final actualThief = room.thiefCount;
-    final teamOk = actualPolice >= 1 && actualThief >= 1;
-    final canStart = isHost && allReady && totalPlayers >= 2 && teamOk;
+
+    final countMatch =
+        (actualPolice == targetPolice) && (actualThief == targetThief);
+    final fullRoom = totalPlayers == rules.maxPlayers;
+
+    // Logic: Must be full room & correct distribution (Team numbers match rules)
+    final canStart = isHost && allReady && fullRoom && countMatch;
+
     final bottomBarHeight = 68.0;
     final safeBottom = MediaQuery.of(context).padding.bottom;
     final bottomInset = bottomBarHeight + safeBottom + (isHost ? 32 : 28);
 
     final startNotice = _startNotice(
       isHost: isHost,
-      totalPlayers: totalPlayers,
       allReady: allReady,
-      teamOk: teamOk,
+      fullRoom: fullRoom,
+      countMatch: countMatch,
+      targetPolice: targetPolice,
+      targetThief: targetThief,
     );
 
     return Scaffold(
@@ -321,13 +336,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
   String _startNotice({
     required bool isHost,
-    required int totalPlayers,
     required bool allReady,
-    required bool teamOk,
+    required bool fullRoom,
+    required bool countMatch,
+    required int targetPolice,
+    required int targetThief,
   }) {
     if (!isHost) return '게임 시작은 방장만 가능합니다.';
-    if (totalPlayers < 2) return '최소 2명 이상이어야 시작할 수 있습니다.';
-    if (!teamOk) return '경찰/도둑 팀 수를 확인하세요.';
+    if (!fullRoom)
+      return '설정된 인원(${(targetPolice + targetThief)}명)이 모두 입장해야 합니다.';
+    if (!countMatch) return '경찰($targetPolice명)/도둑($targetThief명) 팀 배정을 맞춰주세요.';
     if (!allReady) return '모든 멤버가 준비되어야 시작할 수 있습니다.';
     return '';
   }

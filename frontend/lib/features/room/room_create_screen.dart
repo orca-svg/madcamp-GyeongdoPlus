@@ -214,16 +214,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                               onChanged: (v) => _setMaxPlayers(v.round()),
                             ),
                             const SizedBox(height: 6),
-                            _LabeledRow(
-                              label: '비율',
-                              trailing: Text(
-                                '${(_form.policeRatio * 100).round()}%',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
+                            // Ratio Slider
                             Slider(
                               min: 0.1,
                               max: 0.5,

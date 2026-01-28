@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
@@ -24,6 +27,8 @@ class GameScreen extends ConsumerStatefulWidget {
 
 class _GameScreenState extends ConsumerState<GameScreen> {
   final _renderer = GameMapRenderer();
+  Timer? _gameTimer;
+  Duration _elapsed = Duration.zero;
 
   @override
   void initState() {
@@ -44,6 +49,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               myTeam: myTeam,
             );
       }
+
+      // Start global timer
+      _gameTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() {
+          _elapsed += const Duration(seconds: 1);
+        });
+      });
     });
   }
 
@@ -52,6 +65,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     // Stop tracking handled by provider if needed, or explicitly here
     // ref.read(gameProvider.notifier).stopGame();
     ref.read(itemProvider.notifier).stop();
+    _gameTimer?.cancel();
     super.dispose();
   }
 
@@ -196,8 +210,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '게임 중',
+                          '게임 진행 중',
                           style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        Text(
+                          _fmtDuration(_elapsed),
+                          style: const TextStyle(
+                            color: AppColors.borderCyan,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
                         ),
                         IconButton(
                           onPressed: () => _showRulesOverlay(rules),
@@ -239,8 +262,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                 ],
               ),
 
-              // Item Slots (Bottom Left)
-              const Positioned(bottom: 120, left: 20, child: ItemSlotHUD()),
+              // Item Slots (Bottom Left) - Only for ITEM Mode
+              if (rules.gameMode == GameMode.item)
+                const Positioned(bottom: 120, left: 20, child: ItemSlotHUD()),
 
               // Ability Button (Bottom Right)
               Positioned(
@@ -351,4 +375,10 @@ class _AbilityButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String _fmtDuration(Duration d) {
+  final m = d.inMinutes.toString().padLeft(2, '0');
+  final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
 }

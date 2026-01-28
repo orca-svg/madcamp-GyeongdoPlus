@@ -5,6 +5,7 @@ import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
+import '../../core/widgets/gradient_button.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
 
@@ -20,6 +21,9 @@ class _IngameSettingsScreenState extends ConsumerState<IngameSettingsScreen> {
   bool _soundOn = true;
   bool _vibrationOn = true;
   bool _notifyOn = true;
+
+  // Host Time Editing
+  double? _editingTime; // If null, show current rule value
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +119,8 @@ class _IngameSettingsScreenState extends ConsumerState<IngameSettingsScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${rules.timeLimitSec ~/ 60}분',
+                        // Show editing value if present, else actual
+                        '${((_editingTime?.toInt() ?? rules.timeLimitSec) ~/ 60)}분',
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 20,
@@ -127,23 +132,61 @@ class _IngameSettingsScreenState extends ConsumerState<IngameSettingsScreen> {
                         builder: (context) {
                           const min = 300.0;
                           const max = 1800.0;
-                          final span = (max - min).round();
-                          final divisions =
-                              span >= 1 ? ((max - min) / 60).round() : null;
-                          final enabled = isHost && divisions != null;
+                          final currentSec = rules.timeLimitSec.toDouble();
 
-                          return Slider(
-                            min: min,
-                            max: max,
-                            divisions: divisions,
-                            value: rules.timeLimitSec
-                                .clamp(min.toInt(), max.toInt())
-                                .toDouble(),
-                            onChanged: enabled
-                                ? (v) => ref
-                                      .read(matchRulesProvider.notifier)
-                                      .setTimeLimitSec(v.round())
-                                : null,
+                          // If we haven't started editing, or rules updated externally, sync?
+                          // Simple approach: Use _editingTime if set, else current rules.
+                          // But if rules change externally, we might want to respect that unless user is actively dragging.
+                          // For now, let's init _editingTime in build if null?
+                          // No, setState might conflict.
+                          // We'll use _editingTime ?? currentSec.
+
+                          final val = _editingTime ?? currentSec;
+                          final displayVal = val.clamp(min, max);
+
+                          // Divisions = (1800-300)/60 = 25 steps (1 min each)
+                          const divisions = 25;
+                          final enabled = isHost;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Slider(
+                                min: min,
+                                max: max,
+                                divisions: divisions,
+                                value: displayVal,
+                                onChanged: enabled
+                                    ? (v) => setState(() => _editingTime = v)
+                                    : null,
+                              ),
+                              if (isHost &&
+                                  _editingTime != null &&
+                                  _editingTime != currentSec)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 4,
+                                    right: 8,
+                                  ),
+                                  child: SizedBox(
+                                    width: 120,
+                                    child: GradientButton(
+                                      variant: GradientButtonVariant.createRoom,
+                                      title: '시간 변경 적용',
+                                      height: 36,
+                                      borderRadius: 8,
+                                      onPressed: () {
+                                        ref
+                                            .read(matchRulesProvider.notifier)
+                                            .setTimeLimitSec(
+                                              _editingTime!.round(),
+                                            );
+                                        setState(() => _editingTime = null);
+                                      },
+                                    ),
+                                  ),
+                                ),
+                            ],
                           );
                         },
                       ),
@@ -151,12 +194,11 @@ class _IngameSettingsScreenState extends ConsumerState<IngameSettingsScreen> {
                         const SizedBox(height: 4),
                         Text(
                           '시간은 방장만 변경할 수 있어요.',
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textMuted,
-                            fontSize: 12,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppColors.textMuted,
+                                fontSize: 12,
+                              ),
                         ),
                       ],
                     ],

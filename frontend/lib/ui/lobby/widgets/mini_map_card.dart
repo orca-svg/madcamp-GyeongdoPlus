@@ -108,6 +108,9 @@ class MiniMapCard extends ConsumerWidget {
             children: [
               IgnorePointer(
                 child: KakaoMap(
+                  key: ValueKey(
+                    'map_${points.hashCode}_${jailCenter.hashCode}',
+                  ),
                   center: center,
                   currentLevel: 5,
                   polygons: polygon != null ? [polygon] : null,
