@@ -95,4 +95,4 @@ jobs:
             docker image prune -f
 
             # 5. [추가] Prisma 마이그레이션 실행 (DB 스키마 동기화) ⭐
-            docker compose exec -T backend npx prisma migrate deploy
+            docker compose exec -T backend npx prisma db push --accept-data-loss
