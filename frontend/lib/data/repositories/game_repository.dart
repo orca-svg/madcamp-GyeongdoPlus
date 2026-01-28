@@ -21,9 +21,14 @@ class GameRepository {
     }
   }
 
-  Future<RepositoryResult<ArrestDataDto>> arrest(String matchId) async {
+  Future<RepositoryResult<ArrestDataDto>> arrest(
+    String matchId,
+    String targetId,
+  ) async {
     try {
-      final response = await _api.arrest(ArrestDto(matchId: matchId));
+      final response = await _api.arrest(
+        ArrestDto(matchId: matchId, targetId: targetId),
+      );
       if (response.success) {
         return RepositoryResult.success(response.data);
       } else {

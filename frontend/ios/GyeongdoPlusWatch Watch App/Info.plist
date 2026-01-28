@@ -28,7 +28,7 @@
 	<key>WKApplication</key>
 	<true/>
 	<key>WKCompanionAppBundleIdentifier</key>
-	<string>com.madcamp.gyeongdoplus</string>
+	<string>com.junyeop.gyeongdoplus</string>
 	<key>WKWatchOnly</key>
 	<false/>
 	<key>NSHealthShareUsageDescription</key>

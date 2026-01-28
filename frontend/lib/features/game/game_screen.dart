@@ -37,7 +37,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       final room = ref.read(roomProvider);
       final myTeam = room.me?.team;
       if (myTeam != null) {
-        ref.read(itemProvider.notifier).initializeForGame(
+        ref
+            .read(itemProvider.notifier)
+            .initializeForGame(
               gameDurationSec: rules.timeLimitSec,
               myTeam: myTeam,
             );
@@ -125,22 +127,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     // Markers
     final List<Marker> markers = visiblePlayers.map((p) {
       final isTeammate = p.team == myTeamStr;
-      // TODO: Custom marker images based on team
+
+      // Determine marker image based on team
+      // Police -> Blue, Thief -> Red
+      // We use local assets. Note: KakaoMap plugin might require specific path format or URL.
+      // Trying standard asset path first.
+      final isPolice = p.team == 'POLICE';
+      final imageSrc = isPolice
+          ? 'assets/icon/marker_blue.png'
+          : 'assets/icon/marker_red.png';
+
       return Marker(
         markerId: p.userId,
         latLng: LatLng(p.lat, p.lng),
         infoWindowContent: isTeammate ? '아군' : '적군 (탐지됨)',
+        markerImageSrc: imageSrc,
+        // MarkerImage(width: 24, height: 24, ...) if supported,
+        // but plugin usuall only takes src string in constructor or separate param.
+        // Checking plugin definition: Marker({required this.markerId, ..., this.markerImageSrc})
       );
     }).toList();
 
     // Self Marker
     final myPos = gameState.myPosition;
     if (myPos != null) {
+      final amIPolice = myTeam == Team.police;
+      final myImageSrc = amIPolice
+          ? 'assets/icon/marker_blue.png'
+          : 'assets/icon/marker_red.png';
+
       markers.add(
         Marker(
           markerId: 'self_marker',
           latLng: LatLng(myPos.latitude, myPos.longitude),
           infoWindowContent: '나',
+          markerImageSrc: myImageSrc,
         ),
       );
     }
@@ -219,11 +240,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               ),
 
               // Item Slots (Bottom Left)
-              const Positioned(
-                bottom: 120,
-                left: 20,
-                child: ItemSlotHUD(),
-              ),
+              const Positioned(bottom: 120, left: 20, child: ItemSlotHUD()),
 
               // Ability Button (Bottom Right)
               Positioned(

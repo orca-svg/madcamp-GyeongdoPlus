@@ -89,11 +89,13 @@ Map<String, dynamic> _$MoveResponseDtoToJson(MoveResponseDto instance) =>
 ArrestDto _$ArrestDtoFromJson(Map<String, dynamic> json) => ArrestDto(
   matchId: json['matchId'] as String,
   copId: json['copId'] as String?,
+  targetId: json['targetId'] as String?,
 );
 
 Map<String, dynamic> _$ArrestDtoToJson(ArrestDto instance) => <String, dynamic>{
   'matchId': instance.matchId,
   'copId': instance.copId,
+  'targetId': instance.targetId,
 };
 
 ArrestDataDto _$ArrestDataDtoFromJson(Map<String, dynamic> json) =>
