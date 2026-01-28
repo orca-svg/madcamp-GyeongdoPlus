@@ -34,5 +34,29 @@ class GameRepository {
     }
   }
 
-  // Add other methods (rescue, item, etc) as needed
+  Future<RepositoryResult<void>> selectItem(SelectItemDto dto) async {
+    try {
+      final response = await _api.selectItem(dto);
+      if (response.success) {
+        return RepositoryResult.success(null);
+      } else {
+        return RepositoryResult.failure(response.message);
+      }
+    } catch (e) {
+      return RepositoryResult.failure(e.toString());
+    }
+  }
+
+  Future<RepositoryResult<void>> useItem(UseItemDto dto) async {
+    try {
+      final response = await _api.useItem(dto);
+      if (response.success) {
+        return RepositoryResult.success(null);
+      } else {
+        return RepositoryResult.failure(response.message);
+      }
+    } catch (e) {
+      return RepositoryResult.failure(e.toString());
+    }
+  }
 }

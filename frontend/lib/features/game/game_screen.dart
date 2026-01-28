@@ -12,6 +12,8 @@ import '../../providers/game_provider.dart';
 import '../map/game_map_renderer.dart';
 import '../ingame/widgets/game_rules_overlay.dart';
 import 'providers/ability_provider.dart';
+import 'providers/item_provider.dart';
+import 'widgets/item_slot_hud.dart';
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -29,6 +31,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     // Start tracking location and connecting socket listeners
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(gameProvider.notifier).startGame();
+
+      // Initialize item system
+      final rules = ref.read(matchRulesProvider);
+      final room = ref.read(roomProvider);
+      final myTeam = room.me?.team;
+      if (myTeam != null) {
+        ref.read(itemProvider.notifier).initializeForGame(
+              gameDurationSec: rules.timeLimitSec,
+              myTeam: myTeam,
+            );
+      }
     });
   }
 
@@ -36,6 +49,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   void dispose() {
     // Stop tracking handled by provider if needed, or explicitly here
     // ref.read(gameProvider.notifier).stopGame();
+    ref.read(itemProvider.notifier).stop();
     super.dispose();
   }
 
@@ -202,6 +216,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   ),
                   const SizedBox(height: 100), // Space for bottom panels
                 ],
+              ),
+
+              // Item Slots (Bottom Left)
+              const Positioned(
+                bottom: 120,
+                left: 20,
+                child: ItemSlotHUD(),
               ),
 
               // Ability Button (Bottom Right)
