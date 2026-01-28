@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/rank_utils.dart';
 import '../../core/widgets/connection_indicator.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
@@ -11,6 +12,7 @@ import '../../core/widgets/gradient_button.dart';
 import '../../core/widgets/rank_neon_card.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/game_phase_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../providers/watch_provider.dart';
 import '../room/room_create_screen.dart';
 import '../room/room_join_screen.dart';
@@ -29,11 +31,13 @@ class HomeScreen extends ConsumerWidget {
         : AppDimens.bottomBarHIn;
     final bottomInset = bottomPad + 18;
 
-    // Use real user data from AuthProvider
-    final user = auth.user;
-    final displayName = user?.nickname ?? auth.displayName ?? '김선수';
-    final policeScore = user?.policeScore ?? 0;
-    final thiefScore = user?.thiefScore ?? 0;
+    // Use real user data from UserProvider (Rich Stats) - NOT AuthProvider
+    final userState = ref.watch(userProvider);
+    final displayName = userState.nickname.isNotEmpty
+        ? userState.nickname
+        : (auth.displayName ?? '김선수');
+    final policeScore = userState.policeMmr;
+    final thiefScore = userState.thiefMmr;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -102,7 +106,7 @@ class HomeScreen extends ConsumerWidget {
                         score: policeScore,
                         icon: Icons.shield_rounded,
                         accent: AppColors.borderCyan,
-                        rankName: _rankNameFromScore(policeScore, 'POLICE'),
+                        rankName: RankUtils.getPoliceRankTitle(policeScore),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -112,7 +116,7 @@ class HomeScreen extends ConsumerWidget {
                         score: thiefScore,
                         icon: Icons.lock_rounded,
                         accent: AppColors.red,
-                        rankName: _rankNameFromScore(thiefScore, 'THIEF'),
+                        rankName: RankUtils.getThiefRankTitle(thiefScore),
                       ),
                     ),
                   ],
@@ -171,25 +175,5 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  String _rankNameFromScore(int score, String role) {
-    final r = role.toUpperCase();
-
-    // ✅ "내 정보 탭에서처럼" 역할별 랭크명 제공
-    if (r == 'POLICE') {
-      if (score >= 3000) return '특수요원';
-      if (score >= 2000) return '강력반';
-      if (score >= 1200) return '경사';
-      if (score >= 600) return '순경';
-      if (score > 0) return '훈련생';
-      return 'Unranked';
-    }
-
-    // THIEF
-    if (score >= 3000) return '전설의 도둑';
-    if (score >= 2000) return '괴도';
-    if (score >= 1200) return '전문털이범';
-    if (score >= 600) return '소매치기';
-    if (score > 0) return '연습생';
-    return 'Unranked';
-  }
+  // Helper method removed in favor of RankUtils
 }

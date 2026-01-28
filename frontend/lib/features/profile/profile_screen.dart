@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/rank_utils.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/rank_neon_card.dart';
@@ -97,7 +98,7 @@ class ProfileScreen extends ConsumerWidget {
                       score: policeScore,
                       icon: Icons.local_police_rounded,
                       accent: neonCyan,
-                      rankName: _getPoliceRankTitle(policeScore),
+                      rankName: RankUtils.getPoliceRankTitle(policeScore),
                       trend: RankTrend.none,
                       isWin: true,
                     ),
@@ -109,7 +110,7 @@ class ProfileScreen extends ConsumerWidget {
                       score: thiefScore,
                       icon: Icons.directions_run_rounded,
                       accent: AppColors.red,
-                      rankName: _getThiefRankTitle(thiefScore),
+                      rankName: RankUtils.getThiefRankTitle(thiefScore),
                       trend: RankTrend.none,
                       isWin: true,
                     ),
@@ -221,8 +222,8 @@ class ProfileScreen extends ConsumerWidget {
     // Determine Main Rank (Higher Score)
     final isPoliceMain = policeScore >= thiefScore;
     final mainRankTitle = isPoliceMain
-        ? _getPoliceRankTitle(policeScore)
-        : _getThiefRankTitle(thiefScore);
+        ? RankUtils.getPoliceRankTitle(policeScore)
+        : RankUtils.getThiefRankTitle(thiefScore);
     final mainRankColor = isPoliceMain ? neonCyan : AppColors.red;
 
     return Column(
@@ -450,19 +451,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  String _getPoliceRankTitle(int score) {
-    if (score >= 3000) return '총경';
-    if (score >= 1500) return '경감';
-    if (score >= 600) return '경사';
-    return '순경';
-  }
-
-  String _getThiefRankTitle(int score) {
-    if (score >= 3000) return '팬텀';
-    if (score >= 1500) return '마스터';
-    if (score >= 600) return '엑스퍼트';
-    return '루키';
-  }
+  // Rank Helper methods removed in favor of RankUtils
 
   // Achievement ID -> Display Title Mapping
   // TODO: Verify exact IDs with backend. These are tentative.
