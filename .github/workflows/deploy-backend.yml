@@ -73,6 +73,7 @@ jobs:
             
             # 1. .env 파일 생성 (GitHub Secrets 값을 이용해 서버에 파일 생성)
             echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+            echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" > .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
             echo "NODE_ENV=production" >> .env
