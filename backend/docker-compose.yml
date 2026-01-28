@@ -1,0 +1,41 @@
+services:
+  # 1. Redis 서비스 (기존 내용 유지)
+
+  redis:
+    image: redis:alpine
+    container_name: cops_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --requirepass "${REDIS_PASSWORD}" --appendonly yes
+    networks:      # (선택) 명시적인 네트워크 연결
+      - cops_network
+
+  # 2. 백엔드 API 서비스 (새로 추가할 부분!)
+  backend:
+    container_name: cops_backend
+    image: ${DOCKER_USERNAME}/cops-backend:latest
+    # build: .       # 현재 폴더에 있는 Dockerfile을 보고 이미지를 만들어라
+    restart: always # 서버가 죽으면 자동으로 다시 살려라
+    ports:
+      - "4000:3000" # [외부포트]:[내부포트] (사용하시는 포트에 맞춰 수정하세요)
+    env_file: 
+      - .env
+    depends_on:
+      - redis      # Redis가 먼저 켜진 뒤에 백엔드를 켜라 (순서 보장)
+    environment:   # 환경 변수 주입
+      - NODE_ENV=production
+      - REDIS_HOST=redis      # ⭐ 중요: 'localhost'가 아니라 서비스 이름인 'redis'를 써야 함
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD} # Redis 설정한 비밀번호와 똑같이
+      - PORT=4000
+    networks:
+      - cops_network
+
+volumes:
+  redis_data:
+
+networks:
+  cops_network:
+    driver: bridge
