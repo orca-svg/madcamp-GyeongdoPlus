@@ -10,6 +10,7 @@ import '../../../data/dto/game_dto.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/room_provider.dart';
 import '../../../net/socket/socket_io_client_provider.dart';
+import '../../../core/services/audio_service.dart'; // Audio
 
 /// Item state
 class ItemState {
@@ -34,12 +35,12 @@ class ItemState {
   });
 
   factory ItemState.initial() => const ItemState(
-        slots: [],
-        maxSlots: 0,
-        gameElapsedSec: 0,
-        gameDurationSec: 0,
-        myTeam: null,
-      );
+    slots: [],
+    maxSlots: 0,
+    gameElapsedSec: 0,
+    gameDurationSec: 0,
+    myTeam: null,
+  );
 
   ItemState copyWith({
     List<ItemSlot>? slots,
@@ -95,11 +96,10 @@ class ItemController extends Notifier<ItemState> {
   }
 
   /// Initialize for game start
-  void initializeForGame({
-    required int gameDurationSec,
-    required Team myTeam,
-  }) {
-    debugPrint('[ITEM] Initializing for game: ${gameDurationSec}s, team: $myTeam');
+  void initializeForGame({required int gameDurationSec, required Team myTeam}) {
+    debugPrint(
+      '[ITEM] Initializing for game: ${gameDurationSec}s, team: $myTeam',
+    );
 
     // Start with 1 slot, grant random item
     final slot0 = ItemSlot.empty(0);
@@ -227,6 +227,11 @@ class ItemController extends Notifier<ItemState> {
     }
 
     state = state.copyWith(slots: newSlots);
+    state = state.copyWith(slots: newSlots);
+
+    // Play SFX
+    ref.read(audioServiceProvider).playSfx(AudioType.itemGet);
+
     debugPrint('[ITEM] Granted ${randomItem.label} to slot $slotIndex');
   }
 
@@ -251,11 +256,9 @@ class ItemController extends Notifier<ItemState> {
         // Update local state
         final newSlots = List<ItemSlot>.from(state.slots);
         if (slotIndex >= newSlots.length) {
-          newSlots.add(ItemSlot(
-            index: slotIndex,
-            item: item,
-            status: SlotStatus.ready,
-          ));
+          newSlots.add(
+            ItemSlot(index: slotIndex, item: item, status: SlotStatus.ready),
+          );
         } else {
           newSlots[slotIndex] = newSlots[slotIndex].copyWith(
             item: item,
@@ -263,10 +266,7 @@ class ItemController extends Notifier<ItemState> {
           );
         }
 
-        state = state.copyWith(
-          slots: newSlots,
-          pendingChoiceModal: false,
-        );
+        state = state.copyWith(slots: newSlots, pendingChoiceModal: false);
         debugPrint('[ITEM] Selected ${item.label} for slot $slotIndex');
       } else {
         debugPrint('[ITEM] Select failed: ${result.errorMessage}');
@@ -353,10 +353,7 @@ class ItemController extends Notifier<ItemState> {
     final socket = ref.read(socketIoClientProvider.notifier);
     final room = ref.read(roomProvider);
 
-    final payload = {
-      'matchId': room.roomId,
-      'itemId': item.id,
-    };
+    final payload = {'matchId': room.roomId, 'itemId': item.id};
 
     socket.emit('use_item', payload);
     debugPrint('[ITEM] Emitted use_item: ${item.id}');
@@ -373,7 +370,9 @@ class ItemController extends Notifier<ItemState> {
       empActiveUntil: DateTime.now().add(Duration(seconds: durationSec)),
     );
 
-    debugPrint('[ITEM] EMP activated - police items disabled for ${durationSec}s');
+    debugPrint(
+      '[ITEM] EMP activated - police items disabled for ${durationSec}s',
+    );
   }
 
   /// Clear pending choice modal

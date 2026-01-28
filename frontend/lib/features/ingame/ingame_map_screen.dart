@@ -21,6 +21,7 @@ class InGameMapScreen extends ConsumerStatefulWidget {
 
 class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
   final _renderer = GameMapRenderer();
+  KakaoMapController? _mapController; // Safe controller reference
 
   void _showRulesOverlay(MatchRulesState rules) {
     showDialog(
@@ -102,6 +103,12 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                                 key: ValueKey(
                                   'ingame_map_${rules.zonePolygon?.length ?? 0}_${rules.jailCenter?.lat ?? 0}',
                                 ),
+                                onMapCreated: (controller) {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _mapController = controller;
+                                  });
+                                },
                                 center: center,
                                 currentLevel: 4,
                                 zoomControl: true,

@@ -12,6 +12,7 @@ import '../watch/watch_sync_controller.dart';
 import 'package:flutter/services.dart';
 import '../features/game/providers/ability_provider.dart';
 import '../features/game/services/interaction_service.dart';
+import '../core/services/audio_service.dart'; // Audio
 
 // Simple model for player state in game
 class PlayerState {
@@ -26,14 +27,19 @@ class PlayerState {
     required this.lat,
     required this.lng,
     required this.team,
+
     this.heading,
+    this.isArrested = false,
   });
+
+  final bool isArrested;
 
   PlayerState copyWith({
     double? lat,
     double? lng,
     String? team,
     double? heading,
+    bool? isArrested,
   }) {
     return PlayerState(
       userId: userId,
@@ -99,6 +105,8 @@ class GameController extends Notifier<GameState> {
     eventStream.listen((event) {
       if (event.name == 'player_moved') {
         _handlePlayerMoved(event.payload);
+      } else if (event.name == 'player_arrested') {
+        _handlePlayerArrested(event.payload);
       }
     });
   }
@@ -129,6 +137,33 @@ class GameController extends Notifier<GameState> {
       state = state.copyWith(players: newMap);
     } catch (e) {
       debugPrint('[GAME] Player moved parse error: $e');
+    }
+  }
+
+  void _handlePlayerArrested(Map<String, dynamic> payload) {
+    try {
+      final victimId = payload['victimId'] as String;
+      final arresterId = payload['arresterId'] as String;
+      
+      debugPrint('[GAME] Player Arrested: $victimId by $arresterId');
+
+      if (state.players.containsKey(victimId)) {
+        final p = state.players[victimId]!;
+        final newPlayer = p.copyWith(isArrested: true);
+        final newMap = Map<String, PlayerState>.from(state.players);
+        newMap[victimId] = newPlayer;
+        state = state.copyWith(players: newMap);
+      }
+      
+      // Check if self is arrested
+      final room = ref.read(roomProvider);
+      if (victimId == room.myId) {
+        // Trigger Red Vignette via state logic in GameScreen
+        // Also play sound
+         ref.read(audioServiceProvider).playSfx(AudioType.siren); // or arrestFail
+      }
+    } catch (e) {
+      debugPrint('[GAME] Arrest parse error: $e');
     }
   }
 
@@ -205,7 +240,9 @@ class GameController extends Notifier<GameState> {
     double minDistance = 9999.0;
     String? closestEnemyId;
 
-    for (var enemy in enemies) {
+      // CRITICAL FIX: Skip self explicitly
+      if (enemy.userId == room.myId) continue;
+
       // 1. Calculate Hybrid Distance
       double distance = 9999.0;
 
@@ -295,6 +332,8 @@ class GameController extends Notifier<GameState> {
       final result = await repo.arrest(room.roomId, targetId);
       if (result.success) {
         debugPrint('[GAME] Arrest Success: ${result.data?.status}');
+        // Play SFX
+        ref.read(audioServiceProvider).playSfx(AudioType.arrestSuccess);
       } else {
         debugPrint('[GAME] Arrest Failed: ${result.errorMessage}');
       }

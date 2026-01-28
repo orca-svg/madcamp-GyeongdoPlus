@@ -18,6 +18,7 @@ import 'providers/ability_provider.dart';
 import 'providers/item_provider.dart';
 import 'widgets/item_slot_hud.dart';
 import 'widgets/ability_button.dart';
+import '../../core/services/audio_service.dart'; // Audio
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -37,6 +38,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     // Start tracking location and connecting socket listeners
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(gameProvider.notifier).startGame();
+
+      // Play Game BGM
+      ref.read(audioServiceProvider).playBgm(AudioType.bgmChase);
 
       // Initialize item system
       final rules = ref.read(matchRulesProvider);
@@ -66,6 +70,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     // Stop tracking handled by provider if needed, or explicitly here
     // ref.read(gameProvider.notifier).stopGame();
     ref.read(itemProvider.notifier).stop();
+    // Stop BGM
+    ref.read(audioServiceProvider).stopBgm();
     _gameTimer?.cancel();
     super.dispose();
   }
@@ -136,8 +142,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       // Enemy visible if Finder active
       if (isFinderActive && !isTeammate) return true;
 
+      if (isFinderActive && !isTeammate) return true;
+
       return false;
     }).toList();
+
+    // Check if I am arrested
+    final myPlayerState = gameState.players[room.myId];
+    final bool amIArrested = myPlayerState?.isArrested ?? false;
 
     // Markers
     final List<Marker> markers = visiblePlayers.map((p) {
@@ -280,6 +292,38 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       ref.read(abilityProvider.notifier).useSkill(),
                 ),
               ),
+
+              // Red Vignette (Arrested)
+              if (amIArrested)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.transparent,
+                            AppColors.red.withOpacity(0.6),
+                          ],
+                          radius: 1.2,
+                          // Vignette means corners are red.
+                          // Actually RadialGradient center is center.
+                          stops: const [0.4, 1.0],
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '체 포 됨',
+                          style: TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.red.withOpacity(0.8),
+                            letterSpacing: 8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
               // Debug Info
               Positioned(

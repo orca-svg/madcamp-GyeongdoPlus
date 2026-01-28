@@ -22,6 +22,7 @@ import '../../providers/match_rules_provider.dart';
 import 'widgets/game_config_card.dart';
 import 'widgets/mini_map_card.dart';
 import 'widgets/ability_select_card.dart';
+import '../../core/services/audio_service.dart'; // Audio
 
 class LobbyScreen extends ConsumerStatefulWidget {
   const LobbyScreen({super.key});
@@ -31,6 +32,20 @@ class LobbyScreen extends ConsumerStatefulWidget {
 }
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Play Lobby BGM
+    ref.read(audioServiceProvider).playBgm(AudioType.bgmLobby);
+  }
+
+  @override
+  void dispose() {
+    // Stop BGM when leaving lobby (e.g. to Game or Home)
+    ref.read(audioServiceProvider).stopBgm();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final room = ref.watch(roomProvider);

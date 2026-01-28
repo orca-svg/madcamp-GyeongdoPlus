@@ -35,6 +35,7 @@ class InteractionService {
   // Cache detected players
   final Map<String, DetectedPlayer> _nearbyPlayers = {};
   Timer? _cleanupTimer;
+  String? _myUserId; // To filter self
 
   Stream<List<DetectedPlayer>> get nearbyPlayers => _detectedController.stream;
 
@@ -57,6 +58,7 @@ class InteractionService {
   }
 
   Future<void> start(String userId) async {
+    _myUserId = userId; // Store for self-filtering
     await stop(); // Ensure clean state
     await _requestPermissions();
 
@@ -159,6 +161,13 @@ class InteractionService {
     // 1. Try Local Name "GP_..."
     if (adv.localName.startsWith("GP_")) {
       foundShortId = adv.localName.substring(3);
+
+      // CRITICAL FIX: Ignore if self (prevent 400 error loop)
+      if (_myUserId != null && _myUserId!.length > 8) {
+        if (foundShortId == _myUserId!.substring(0, 8)) return;
+      } else if (foundShortId == _myUserId) {
+        return;
+      }
     }
     // 2. Try Manufacturer Data logic (if we implemented it) - optional fallback
 

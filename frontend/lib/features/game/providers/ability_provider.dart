@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart'; // For IconData, Icons
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/game_phase_provider.dart';
+import '../../../../core/services/audio_service.dart'; // Audio
 // import '../game_screen.dart'; // Circular dependency if not careful, used for types? No.
 
 enum AbilityType {
@@ -199,6 +200,9 @@ class AbilityController extends Notifier<AbilityState> {
 
   Future<void> useSkill() async {
     if (!state.isReady) return;
+
+    // Play SFX
+    ref.read(audioServiceProvider).playSfx(AudioType.abilityActive);
 
     // TODO: Call API
     // await _api.useAbility(state.type);
