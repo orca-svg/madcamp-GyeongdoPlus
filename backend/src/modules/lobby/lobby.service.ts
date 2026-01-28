@@ -10,7 +10,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EventsGateway } from '../events/events.gateway';
-import { CreateRoomDto, JoinRoomDto, KickUserDto, UpdateRoomDto, StartGameDto } from './lobby.dto';
+import { CreateRoomDto, JoinRoomDto, KickUserDto, UpdateRoomDto, StartGameDto, UpdateRoleDto } from './lobby.dto';
 import { generateRoomCode } from '../../common/utils/room-code.util';
 import { join } from 'path';
 
@@ -60,7 +60,7 @@ export class LobbyService {
 
     const user = await this.prisma.user.findUnique({ where: { id: hostUserId } });
     await this.redisService.hset(`game:${match.id}:player:${hostUserId}`, {
-      role: 'NONE',
+      role: 'POLICE',
       status: 'ALIVE',
       is_host: 'true',
       nickname: user?.nickname || 'HostUser',
@@ -116,7 +116,7 @@ export class LobbyService {
     const nickname = user?.nickname || `Guest_${userId.substring(0,4)}`;
 
     await this.redisService.hset(`game:${matchId}:player:${userId}`, {
-      role: 'NONE',
+      role: 'POLICE',
       status: 'ALIVE',
       is_host: 'false',
       nickname: nickname,
@@ -330,6 +330,70 @@ export class LobbyService {
     };
   }
 
+  // ==================================================================
+  // 🆕 7. 역할 선택 (PATCH /lobby/role)
+  // ==================================================================
+  async updatePlayerRole(userId: string, dto: UpdateRoleDto) {
+    const { matchId, role } = dto;
+
+    // 1. [유효성 검증] 방 상태 확인 (Redis 우선 조회)
+    const globalState = await this.redisService.hgetall(`game:${matchId}:state`);
+
+    // 방이 존재하지 않거나 상태 정보가 없는 경우
+    if (!globalState || !globalState.game_status) {
+      throw new HttpException({
+        success: false, message: '존재하지 않는 방입니다.', data: null, error: { code: 'ROOM_NOT_FOUND' },
+      }, HttpStatus.NOT_FOUND);
+    }
+
+    // 이미 게임이 시작된 경우 (409 Conflict)
+    if (globalState.game_status !== 'WAITING') {
+      throw new HttpException({
+        success: false, 
+        message: '이미 게임이 시작되어 역할을 변경할 수 없습니다.', 
+        data: null, 
+        error: { code: 'GAME_ALREADY_STARTED' },
+      }, HttpStatus.CONFLICT);
+    }
+
+    // 2. [상태 업데이트] 해당 유저가 방에 있는지 확인 및 업데이트
+    const playerKey = `game:${matchId}:player:${userId}`;
+    const playerExists = await this.redisService.exists(playerKey);
+
+    if (!playerExists) {
+      throw new NotFoundException('참가자를 찾을 수 없습니다.');
+    }
+
+    // Redis에 역할 업데이트
+    await this.redisService.hset(playerKey, { role: role });
+    
+    // (선택 사항) DB 업데이트가 필요하다면 나중에 게임 시작 시 한꺼번에 처리하거나, 
+    // 여기서 prisma.gameMatch의 players JSON을 수정해야 하는데, 
+    // 성능상 Redis만 업데이트하고 게임 시작 시 DB에 반영하는 것을 권장합니다.
+
+    // 3. [실시간 전파] Socket.io로 변경 사항 알림
+    // 클라이언트 UI (프로필 테두리 색상 등) 갱신용
+    this.eventsGateway.server.to(matchId).emit('user_role_changed', {
+      userId,
+      newRole: role,
+    });
+
+    // 4. [응답 반환]
+    const roleName = role === 'POLICE' ? '경찰' : '도둑';
+    const now = new Date().toISOString();
+
+    return {
+      success: true,
+      message: `역할이 ${roleName}(으)로 변경되었습니다.`,
+      data: {
+        userId,
+        role,
+        updatedAt: now,
+      },
+      error: null
+    };
+  }
+  
   // 6. 게임 시작 (POST /lobby/start)
   async startGame(requesterId: string, dto: StartGameDto) {
     const { matchId } = dto;

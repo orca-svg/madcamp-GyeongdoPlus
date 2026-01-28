@@ -1,6 +1,6 @@
 import { Controller, Post, Body, UseGuards, Req, Get, Param, Patch } from '@nestjs/common';
 import { LobbyService } from './lobby.service';
-import { CreateRoomDto, CreateRoomResponseDto, JoinRoomDto, JoinRoomConflictErrorDto, JoinRoomNotFoundErrorDto, JoinRoomResponseDto, KickUserDto, KickUserForbiddenErrorDto, KickUserResponseDto, GetRoomDetailsResponseDto, UpdateRoomDto, UpdateRoomResponseDto, StartGameDto, StartGameResponseDto } from './lobby.dto';
+import { CreateRoomDto, CreateRoomResponseDto, JoinRoomDto, JoinRoomConflictErrorDto, JoinRoomNotFoundErrorDto, JoinRoomResponseDto, KickUserDto, KickUserForbiddenErrorDto, KickUserResponseDto, GetRoomDetailsResponseDto, UpdateRoomDto, UpdateRoomResponseDto, UpdateRoleDto, UpdateRoleResponseDto, StartGameDto, StartGameResponseDto } from './lobby.dto';
 import { AuthGuard } from '@nestjs/passport'; // (JwtAuthGuard)
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
@@ -115,6 +115,31 @@ export class LobbyController {
     return this.lobbyService.updateRoomSettings(req.user.id, matchId, dto);
   }
 
+  // 🎭 역할 선택
+  @Patch('role')
+  @ApiOperation({ summary: '역할 선택', description: '대기실(Waiting) 상태에서 경찰/도둑 역할을 변경합니다.' })
+  
+  // ✅ 성공 응답 (200)
+  @ApiResponse({ 
+    status: 200, 
+    description: '역할 변경 성공', 
+    type: UpdateRoleResponseDto 
+  })
+  // ✅ 실패 - 게임 이미 시작됨 (409)
+  @ApiResponse({ 
+    status: 409, 
+    description: '이미 게임이 시작됨', 
+    type: JoinRoomConflictErrorDto // { code: 'GAME_ALREADY_STARTED' }
+  })
+  // ✅ 실패 - 방 없음 (404)
+  @ApiResponse({ 
+    status: 404, 
+    description: '방을 찾을 수 없음' 
+  })
+  async updatePlayerRole(@Req() req, @Body() dto: UpdateRoleDto) {
+    return this.lobbyService.updatePlayerRole(req.user.id, dto);
+  }
+  
   // 🚀 게임 시작
   @Post('start')
   @ApiOperation({ summary: '게임 시작', description: '방장(Host) 권한으로 게임을 시작 상태로 변경합니다.' })

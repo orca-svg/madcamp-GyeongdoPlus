@@ -342,6 +342,48 @@ export class UpdateRoomResponseDto {
 }
 
 // ==========================================
+// [신규] 역할 선택 (Role Selection) Request
+// ==========================================
+export class UpdateRoleDto {
+  @ApiProperty({ description: '게임 매치 ID', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @IsString()
+  matchId: string;
+
+  @ApiProperty({ description: '변경할 역할', example: 'POLICE', enum: ['POLICE', 'THIEF'] })
+  @IsEnum(['POLICE', 'THIEF'])
+  role: 'POLICE' | 'THIEF';
+}
+
+// ==========================================
+// [신규] 역할 선택 응답용 DTO
+// ==========================================
+
+class UpdateRoleDataDto {
+  @ApiProperty({ example: 'user-uuid-1234' })
+  userId: string;
+
+  @ApiProperty({ example: 'POLICE' })
+  role: string;
+
+  @ApiProperty({ example: '2026-01-24T15:30:00.000Z' })
+  updatedAt: string;
+}
+
+export class UpdateRoleResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ example: '역할이 경찰(으)로 변경되었습니다.' })
+  message: string;
+
+  @ApiProperty({ type: UpdateRoleDataDto })
+  data: UpdateRoleDataDto;
+
+  @ApiProperty({ example: null, nullable: true })
+  error: any;
+}
+
+// ==========================================
 // [수정] 게임 시작 Request DTO
 // ==========================================
 export class StartGameDto {
