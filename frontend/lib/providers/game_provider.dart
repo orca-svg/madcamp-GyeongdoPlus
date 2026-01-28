@@ -144,7 +144,7 @@ class GameController extends Notifier<GameState> {
     try {
       final victimId = payload['victimId'] as String;
       final arresterId = payload['arresterId'] as String;
-      
+
       debugPrint('[GAME] Player Arrested: $victimId by $arresterId');
 
       if (state.players.containsKey(victimId)) {
@@ -154,13 +154,15 @@ class GameController extends Notifier<GameState> {
         newMap[victimId] = newPlayer;
         state = state.copyWith(players: newMap);
       }
-      
+
       // Check if self is arrested
       final room = ref.read(roomProvider);
       if (victimId == room.myId) {
         // Trigger Red Vignette via state logic in GameScreen
         // Also play sound
-         ref.read(audioServiceProvider).playSfx(AudioType.siren); // or arrestFail
+        ref
+            .read(audioServiceProvider)
+            .playSfx(AudioType.siren); // or arrestFail
       }
     } catch (e) {
       debugPrint('[GAME] Arrest parse error: $e');
@@ -218,6 +220,13 @@ class GameController extends Notifier<GameState> {
   void stopGame() {
     _positionStream?.cancel();
     _positionStream = null;
+
+    _bleSubscription?.cancel();
+    _bleSubscription = null;
+
+    _arrestLoopTimer?.cancel();
+    _arrestLoopTimer = null;
+
     // Stop InteractionService
     _interactionService?.stop();
     _interactionService = null;
@@ -240,6 +249,7 @@ class GameController extends Notifier<GameState> {
     double minDistance = 9999.0;
     String? closestEnemyId;
 
+    for (final enemy in enemies) {
       // CRITICAL FIX: Skip self explicitly
       if (enemy.userId == room.myId) continue;
 

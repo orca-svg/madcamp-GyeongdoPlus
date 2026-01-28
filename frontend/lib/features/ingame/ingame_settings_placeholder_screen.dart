@@ -47,6 +47,51 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        '게임 규칙',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildRuleRow(
+                        context,
+                        '게임 모드',
+                        rules.gameMode == GameMode.normal ? '일반 모드' : '아이템 모드',
+                      ),
+                      _buildRuleRow(
+                        context,
+                        '접촉 방식',
+                        rules.contactMode == 'RFID'
+                            ? 'RFID 태그'
+                            : (rules.contactMode == 'CONTACT'
+                                  ? '화면 터치'
+                                  : '비접촉'),
+                      ),
+                      _buildRuleRow(
+                        context,
+                        '해방 규칙',
+                        '${rules.rescueReleaseScope == 'PARTIAL' ? '인원수 제한' : '모두 해방'} / ${rules.rescueReleaseOrder == 'FIFO' ? '선입선출' : '랜덤'}',
+                      ),
+                      _buildRuleRow(
+                        context,
+                        '감옥 범위',
+                        '${rules.jailRadiusM?.round() ?? 15}m',
+                      ),
+                      _buildRuleRow(
+                        context,
+                        '플레이 존',
+                        '${rules.zonePolygon?.length ?? 0}개 지점',
+                        isLast: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                GlowCard(
+                  glow: false,
+                  borderColor: AppColors.outlineLow,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         '게임 시간',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
@@ -56,18 +101,14 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
                           Expanded(
                             child: Text(
                               '${(rules.timeLimitSec / 60).round()}분 (${rules.timeLimitSec}s)',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.textSecondary),
                             ),
                           ),
                           if (!isHost)
                             Text(
                               '방장만 변경',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.textMuted),
                             ),
                         ],
@@ -81,16 +122,14 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
                             .toDouble(),
                         onChanged: isHost
                             ? (v) => ref
-                                .read(matchRulesProvider.notifier)
-                                .setTimeLimitSec(v.round())
+                                  .read(matchRulesProvider.notifier)
+                                  .setTimeLimitSec(v.round())
                             : null,
                       ),
                       if (!isHost)
                         Text(
                           '시간 조절은 방장만 가능합니다.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppColors.textMuted),
                         ),
                     ],
@@ -115,6 +154,35 @@ class InGameSettingsPlaceholderScreen extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRuleRow(
+    BuildContext context,
+    String label,
+    String value, {
+    bool isLast = false,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

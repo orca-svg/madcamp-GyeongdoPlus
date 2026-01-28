@@ -124,9 +124,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     final myTeam = room.me?.team == Team.thief ? 'THIEF' : 'POLICE';
     final teamStats = _computeTeamStats(match);
 
-    // ✅ your-branch-safe: don't rely on GameMode.normal existing
-    final isNormalMode = _isNormalMode(gameMode);
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBody: true,
@@ -251,194 +248,13 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // C/D. 일반 모드가 아닐 때만 위험 분석 섹션 표시
-                if (!isNormalMode) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _miniStat(
-                          icon: Icons.group_rounded,
-                          value: '${ui.allyCount}',
-                          label: '아군',
-                          border: AppColors.borderCyan,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _miniStat(
-                          icon: Icons.warning_rounded,
-                          value: '${ui.enemyCount}',
-                          label: '적',
-                          border: AppColors.red,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _miniStat(
-                          icon: Icons.shield_rounded,
-                          value: ui.safetyText,
-                          label: '페이즈',
-                          border: AppColors.lime,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  const SectionTitle(title: '위험 분석'),
-                  const SizedBox(height: 10),
-                  GlowCard(
-                    borderColor: AppColors.orange.withOpacity(0.45),
-                    glowColor: AppColors.orange.withOpacity(0.10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.orange,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              ui.dangerTitle,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.orange,
-                                  ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              ui.etaText,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.red,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                ui.directionText,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: AppColors.textSecondary),
-                              ),
-                            ),
-                            Text(
-                              ui.distanceText,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textSecondary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(999),
-                          child: LinearProgressIndicator(
-                            value: ui.progress01,
-                            minHeight: 10,
-                            backgroundColor: AppColors.outlineLow.withOpacity(
-                              0.9,
-                            ),
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.orange,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    collapsedTextColor: AppColors.textSecondary,
-                    textColor: AppColors.textSecondary,
-                    iconColor: AppColors.textSecondary,
-                    collapsedIconColor: AppColors.textSecondary,
-                    title: Text(
-                      '추가 정보',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    children: [
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GlowCard(
-                              glow: false,
-                              borderColor: AppColors.outlineLow,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '현재 상태',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: AppColors.textMuted),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    ui.safetyText,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w800),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: GlowCard(
-                              glow: false,
-                              borderColor: AppColors.outlineLow,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '권장 행동',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: AppColors.textMuted),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    '엄폐물로 이동',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w800),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
-                ] else ...[
-                  _buildHeartRateSection(
-                    context,
-                    watchConnected,
-                    watchSync.currentHeartRate,
-                  ),
-                ],
+                // Risk Analysis removed as requested.
+                // Only showing Heart Rate if connected.
+                _buildHeartRateSection(
+                  context,
+                  watchConnected,
+                  watchSync.currentHeartRate,
+                ),
 
                 const SizedBox(height: 14),
 
@@ -882,46 +698,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         ),
       ],
     );
-  }
-
-  Widget _miniStat({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color border,
-  }) {
-    return GlowCard(
-      borderColor: border.withOpacity(0.55),
-      glowColor: border.withOpacity(0.10),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-      child: Column(
-        children: [
-          Icon(icon, color: border, size: 22),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// ✅ enum/문자열/커스텀 타입 모두 대응: normal 여부만 안전하게 판단
-  bool _isNormalMode(dynamic modeAny) {
-    if (modeAny == null) return true;
-    final s = modeAny.toString().toLowerCase();
-    // ex) GameMode.normal / MatchMode.normal / 'NORMAL' / 'normal'
-    return s.contains('normal');
   }
 }
 

@@ -238,12 +238,27 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                             ),
                             const SizedBox(height: 6),
                             // Ratio Slider
-                            Slider(
-                              min: 0.1,
-                              max: 0.5,
-                              divisions: 4,
-                              value: _form.policeRatio,
-                              onChanged: _setPoliceRatio,
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 6,
+                                activeTrackColor:
+                                    AppColors.borderCyan, // Police
+                                inactiveTrackColor: AppColors.red, // Thief
+                                thumbColor: Colors.white,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 10,
+                                ),
+                                overlayColor: AppColors.borderCyan.withOpacity(
+                                  0.2,
+                                ),
+                              ),
+                              child: Slider(
+                                min: 0.1,
+                                max: 0.5,
+                                divisions: 4,
+                                value: _form.policeRatio,
+                                onChanged: _setPoliceRatio,
+                              ),
                             ),
                             const SizedBox(height: 12),
                             _LabeledRow(
@@ -318,6 +333,14 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                               ],
                             ),
                             const SizedBox(height: 12),
+                            Text(
+                              _form.releaseScope == RoomReleaseScope.partial
+                                  ? '설정된 인원수만큼만 해방됩니다.'
+                                  : '감옥의 모든 사람이 해방됩니다.',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.textMuted),
+                            ),
+                            const SizedBox(height: 8),
                             _ToggleChips<RoomReleaseScope>(
                               value: _form.releaseScope,
                               onChanged: _setReleaseScope,
@@ -332,14 +355,6 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _form.releaseScope == RoomReleaseScope.partial
-                                  ? '설정된 인원수만큼만 해방됩니다.'
-                                  : '감옥의 모든 사람이 해방됩니다.',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: AppColors.textMuted),
-                            ),
                             const SizedBox(height: 12),
                             // Always show Order options, or conditionally?
                             // User request: "Split order choices... remove labels"
@@ -347,6 +362,18 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                             // Existing logic: if (_form.releaseScope == RoomReleaseScope.partial)
                             if (_form.releaseScope ==
                                 RoomReleaseScope.partial) ...[
+                              Align(
+                                alignment: Alignment
+                                    .centerLeft, // Left align description
+                                child: Text(
+                                  _form.releaseOrder == RoomReleaseOrder.fifo
+                                      ? '먼저 잡힌 사람이 우선 해방됩니다.'
+                                      : '나중에 잡힌 사람이 우선 해방됩니다.',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(color: AppColors.textMuted),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
                               _ToggleChips<RoomReleaseOrder>(
                                 value: _form.releaseOrder,
                                 onChanged: _setReleaseOrder,
@@ -360,18 +387,6 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                                     label: '후착순\n(나중에 잡힌 순)',
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 6),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: Text(
-                                  _form.releaseOrder == RoomReleaseOrder.fifo
-                                      ? '먼저 잡힌 사람이 우선 해방됩니다.'
-                                      : '나중에 잡힌 사람이 우선 해방됩니다.',
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(color: AppColors.textMuted),
-                                  textAlign: TextAlign.right,
-                                ),
                               ),
                             ],
                           ],
