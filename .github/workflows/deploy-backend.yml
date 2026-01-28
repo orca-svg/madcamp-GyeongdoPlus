@@ -69,13 +69,15 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.EC2_USER }}/cops-backend
+            cd /home/${{ secrets.EC2_USER }}/backend
             
             # 1. .env 파일 생성 (GitHub Secrets 값을 이용해 서버에 파일 생성)
             echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
             echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" > .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
+            echo "KAKAO_CALLBACK_URL=${{ secrets.KAKAO_CALLBACK_URL }}" >> .env
+            echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
             echo "NODE_ENV=production" >> .env
             echo "PORT=4000" >> .env
             echo "REDIS_HOST=redis" >> .env
