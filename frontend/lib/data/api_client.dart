@@ -5,34 +5,36 @@ import '../core/env.dart';
 import '../providers/auth_provider.dart';
 
 /// Provider for ApiClient with automatic token injection from AuthProvider
+/// Provider for ApiClient
+/// Circular dependency fixed: AuthProvider will push token updates to this client.
 final apiClientProvider = Provider<ApiClient>((ref) {
-  final apiClient = ApiClient.create();
-
-  // Listen to auth state changes and auto-update token
-  ref.listen<AuthState>(authProvider, (previous, next) {
-    final token = next.accessToken;
-    apiClient.setAuthToken(token);
-    debugPrint(
-      '[ApiClient] Auth token updated: ${token != null ? 'SET' : 'CLEARED'}',
-    );
-  });
-
-  // Initialize with current token if already signed in
-  final currentAuth = ref.read(authProvider);
-  if (currentAuth.accessToken != null) {
-    apiClient.setAuthToken(currentAuth.accessToken);
-  }
-
-  return apiClient;
+  return ApiClient.create(
+    onRefreshToken: () async {
+      // Lazy read to avoid cyclic init
+      final authController = ref.read(authProvider.notifier);
+      return await authController.refreshAccessToken();
+    },
+    onSignOut: () {
+      // Lazy read
+      final authController = ref.read(authProvider.notifier);
+      authController.signOut();
+    },
+  );
 });
 
 class ApiClient {
   final Dio dio;
   String? _cachedToken;
+  final Future<String?> Function()? _onRefreshToken;
+  final void Function()? _onSignOut;
+  bool _isRefreshing = false;
 
-  ApiClient._(this.dio);
+  ApiClient._(this.dio, this._onRefreshToken, this._onSignOut);
 
-  factory ApiClient.create() {
+  factory ApiClient.create({
+    Future<String?> Function()? onRefreshToken,
+    void Function()? onSignOut,
+  }) {
     final dio = Dio(
       BaseOptions(
         baseUrl: Env.apiBaseUrl,
@@ -42,7 +44,7 @@ class ApiClient {
       ),
     );
 
-    final client = ApiClient._(dio);
+    final client = ApiClient._(dio, onRefreshToken, onSignOut);
 
     // Add JWT interceptor that reads cached token on each request
     dio.interceptors.add(
@@ -62,15 +64,47 @@ class ApiClient {
           );
           handler.next(response);
         },
-        onError: (error, handler) {
+        onError: (error, handler) async {
           final statusCode = error.response?.statusCode;
           debugPrint(
             '[ApiClient] Error: $statusCode ${error.requestOptions.path}',
           );
 
-          // Handle 401 Unauthorized
-          if (statusCode == 401) {
-            debugPrint('[ApiClient] 401 Unauthorized - Token may be expired');
+          // Handle 401 Unauthorized - RTR (Rotate Token Request)
+          if (statusCode == 401 &&
+              !error.requestOptions.path.contains('/auth/refresh') &&
+              !client._isRefreshing) {
+            debugPrint(
+              '[ApiClient] 401 Unauthorized - Attempting token refresh',
+            );
+            client._isRefreshing = true;
+
+            try {
+              // Call refresh callback
+              final newToken = await client._onRefreshToken?.call();
+
+              if (newToken != null && newToken.isNotEmpty) {
+                // Update token
+                client.setAuthToken(newToken);
+
+                // Retry original request with new token
+                final options = error.requestOptions;
+                options.headers['Authorization'] = 'Bearer $newToken';
+
+                debugPrint('[ApiClient] Token refreshed, retrying request');
+                final response = await dio.fetch(options);
+                return handler.resolve(response);
+              } else {
+                // Refresh failed - sign out
+                debugPrint('[ApiClient] Token refresh failed - signing out');
+                client._onSignOut?.call();
+              }
+            } catch (e) {
+              debugPrint('[ApiClient] Token refresh error: $e');
+              client._onSignOut?.call();
+            } finally {
+              client._isRefreshing = false;
+            }
           }
 
           handler.next(error);

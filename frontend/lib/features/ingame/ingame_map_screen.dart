@@ -1,20 +1,15 @@
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import '../../core/app_dimens.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
-import '../../services/watch_sync_service.dart';
 import '../map/game_map_renderer.dart';
-import 'widgets/arrest_panel.dart';
 import 'widgets/game_rules_overlay.dart';
 
 class InGameMapScreen extends ConsumerStatefulWidget {
@@ -25,35 +20,8 @@ class InGameMapScreen extends ConsumerStatefulWidget {
 }
 
 class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
-  // Mock Location Data for Validation
-  final LatLng _thiefPos = LatLng(37.5665, 126.9780);
-  late LatLng _myPos;
-
   final _renderer = GameMapRenderer();
-
-  @override
-  void initState() {
-    super.initState();
-    // Start ~110m away
-    _myPos = LatLng(37.5675, 126.9780);
-  }
-
-  /// Simple Haversine Distance (Meters)
-  double _calcDistance(LatLng p1, LatLng p2) {
-    const R = 6371000; // Earth radius in meters
-    final dLat = _degToRad(p2.latitude - p1.latitude);
-    final dLng = _degToRad(p2.longitude - p1.longitude);
-    final a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_degToRad(p1.latitude)) *
-            math.cos(_degToRad(p2.latitude)) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return R * c;
-  }
-
-  double _degToRad(double deg) => deg * (math.pi / 180);
+  KakaoMapController? _mapController; // Safe controller reference
 
   void _showRulesOverlay(MatchRulesState rules) {
     showDialog(
@@ -87,16 +55,11 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
               ? LatLng(rules.jailCenter!.lat, rules.jailCenter!.lng)
               : LatLng(37.5665, 126.9780));
 
-    // Distance Calculation Logic
-    final distanceToThief = _calcDistance(_myPos, _thiefPos);
-    // Arrest enabled if distance < 3.0m
-    final canArrest = distanceToThief < 3.0;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GlassBackground(
         child: SafeArea(
-          bottom: false, // Let ArrestPanel sit at bottom
+          bottom: false,
           child: Stack(
             children: [
               Column(
@@ -137,6 +100,15 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                           child: Stack(
                             children: [
                               KakaoMap(
+                                key: ValueKey(
+                                  'ingame_map_${rules.zonePolygon?.length ?? 0}_${rules.jailCenter?.lat ?? 0}',
+                                ),
+                                onMapCreated: (controller) {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _mapController = controller;
+                                  });
+                                },
                                 center: center,
                                 currentLevel: 4,
                                 zoomControl: true,
@@ -168,53 +140,25 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                       ),
                     ),
                   ),
-                  // Space for Arrest Panel / Debug Panel
-                  SizedBox(height: isPolice ? 100 : 20),
+                  const SizedBox(height: 20),
                 ],
               ),
 
-              // Police Only: Arrest Panel
-              if (isPolice)
-                ArrestPanel(
-                  isEnabled: canArrest,
-                  distanceM: distanceToThief, // Pass distance for feedback
-                  onArrest: () async {
-                    // Check Watch Connection
-                    final sync = ref.read(watchSyncServiceProvider);
-                    if (await sync.isPairedOrConnected()) {
-                      await sync.sendHapticCommand({'kind': 'HEAVY'});
-                      if (context.mounted) {
-                        showAppSnackBar(context, message: '워치로 체포 진동 전송!');
-                      }
-                    } else {
-                      HapticFeedback.heavyImpact();
-                      if (context.mounted) {
-                        showAppSnackBar(context, message: '도둑 체포 시도! (폰 진동)');
-                      }
-                    }
-                  },
-                ),
-
-              // Mock Debug Control (move self close to thief)
-              if (kDebugMode)
+              // Auto-arrest system status indicator (debug)
+              if (kDebugMode && isPolice)
                 Positioned(
-                  bottom: 120,
+                  top: 80,
                   left: 20,
-                  child: FloatingActionButton.extended(
-                    heroTag: 'mockMove',
-                    backgroundColor: Colors.orange,
-                    onPressed: () {
-                      setState(() {
-                        // Toggle between far and close
-                        if (distanceToThief > 50) {
-                          _myPos = LatLng(37.56651, 126.9780); // ~1.1m
-                        } else {
-                          _myPos = LatLng(37.5675, 126.9780); // ~110m
-                        }
-                      });
-                    },
-                    label: Text(distanceToThief > 50 ? '도둑 근처로 이동' : '멀리 이동'),
-                    icon: const Icon(Icons.directions_run),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      '자동 체포 시스템 활성화',
+                      style: TextStyle(color: Colors.greenAccent, fontSize: 12),
+                    ),
                   ),
                 ),
             ],

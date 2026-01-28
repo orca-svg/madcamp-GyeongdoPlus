@@ -74,7 +74,7 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                         FilteringTextInputFormatter.allow(
                           RegExp(r'[A-Za-z0-9]'),
                         ),
-                        LengthLimitingTextInputFormatter(6),
+                        LengthLimitingTextInputFormatter(12), // RELAXED LIMIT
                       ],
                       decoration: const InputDecoration(
                         labelText: '방 코드',
@@ -104,8 +104,9 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(
@@ -131,29 +132,30 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
       showAppSnackBar(context, message: '방 코드를 입력하세요', isError: true);
       return;
     }
-    final valid = RegExp(r'^[A-Z0-9]{4,6}$').hasMatch(code);
+    final valid = RegExp(r'^[A-Z0-9]{4,12}$').hasMatch(code);
     if (!valid) {
       debugPrint('[ROOM] join fail/error=INVALID_CODE_FORMAT');
       showAppSnackBar(
         context,
-        message: '방 코드는 4~6자 영문/숫자여야 합니다',
+        message: '방 코드는 4~12자 영문/숫자여야 합니다',
         isError: true,
       );
       return;
     }
 
     setState(() => _submitting = true);
-    final result = await ref
+    final success = await ref
         .read(roomProvider.notifier)
         .joinRoom(myName: _nameCtrl.text, code: code);
     if (!context.mounted) return;
-    if (result.ok) {
+    if (success) {
       ref.read(gamePhaseProvider.notifier).toLobby();
       Navigator.of(context).pop();
     } else {
+      final roomState = ref.read(roomProvider);
       showAppSnackBar(
         context,
-        message: result.errorMessage ?? '방 참여에 실패했습니다',
+        message: roomState.errorMessage ?? '방 참여에 실패했습니다',
         isError: true,
       );
     }

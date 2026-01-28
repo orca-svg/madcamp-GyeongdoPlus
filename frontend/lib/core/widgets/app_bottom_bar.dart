@@ -72,11 +72,14 @@ class _AppBottomBarBase extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final totalHeight = (height + bottomInset).clamp(height, 72.0);
-    final safeInset = (totalHeight - height).clamp(0.0, bottomInset);
-    return SafeArea(
-      top: false,
-      bottom: false,
+    final totalHeight = height + bottomInset;
+    // Removed clamp which caused overflow.
+
+    return SizedBox(
+      height: totalHeight,
+      // Use standard container instead of manual logic to handle SafeArea naturally if possible,
+      // but here we want to paint background behind safe area too.
+      // So we keep manual calculation but remove clamp.
       child: Material(
         color: Colors.transparent,
         child: ClipRRect(
@@ -95,7 +98,7 @@ class _AppBottomBarBase extends StatelessWidget {
                 ),
               ),
               child: Padding(
-                padding: EdgeInsets.only(bottom: safeInset),
+                padding: EdgeInsets.only(bottom: bottomInset),
                 child: Row(
                   children: [
                     for (int i = 0; i < items.length; i++)
@@ -135,7 +138,7 @@ class _BottomBarButton extends StatelessWidget {
       onTap: onTap,
       radius: 30,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 4), // Reduced from 6
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -144,39 +147,39 @@ class _BottomBarButton extends StatelessWidget {
               children: [
                 if (selected)
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 28, // Reduced from 34
+                    height: 28,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.borderCyan.withOpacity(0.22),
-                          blurRadius: 18,
-                          spreadRadius: 2,
+                          blurRadius: 16,
+                          spreadRadius: 1,
                         ),
                       ],
                     ),
                   ),
-                Icon(item.icon, color: color, size: 22),
+                Icon(item.icon, color: color, size: 20), // Reduced from 22
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2), // Reduced from 3
             Text(
               item.label,
               style: TextStyle(
                 color: color,
-                fontSize: 11,
+                fontSize: 10, // Reduced from 11
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 letterSpacing: 0.1,
                 height: 1.0,
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2), // Reduced from 3
             AnimatedContainer(
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOut,
-              width: selected ? 18 : 4,
-              height: 2.4,
+              width: selected ? 16 : 4, // Reduced from 18
+              height: 2,
               decoration: BoxDecoration(
                 color: selected ? AppColors.borderCyan : Colors.transparent,
                 borderRadius: BorderRadius.circular(99),

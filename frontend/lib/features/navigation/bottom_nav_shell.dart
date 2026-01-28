@@ -9,14 +9,17 @@ import '../../providers/match_mode_provider.dart';
 import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
+import '../../providers/room_provider.dart';
 import '../../net/socket/socket_io_router.dart';
 import '../../watch/watch_action_handler.dart';
 import '../../ui/lobby/lobby_screen.dart';
 import '../../ui/post_game/post_game_screen.dart';
 import '../home/home_screen.dart';
 import '../ingame/ingame_capture_screen.dart';
-import '../ingame/ingame_map_screen.dart';
+
+import '../../features/game/game_screen.dart';
 import '../ingame/ingame_settings_placeholder_screen.dart';
+
 import '../radar/radar_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../history/history_screen.dart';
@@ -129,22 +132,55 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
       case GamePhase.inGame:
         final List<InGameTabSpec> tabs = _buildInGameTabs();
         final screens = tabs.map((t) => t.screen).toList();
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            IndexedStack(
-              index: _index.clamp(0, screens.length - 1),
-              children: screens,
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: AppBottomBarInGame(
-                tabs: tabs,
-                currentIndex: _index.clamp(0, screens.length - 1),
-                onTap: _onTabTap,
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+
+            final exit = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('게임 종료'),
+                content: const Text('정말 게임을 종료하고 나가시겠습니까?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: const Text('취소'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: const Text(
+                      '종료',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+
+            if (exit == true) {
+              // Leave room logic
+              ref.read(roomProvider.notifier).leaveRoom();
+              // Phase change listener will handle navigation reset
+            }
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              IndexedStack(
+                index: _index.clamp(0, screens.length - 1),
+                children: screens,
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: AppBottomBarInGame(
+                  tabs: tabs,
+                  currentIndex: _index.clamp(0, screens.length - 1),
+                  onTap: _onTabTap,
+                ),
+              ),
+            ],
+          ),
         );
     }
   }
@@ -152,15 +188,11 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   /// 모드에 따라 IN_GAME 탭 구성을 동적으로 생성
   List<InGameTabSpec> _buildInGameTabs() {
     return [
+      InGameTabSpec(icon: Icons.map_rounded, label: '지도', screen: GameScreen()),
       InGameTabSpec(
         icon: Icons.sports_esports_rounded,
         label: '게임',
         screen: RadarScreen(),
-      ),
-      InGameTabSpec(
-        icon: Icons.map_rounded,
-        label: '지도',
-        screen: InGameMapScreen(),
       ),
       InGameTabSpec(
         icon: Icons.lock_rounded,

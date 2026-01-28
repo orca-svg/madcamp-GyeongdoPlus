@@ -2,220 +2,313 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'lobby_dto.g.dart';
 
-// ============================================================================
-// Request DTOs
-// ============================================================================
+// ------------------------------------------------------------------
+// Create Room
+// ------------------------------------------------------------------
 
 @JsonSerializable()
-class CreateRoomRequest {
-  final String mode;
+class CreateRoomDto {
+  final String mode; // NORMAL, ITEM, ABILITY
   final int maxPlayers;
   final int timeLimit;
-  final Map<String, dynamic> rules;
-  final Map<String, dynamic> mapConfig;
+  final dynamic mapConfig; // JSON
+  final dynamic rules; // JSON
 
-  const CreateRoomRequest({
+  CreateRoomDto({
     required this.mode,
     required this.maxPlayers,
     required this.timeLimit,
-    required this.rules,
     required this.mapConfig,
+    required this.rules,
   });
 
-  factory CreateRoomRequest.fromJson(Map<String, dynamic> json) =>
-      _$CreateRoomRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$CreateRoomRequestToJson(this);
+  Map<String, dynamic> toJson() => _$CreateRoomDtoToJson(this);
 }
 
 @JsonSerializable()
-class JoinRoomRequest {
-  final String roomCode;
-
-  const JoinRoomRequest({required this.roomCode});
-
-  factory JoinRoomRequest.fromJson(Map<String, dynamic> json) =>
-      _$JoinRoomRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$JoinRoomRequestToJson(this);
-}
-
-@JsonSerializable()
-class UpdateRoomRequest {
-  final String? mode;
-  final int? maxPlayers;
-  final int? timeLimit;
-  final Map<String, dynamic>? rules;
-  final Map<String, dynamic>? mapConfig;
-
-  const UpdateRoomRequest({
-    this.mode,
-    this.maxPlayers,
-    this.timeLimit,
-    this.rules,
-    this.mapConfig,
-  });
-
-  factory UpdateRoomRequest.fromJson(Map<String, dynamic> json) =>
-      _$UpdateRoomRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$UpdateRoomRequestToJson(this);
-}
-
-@JsonSerializable()
-class KickUserRequest {
-  final String matchId;
-  final String targetUserId;
-
-  const KickUserRequest({
-    required this.matchId,
-    required this.targetUserId,
-  });
-
-  factory KickUserRequest.fromJson(Map<String, dynamic> json) =>
-      _$KickUserRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$KickUserRequestToJson(this);
-}
-
-@JsonSerializable()
-class StartGameRequest {
-  final String matchId;
-
-  const StartGameRequest({required this.matchId});
-
-  factory StartGameRequest.fromJson(Map<String, dynamic> json) =>
-      _$StartGameRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$StartGameRequestToJson(this);
-}
-
-// ============================================================================
-// Response DTOs
-// ============================================================================
-
-@JsonSerializable()
-class CreateRoomResponse {
-  final bool success;
-  final CreateRoomData? data;
-  final String? error;
-
-  const CreateRoomResponse({
-    required this.success,
-    this.data,
-    this.error,
-  });
-
-  factory CreateRoomResponse.fromJson(Map<String, dynamic> json) =>
-      _$CreateRoomResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$CreateRoomResponseToJson(this);
-}
-
-@JsonSerializable()
-class CreateRoomData {
+class CreateRoomDataDto {
   final String matchId;
   final String roomCode;
 
-  const CreateRoomData({
-    required this.matchId,
-    required this.roomCode,
-  });
+  CreateRoomDataDto({required this.matchId, required this.roomCode});
 
-  factory CreateRoomData.fromJson(Map<String, dynamic> json) =>
-      _$CreateRoomDataFromJson(json);
-
-  Map<String, dynamic> toJson() => _$CreateRoomDataToJson(this);
+  factory CreateRoomDataDto.fromJson(Map<String, dynamic> json) =>
+      _$CreateRoomDataDtoFromJson(json);
 }
 
 @JsonSerializable()
-class JoinRoomResponse {
-  final bool success;
-  final JoinRoomData? data;
-  final String? error;
+class CreateRoomResponseDto {
+  final bool? success;
+  final String? message;
+  final CreateRoomDataDto? data;
+  final dynamic error;
 
-  const JoinRoomResponse({
-    required this.success,
-    this.data,
-    this.error,
-  });
+  CreateRoomResponseDto({this.success, this.message, this.data, this.error});
 
-  factory JoinRoomResponse.fromJson(Map<String, dynamic> json) =>
-      _$JoinRoomResponseFromJson(json);
+  factory CreateRoomResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$CreateRoomResponseDtoFromJson(json);
+}
 
-  Map<String, dynamic> toJson() => _$JoinRoomResponseToJson(this);
+// ------------------------------------------------------------------
+// Join Room
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class JoinRoomDto {
+  final String roomCode;
+
+  JoinRoomDto({required this.roomCode});
+
+  Map<String, dynamic> toJson() => _$JoinRoomDtoToJson(this);
 }
 
 @JsonSerializable()
-class JoinRoomData {
+class JoinRoomDataDto {
   final String matchId;
   final String myRole;
   final String hostId;
+  final dynamic mapConfig;
 
-  const JoinRoomData({
+  JoinRoomDataDto({
     required this.matchId,
     required this.myRole,
     required this.hostId,
+    required this.mapConfig,
   });
 
-  factory JoinRoomData.fromJson(Map<String, dynamic> json) =>
-      _$JoinRoomDataFromJson(json);
-
-  Map<String, dynamic> toJson() => _$JoinRoomDataToJson(this);
+  factory JoinRoomDataDto.fromJson(Map<String, dynamic> json) =>
+      _$JoinRoomDataDtoFromJson(json);
 }
 
 @JsonSerializable()
-class RoomDetailResponse {
-  final bool success;
-  final RoomDetailData? data;
-  final String? error;
+class JoinRoomResponseDto {
+  final bool? success;
+  final String? message;
+  final JoinRoomDataDto? data;
+  final dynamic error;
 
-  const RoomDetailResponse({
-    required this.success,
+  JoinRoomResponseDto({this.success, this.message, this.data, this.error});
+
+  factory JoinRoomResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$JoinRoomResponseDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Kick User
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class KickUserDto {
+  final String matchId;
+  final String targetUserId;
+
+  KickUserDto({required this.matchId, required this.targetUserId});
+
+  Map<String, dynamic> toJson() => _$KickUserDtoToJson(this);
+}
+
+@JsonSerializable()
+class KickUserDataDto {
+  final String kickedUserId;
+  final int remainingPlayerCount;
+
+  KickUserDataDto({
+    required this.kickedUserId,
+    required this.remainingPlayerCount,
+  });
+
+  factory KickUserDataDto.fromJson(Map<String, dynamic> json) =>
+      _$KickUserDataDtoFromJson(json);
+}
+
+@JsonSerializable()
+class KickUserResponseDto {
+  final bool? success;
+  final String? message;
+  final KickUserDataDto? data;
+  final dynamic error;
+
+  KickUserResponseDto({this.success, this.message, this.data, this.error});
+
+  factory KickUserResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$KickUserResponseDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Get Room Details
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class RoomSettingsDto {
+  final String mode;
+  final int timeLimit;
+  final int maxPlayers;
+  final dynamic mapConfig;
+
+  RoomSettingsDto({
+    required this.mode,
+    required this.timeLimit,
+    required this.maxPlayers,
+    required this.mapConfig,
+  });
+
+  factory RoomSettingsDto.fromJson(Map<String, dynamic> json) =>
+      _$RoomSettingsDtoFromJson(json);
+  Map<String, dynamic> toJson() => _$RoomSettingsDtoToJson(this);
+}
+
+@JsonSerializable()
+class RoomPlayerDto {
+  final String userId;
+  final String nickname;
+  final bool ready;
+  final String? team;
+
+  RoomPlayerDto({
+    required this.userId,
+    required this.nickname,
+    required this.ready,
+    this.team,
+  });
+
+  factory RoomPlayerDto.fromJson(Map<String, dynamic> json) =>
+      _$RoomPlayerDtoFromJson(json);
+  Map<String, dynamic> toJson() => _$RoomPlayerDtoToJson(this);
+}
+
+@JsonSerializable()
+class RoomDetailsDataDto {
+  final String matchId;
+  final String status;
+  final String hostId;
+  final RoomSettingsDto settings;
+  final List<RoomPlayerDto> players;
+
+  RoomDetailsDataDto({
+    required this.matchId,
+    required this.status,
+    required this.hostId,
+    required this.settings,
+    required this.players,
+  });
+
+  factory RoomDetailsDataDto.fromJson(Map<String, dynamic> json) =>
+      _$RoomDetailsDataDtoFromJson(json);
+}
+
+@JsonSerializable()
+class GetRoomDetailsResponseDto {
+  final bool? success;
+  final String? message;
+  final RoomDetailsDataDto? data;
+  final dynamic error;
+
+  GetRoomDetailsResponseDto({
+    this.success,
+    this.message,
     this.data,
     this.error,
   });
 
-  factory RoomDetailResponse.fromJson(Map<String, dynamic> json) =>
-      _$RoomDetailResponseFromJson(json);
+  factory GetRoomDetailsResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$GetRoomDetailsResponseDtoFromJson(json);
+}
 
-  Map<String, dynamic> toJson() => _$RoomDetailResponseToJson(this);
+// ------------------------------------------------------------------
+// Update Room
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class UpdateRoomDto {
+  final String? mode;
+  final int? timeLimit;
+  final dynamic mapConfig;
+
+  UpdateRoomDto({this.mode, this.timeLimit, this.mapConfig});
+
+  Map<String, dynamic> toJson() => _$UpdateRoomDtoToJson(this);
 }
 
 @JsonSerializable()
-class RoomDetailData {
-  final List<PlayerInfo> players;
-  final Map<String, dynamic> settings;
+class UpdatedSettingsDto {
+  final String mode;
+  final int timeLimit;
+  final dynamic mapConfig;
+  final dynamic rules;
 
-  const RoomDetailData({
-    required this.players,
-    required this.settings,
+  UpdatedSettingsDto({
+    required this.mode,
+    required this.timeLimit,
+    required this.mapConfig,
+    this.rules,
   });
 
-  factory RoomDetailData.fromJson(Map<String, dynamic> json) =>
-      _$RoomDetailDataFromJson(json);
-
-  Map<String, dynamic> toJson() => _$RoomDetailDataToJson(this);
+  factory UpdatedSettingsDto.fromJson(Map<String, dynamic> json) =>
+      _$UpdatedSettingsDtoFromJson(json);
 }
 
 @JsonSerializable()
-class PlayerInfo {
-  final String userId;
-  final String nickname;
-  final String team;
-  final bool isReady;
-  final bool isHost;
+class UpdateRoomDataDto {
+  final String matchId;
+  final UpdatedSettingsDto updatedSettings;
 
-  const PlayerInfo({
-    required this.userId,
-    required this.nickname,
-    required this.team,
-    required this.isReady,
-    required this.isHost,
+  UpdateRoomDataDto({required this.matchId, required this.updatedSettings});
+
+  factory UpdateRoomDataDto.fromJson(Map<String, dynamic> json) =>
+      _$UpdateRoomDataDtoFromJson(json);
+}
+
+@JsonSerializable()
+class UpdateRoomResponseDto {
+  final bool? success;
+  final String? message;
+  final UpdateRoomDataDto? data;
+  final dynamic error;
+
+  UpdateRoomResponseDto({this.success, this.message, this.data, this.error});
+
+  factory UpdateRoomResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$UpdateRoomResponseDtoFromJson(json);
+}
+
+// ------------------------------------------------------------------
+// Start Game
+// ------------------------------------------------------------------
+
+@JsonSerializable()
+class StartGameDto {
+  final String matchId;
+
+  StartGameDto({required this.matchId});
+
+  Map<String, dynamic> toJson() => _$StartGameDtoToJson(this);
+}
+
+@JsonSerializable()
+class StartGameDataDto {
+  final String matchId;
+  final DateTime startTime;
+  final int gameDuration;
+
+  StartGameDataDto({
+    required this.matchId,
+    required this.startTime,
+    required this.gameDuration,
   });
 
-  factory PlayerInfo.fromJson(Map<String, dynamic> json) =>
-      _$PlayerInfoFromJson(json);
+  factory StartGameDataDto.fromJson(Map<String, dynamic> json) =>
+      _$StartGameDataDtoFromJson(json);
+}
 
-  Map<String, dynamic> toJson() => _$PlayerInfoToJson(this);
+@JsonSerializable()
+class StartGameResponseDto {
+  final bool? success;
+  final String? message;
+  final StartGameDataDto? data;
+  final dynamic error;
+
+  StartGameResponseDto({this.success, this.message, this.data, this.error});
+
+  factory StartGameResponseDto.fromJson(Map<String, dynamic> json) =>
+      _$StartGameResponseDtoFromJson(json);
 }

@@ -3,20 +3,48 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
-import '../../data/history_repository.dart';
 import '../../providers/room_provider.dart'; // For Team enum
+import '../../providers/user_provider.dart';
 import '../profile/widgets/history_card.dart';
 
-final historyListProvider = FutureProvider<List<Map<String, dynamic>>>((ref) {
-  return ref.watch(historyRepositoryProvider).fetchHistory();
-});
-
-class HistoryScreen extends ConsumerWidget {
+class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final historyAsync = ref.watch(historyListProvider);
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch initial history
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(userProvider.notifier).fetchMatchHistory();
+    });
+
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(userProvider.notifier).loadMoreHistory();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userState = ref.watch(userProvider);
+    final history = userState.matchHistory;
     final bottomInset = MediaQuery.of(context).padding.bottom + 80;
 
     return Scaffold(
@@ -29,17 +57,60 @@ class HistoryScreen extends ConsumerWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                child: Text(
-                  '전적',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '전적',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    if (userState.isLoading && history.isNotEmpty)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
                 ),
               ),
               Expanded(
-                child: historyAsync.when(
-                  data: (history) {
+                child: Builder(
+                  builder: (context) {
+                    if (userState.isLoading && history.isEmpty) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.borderCyan,
+                        ),
+                      );
+                    }
+
+                    if (userState.errorMessage != null && history.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '전적을 불러올 수 없습니다.',
+                              style: TextStyle(
+                                color: AppColors.red.withOpacity(0.8),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                ref
+                                    .read(userProvider.notifier)
+                                    .fetchMatchHistory();
+                              },
+                              child: const Text('재시도'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     if (history.isEmpty) {
                       return const Center(
                         child: Text(
@@ -48,35 +119,39 @@ class HistoryScreen extends ConsumerWidget {
                         ),
                       );
                     }
+
                     return ListView.separated(
+                      controller: _scrollController,
                       padding: EdgeInsets.fromLTRB(16, 0, 16, bottomInset),
-                      itemCount: history.length,
+                      itemCount:
+                          history.length + (userState.hasMoreHistory ? 1 : 0),
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
+                        if (index == history.length) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
                         final item = history[index];
+                        final isWin = item.result == 'WIN';
+                        final isPolice = item.role == 'POLICE';
+
                         return HistoryCard(
-                          isWin: item['isWin'] ?? false,
-                          teamType: (item['team'] == 'POLICE')
-                              ? Team.police
-                              : Team.thief,
-                          scoreDelta: item['scoreDelta'] ?? 0,
-                          date: item['date'] ?? '',
-                          resultText: item['result'] ?? '',
+                          isWin: isWin,
+                          teamType: isPolice ? Team.police : Team.thief,
+                          scoreDelta: item
+                              .myStat
+                              .contribution, // Using contribution as score delta
+                          date: _formatDate(item.gameInfo.playedAt),
+                          resultText: isWin ? '승리' : '패배',
                         );
                       },
                     );
                   },
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.borderCyan,
-                    ),
-                  ),
-                  error: (err, stack) => Center(
-                    child: Text(
-                      '전적을 불러올 수 없습니다.',
-                      style: TextStyle(color: AppColors.red.withOpacity(0.8)),
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -84,5 +159,9 @@ class HistoryScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
   }
 }

@@ -10,18 +10,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
 
-import '../../features/zone/zone_editor_screen.dart';
 import '../../providers/game_phase_provider.dart';
-import '../../providers/match_rules_provider.dart' hide GameMode;
+
 import '../../providers/room_provider.dart';
+import '../../providers/match_rules_provider.dart';
 
 import 'widgets/game_config_card.dart';
 import 'widgets/mini_map_card.dart';
+import 'widgets/ability_select_card.dart';
+import '../../core/services/audio_service.dart'; // Audio
 
 class LobbyScreen extends ConsumerStatefulWidget {
   const LobbyScreen({super.key});
@@ -32,27 +33,54 @@ class LobbyScreen extends ConsumerStatefulWidget {
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   @override
+  void initState() {
+    super.initState();
+    // Play Lobby BGM
+    ref.read(audioServiceProvider).playBgm(AudioType.bgmLobby);
+  }
+
+  @override
+  void dispose() {
+    // Stop BGM when leaving lobby (e.g. to Game or Home)
+    ref.read(audioServiceProvider).stopBgm();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final room = ref.watch(roomProvider);
+
     final rules = ref.watch(matchRulesProvider);
+
     final me = room.me;
     final isHost = room.amIHost;
     final allReady = room.allReady;
     final totalPlayers = room.members.length;
-    final totalForRules = totalPlayers > 0 ? totalPlayers : rules.maxPlayers;
-    final policeCount = rules.policeCount.clamp(0, totalForRules);
-    final thiefCount = (totalForRules - policeCount).clamp(0, 99);
-    final teamOk = policeCount >= 1 && thiefCount >= 1;
-    final canStart = isHost && allReady && totalPlayers >= 2 && teamOk;
+
+    // Strict Team/Count Check
+    final targetPolice = rules.policeCount;
+    final targetThief = rules.maxPlayers - rules.policeCount;
+    final actualPolice = room.policeCount;
+    final actualThief = room.thiefCount;
+
+    final countMatch =
+        (actualPolice == targetPolice) && (actualThief == targetThief);
+    final fullRoom = totalPlayers == rules.maxPlayers;
+
+    // Logic: Must be full room & correct distribution (Team numbers match rules)
+    final canStart = isHost && allReady && fullRoom && countMatch;
+
     final bottomBarHeight = 68.0;
     final safeBottom = MediaQuery.of(context).padding.bottom;
     final bottomInset = bottomBarHeight + safeBottom + (isHost ? 32 : 28);
 
     final startNotice = _startNotice(
       isHost: isHost,
-      totalPlayers: totalPlayers,
       allReady: allReady,
-      teamOk: teamOk,
+      fullRoom: fullRoom,
+      countMatch: countMatch,
+      targetPolice: targetPolice,
+      targetThief: targetThief,
     );
 
     return Scaffold(
@@ -65,12 +93,21 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               ListView(
                 padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
                 children: [
+                  // Step 0: Room Code Card (New)
+                  _RoomCodeCard(roomId: room.roomCode),
+                  const SizedBox(height: 12),
+
                   // Step 1: Game Config Card
                   const GameConfigCard(),
                   const SizedBox(height: 12),
-                  const SizedBox(height: 12),
 
-                  // Step 3: Interactive Member List
+                  // Step 2: Ability Selection (Conditional)
+                  if (rules.gameMode == GameMode.ability) ...[
+                    const AbilitySelectCard(),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Step 3: Members Card
                   _membersCard(context, room, me?.id),
                   const SizedBox(height: 12),
                   const MiniMapCard(),
@@ -81,48 +118,49 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   ],
                 ],
               ),
+
               Positioned(
-                left: 18,
-                right: 18,
+                left: 0,
+                right: 0,
                 bottom: 0,
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (startNotice.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              startNotice,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                              textAlign: TextAlign.center,
-                            ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (startNotice.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 8,
+                          left: 18,
+                          right: 18,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            startNotice,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
-                      _lobbyActionBar(
-                        context,
-                        ref,
-                        canStart:
-                            room.isGameStartable(rules.maxPlayers) && isHost,
-                        height: bottomBarHeight,
                       ),
-                    ],
-                  ),
+                    _lobbyActionBar(
+                      context,
+                      ref,
+                      canStart: canStart,
+                      safeBottom: safeBottom,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -149,16 +187,51 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 '멤버 (${room.members.length})',
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              if (myId != null)
-                Text(
-                  '내 카드를 탭하여 변경',
+              Row(
+                children: [
+                  Icon(
+                    Icons.shield_rounded,
+                    size: 14,
+                    color: AppColors.borderCyan,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${room.policeCount}',
+                    style: const TextStyle(
+                      color: AppColors.borderCyan,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.lock_rounded, size: 14, color: AppColors.red),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${room.thiefCount}',
+                    style: const TextStyle(
+                      color: AppColors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (myId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '내 카드를 탭하여 팀 변경',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 10,
                     color: AppColors.textMuted,
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
           const SizedBox(height: 12),
           ListView.separated(
             shrinkWrap: true,
@@ -234,15 +307,20 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     BuildContext context,
     WidgetRef ref, {
     required bool canStart,
-    required double height,
+    required double safeBottom,
   }) {
     return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      padding: EdgeInsets.fromLTRB(18, 12, 18, safeBottom + 12),
       decoration: BoxDecoration(
-        color: AppColors.surface1.withOpacity(0.92),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-        border: Border.all(color: AppColors.outlineLow, width: 1),
+        color: AppColors.surface1.withOpacity(0.95),
+        border: const Border(top: BorderSide(color: AppColors.outlineLow)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -254,7 +332,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 ref.read(gamePhaseProvider.notifier).toOffGame();
               },
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
+                minimumSize: const Size.fromHeight(52),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -270,7 +348,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               key: const Key('lobbyStartButton'),
               variant: GradientButtonVariant.createRoom,
               title: '게임 시작',
-              height: 44,
+              height: 52,
               borderRadius: 14,
               onPressed: canStart
                   ? () {
@@ -290,13 +368,16 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
   String _startNotice({
     required bool isHost,
-    required int totalPlayers,
     required bool allReady,
-    required bool teamOk,
+    required bool fullRoom,
+    required bool countMatch,
+    required int targetPolice,
+    required int targetThief,
   }) {
     if (!isHost) return '게임 시작은 방장만 가능합니다.';
-    if (totalPlayers < 2) return '최소 2명 이상이어야 시작할 수 있습니다.';
-    if (!teamOk) return '경찰/도둑 팀 수를 확인하세요.';
+    if (!fullRoom)
+      return '설정된 인원(${(targetPolice + targetThief)}명)이 모두 입장해야 합니다.';
+    if (!countMatch) return '경찰($targetPolice명)/도둑($targetThief명) 팀 배정을 맞춰주세요.';
     if (!allReady) return '모든 멤버가 준비되어야 시작할 수 있습니다.';
     return '';
   }
@@ -458,6 +539,68 @@ class _InteractiveMemberRow extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoomCodeCard extends StatelessWidget {
+  final String roomId;
+  const _RoomCodeCard({required this.roomId});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.qr_code_rounded, color: AppColors.textPrimary, size: 20),
+          const SizedBox(width: 10),
+          Text(
+            '참여 코드',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              roomId
+                  .toUpperCase(), // Display full code as received from backend
+              style: const TextStyle(
+                fontFamily: 'Monospace',
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(4),
+            icon: const Icon(
+              Icons.copy_rounded,
+              size: 18,
+              color: AppColors.borderCyan,
+            ),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: roomId));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('코드가 복사되었습니다.')));
+            },
+            tooltip: '코드 복사',
           ),
         ],
       ),

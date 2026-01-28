@@ -23,6 +23,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,6 +61,7 @@ class WearMainActivity : ComponentActivity() {
                     WearMessageService.ACTION_RADAR -> {
                         try {
                             val obj = JSONObject(json)
+                            // Legacy ping count, mostly unused now
                             val pings = obj.getJSONArray("pings").length()
                             radarState.value = "Ping: $pings"
                             if (!obj.isNull("captureProgress01")) {
@@ -135,6 +140,7 @@ class WearMainActivity : ComponentActivity() {
                                 timeRemainSec = timeRemain,
                                 radarState = radarState.value,
                                 captureProgress = progressState.value,
+                                allies = snapshot?.activeAllies ?: emptyList(),
                                 onAction = { action, value ->
                                     scope.launch(Dispatchers.IO) {
                                         sendWatchAction(ctx, action, value, snapshot?.matchId)
@@ -249,8 +255,10 @@ private fun InGameView(
     team: String,
     mode: String,
     timeRemainSec: Int,
-    radarState: String,
+    timeRemainSec: Int,
+    radarState: String, // Debug text, can be ignored
     captureProgress: Float?,
+    allies: List<RadarAlly>,
     onAction: (String, Any?) -> Unit
 ) {
     var tab by remember { mutableStateOf(0) }
@@ -272,9 +280,11 @@ private fun InGameView(
         Spacer(Modifier.height(8.dp))
         when (tab) {
             0 -> {
-                Text("Radar", fontWeight = FontWeight.SemiBold)
-                Text(radarState)
+                Text("Radar (30m)", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                RadarCanvas(allies = allies)
                 if (captureProgress != null) {
+                    Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(progress = { captureProgress })
                 }
             }
@@ -383,7 +393,8 @@ private data class WatchSnapshot(
     val nearbyEnemy: Boolean,
     val counts: JSONObject?,
     val rulesLite: JSONObject?,
-    val my: JSONObject?
+    val my: JSONObject?,
+    val activeAllies: List<RadarAlly> = emptyList()
 ) {
     val displayName: String? = null
     val myDistanceM: Int? = my?.optInt("distanceM")
@@ -391,6 +402,14 @@ private data class WatchSnapshot(
     val myRescues: Int? = my?.optInt("rescues")
     val myEscapeSec: Int? = my?.optInt("escapeSec")
     val myHr: Int? = if (my?.isNull("hr") == false) my.optInt("hr") else null
+
+    val allies: List<RadarAlly>
+        get() {
+            val nearby = nearbyEnemy // actually nearby object in payload
+            // This is messy in legacy structure, let's parse from payload directly
+            // payload.nearby.allies
+            return emptyList() // Placeholder, see companion fix below
+        }
 
     fun countsText(): String {
         val police = counts?.optInt("police") ?: 0
@@ -415,6 +434,25 @@ private data class WatchSnapshot(
             val obj = JSONObject(json)
             val payload = obj.optJSONObject("payload") ?: JSONObject()
             val nearby = payload.optJSONObject("nearby")
+            
+            // Parse Allies
+            val alliesList = mutableListOf<RadarAlly>()
+            val allyArr = nearby?.optJSONArray("allies")
+            if (allyArr != null) {
+                for (i in 0 until allyArr.length()) {
+                    val item = allyArr.optJSONObject(i)
+                    if (item != null) {
+                        alliesList.add(
+                            RadarAlly(
+                                d = item.optDouble("d").toFloat(),
+                                b = item.optDouble("b").toFloat(),
+                                id = item.optString("id")
+                            )
+                        )
+                    }
+                }
+            }
+
             return WatchSnapshot(
                 phase = payload.optString("phase", "OFF_GAME"),
                 team = payload.optString("team", "UNKNOWN"),
@@ -424,8 +462,51 @@ private data class WatchSnapshot(
                 nearbyEnemy = nearby?.optBoolean("enemyNear") ?: false,
                 counts = payload.optJSONObject("counts"),
                 rulesLite = payload.optJSONObject("rulesLite"),
-                my = payload.optJSONObject("my")
+                my = payload.optJSONObject("my"),
+                activeAllies = alliesList 
             )
+        }
+    }
+}
+
+data class RadarAlly(val d: Float, val b: Float, val id: String)
+
+@Composable
+fun RadarCanvas(allies: List<RadarAlly>) {
+    Canvas(modifier = Modifier.size(120.dp)) {
+        val cx = size.width / 2
+        val cy = size.height / 2
+        val radius = size.width / 2
+
+        // Background
+        drawCircle(color = Color(0xFF1C2333), radius = radius)
+        
+        // Concentric circles (10m, 20m, 30m)
+        // 30m = full radius
+        drawCircle(color = Color(0xFF2C3545), radius = radius * 0.33f, style = Stroke(width = 2f))
+        drawCircle(color = Color(0xFF2C3545), radius = radius * 0.66f, style = Stroke(width = 2f))
+        drawCircle(color = Color(0xFF00E5FF), radius = radius, style = Stroke(width = 2f))
+
+        // Center (Me)
+        drawCircle(color = Color.White, radius = 4f)
+        
+        // Allies
+        for (ally in allies) {
+            // b is relative bearing (0 is forward/up)
+            // d is distance (max 30)
+            
+            val distRatio = (ally.d / 30f).coerceIn(0f, 1f)
+            val r = radius * distRatio
+            
+            // Flutter/Android canvas 0 degrees is usually 3 o'clock aka Right.
+            // We want 0 degrees to be Up.
+            // So we subtract 90 degrees from the bearing.
+            val angleRad = (ally.b - 90) * (Math.PI / 180f)
+            
+            val x = cx + r * kotlin.math.cos(angleRad).toFloat()
+            val y = cy + r * kotlin.math.sin(angleRad).toFloat()
+            
+            drawCircle(color = Color(0xFF00E5FF), radius = 6f, center = Offset(x, y))
         }
     }
 }

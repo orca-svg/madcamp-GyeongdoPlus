@@ -88,36 +88,34 @@ class HomeScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 12),
-
-                      // ✅ 경찰/도둑 네온 랭크 카드 (cyan / red)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: RankNeonCard(
-                              title: '경찰',
-                              score: policeScore,
-                              icon: Icons.shield_rounded,
-                              accent: AppColors.borderCyan,
-                              rankName: _rankNameFromScore(
-                                policeScore,
-                                'POLICE',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: RankNeonCard(
-                              title: '도둑',
-                              score: thiefScore,
-                              icon: Icons.lock_rounded,
-                              accent: AppColors.red,
-                              rankName: _rankNameFromScore(thiefScore, 'THIEF'),
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 24), // Added margin
+                // ✅ 경찰/도둑 네온 랭크 카드 (cyan / red) - Moved OUTSIDE
+                Row(
+                  children: [
+                    Expanded(
+                      child: RankNeonCard(
+                        title: '경찰',
+                        score: policeScore,
+                        icon: Icons.shield_rounded,
+                        accent: AppColors.borderCyan,
+                        rankName: _rankNameFromScore(policeScore, 'POLICE'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: RankNeonCard(
+                        title: '도둑',
+                        score: thiefScore,
+                        icon: Icons.lock_rounded,
+                        accent: AppColors.red,
+                        rankName: _rankNameFromScore(thiefScore, 'THIEF'),
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 24),

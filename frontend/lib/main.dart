@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
+import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 
 import 'app.dart';
 
@@ -30,39 +31,39 @@ Future<void> main() async {
       // .env 로드 (파일 없으면 optional)
       await dotenv.load(fileName: '.env', isOptional: true);
 
-      final kakaoKey =
+      final kakaoJsKey =
           (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
               ?.trim() ??
           '';
-
-      final masked = (kakaoKey.length >= 4)
-          ? '${kakaoKey.substring(0, 4)}••••'
-          : (kakaoKey.isEmpty ? 'EMPTY' : 'SET');
+      final kakaoNativeKey =
+          (dotenv.isInitialized ? dotenv.env['KAKAO_NATIVE_APP_KEY'] : null)
+              ?.trim() ??
+          '';
 
       // ignore: avoid_print
       print(
-        '[KAKAO] dotenv=${dotenv.isInitialized ? 'ok' : 'not_loaded'} key=$masked',
-      );
-      // ignore: avoid_print
-      print(
-        '[KAKAO] keyLen=${kakaoKey.length} jsKeyPresent=${kakaoKey.isNotEmpty}',
+        '[KAKAO] JS_KEY=${kakaoJsKey.isNotEmpty ? "OK" : "EMPTY"} NATIVE_KEY=${kakaoNativeKey.isNotEmpty ? "OK" : "EMPTY"}',
       );
 
-      // ✅ Kakao Map plugin init (필수)
-      if (kakaoKey.isNotEmpty) {
-        // ignore: avoid_print
-        print('[KAKAO] init start');
+      // ✅ Kakao Map plugin init
+      if (kakaoJsKey.isNotEmpty) {
         AuthRepository.initialize(
-          appKey: kakaoKey,
+          appKey: kakaoJsKey,
           baseUrl: 'http://localhost',
         );
+      }
+
+      // ✅ Kakao Login SDK init
+      if (kakaoNativeKey.isNotEmpty || kakaoJsKey.isNotEmpty) {
+        KakaoSdk.init(
+          nativeAppKey: kakaoNativeKey,
+          javaScriptAppKey: kakaoJsKey,
+        );
         // ignore: avoid_print
-        print('[KAKAO] init done');
+        print('[KAKAO] SDK Initialized');
       } else {
         // ignore: avoid_print
-        print(
-          '[KAKAO] WARN: KAKAO_JS_APP_KEY is empty. ZoneEditor showMap=false.',
-        );
+        print('[KAKAO] WARN: No keys found. Login/Map may fail.');
       }
 
       _probeNetworkIfDebug();

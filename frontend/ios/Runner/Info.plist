@@ -19,11 +19,31 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
+	<string>1.0.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<string>1</string>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kakao$(KAKAO_NATIVE_APP_KEY)</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>kakaokompassauth</string>
+		<string>kakaolink</string>
+	</array>
+	<key>KAKAO_APP_KEY</key>
+	<string>$(KAKAO_NATIVE_APP_KEY)</string>
 	<key>KAKAO_JS_APP_KEY</key>
 	<string>$(KAKAO_JS_APP_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -72,5 +92,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>심박수 모니터링을 위해 건강 데이터 접근 권한이 필요합니다.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>심박수 측정을 위해 건강 데이터 업데이트 권한이 필요합니다.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>게임 중 도둑/경찰 간의 근접 감지를 위해 블루투스가 필요합니다.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>게임 중 다른 플레이어에게 내 위치를 알리기 위해 블루투스가 필요합니다.</string>
 </dict>
 </plist>

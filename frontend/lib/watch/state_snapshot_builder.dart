@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../features/match/match_state_model.dart';
+import '../providers/game_provider.dart';
 import '../net/ws/dto/radar_ping.dart';
 import '../providers/active_tab_provider.dart';
 import '../providers/auth_provider.dart';
@@ -19,6 +20,7 @@ class StateSnapshotBuilder {
     final sim = read(matchStateSimProvider);
     final sync = read(matchSyncProvider);
     final auth = read(authProvider);
+    final gameState = read(gameProvider);
     final user = auth.user;
 
     final matchId =
@@ -41,9 +43,11 @@ class StateSnapshotBuilder {
         ? room.policeCount
         : rules.policeCount;
 
-    final thiefAlive =
-        sim?.live.score.thiefFree ??
-        max(0, rules.maxPlayers - rules.policeCount);
+    final thiefAlive = (phase == GamePhase.lobby || sim == null)
+        ? (room.members.isNotEmpty
+              ? room.thiefCount
+              : max(0, rules.maxPlayers - rules.policeCount))
+        : sim!.live.score.thiefFree;
 
     final thiefCaptured = sim?.live.score.thiefCaptured ?? 0;
 
@@ -54,6 +58,14 @@ class StateSnapshotBuilder {
     final enemyNear = _enemyNear(team: team, radar: radarPayload);
 
     final allyCount10m = _allyCount10m(team: team, radar: radarPayload);
+    final allies = _allies(
+      room: room,
+      gameState: gameState,
+      myHeading: gameState.myPosition?.heading ?? 0.0,
+      myLat: gameState.myPosition?.latitude ?? 0.0,
+      myLng: gameState.myPosition?.longitude ?? 0.0,
+      team: team,
+    );
 
     // Use real user data from AuthProvider
     final nickname = user?.nickname ?? room.me?.name ?? 'PLAYER';
@@ -75,7 +87,7 @@ class StateSnapshotBuilder {
       },
       // Step 1에서는 실데이터 provider가 확정되지 않았으므로 0으로 고정.
       // 추후 이벤트/트래킹 provider가 생기면 교체합니다.
-      'my': {
+      'my': <String, dynamic>{
         'distanceM': 0,
         'captures': 0,
         'rescues': 0,
@@ -98,7 +110,12 @@ class StateSnapshotBuilder {
         'jailRadiusM': rules.jailRadiusM?.round(),
         'zonePoints': rules.zonePolygon?.length ?? 0,
       },
-      'nearby': {'allyCount10m': allyCount10m, 'enemyNear': enemyNear},
+      'rulesLabel': _buildRulesLabel(rules),
+      'nearby': {
+        'allyCount10m': allyCount10m,
+        'enemyNear': enemyNear,
+        'allies': allies,
+      },
       // 아이템/능력 모드 확장 포인트 (빈 객체로 시작)
       'modeOptions': <String, dynamic>{},
     };
@@ -108,6 +125,18 @@ class StateSnapshotBuilder {
       'ts': DateTime.now().millisecondsSinceEpoch,
       'matchId': matchId,
       'payload': payload,
+    };
+  }
+
+  static Map<String, String> _buildRulesLabel(MatchRulesState rules) {
+    return {
+      'timeLimit': '${(rules.timeLimitSec / 60).round()}분',
+      'gameMode': rules.gameMode == GameMode.normal ? '일반 모드' : '아이템 모드',
+      'contactMode': rules.contactMode == 'RFID'
+          ? 'RFID'
+          : (rules.contactMode == 'CONTACT' ? '접촉식' : '비접촉'),
+      'releaseScope': rules.rescueReleaseScope == 'ALL' ? '전체 해방' : '부분 해방',
+      'jailRadius': '${rules.jailRadiusM?.round() ?? 15}m',
     };
   }
 
@@ -208,4 +237,75 @@ class StateSnapshotBuilder {
     if (cleaned.isEmpty) return null;
     return cleaned.toUpperCase();
   }
+
+  /// Calculates nearby allies within 30m for Watch Radar
+  static List<Map<String, dynamic>> _allies({
+    required RoomState room,
+    required GameState gameState,
+    required double myHeading,
+    required double myLat,
+    required double myLng,
+    required String team,
+  }) {
+    // Only reliable In-Game with valid my position
+    if (!room.inRoom || myLat == 0.0 || myLng == 0.0) return [];
+
+    final List<Map<String, dynamic>> list = [];
+    final myTeamStr = team == 'POLICE' ? 'POLICE' : 'THIEF';
+
+    for (final p in gameState.players.values) {
+      if (p.userId == room.myId) continue;
+      if (p.team != myTeamStr) continue;
+
+      // Calculate distance (Haversine approx or simple Euclidean for small dist)
+      // Using geolocation distance is safer
+      final d = _distanceM(myLat, myLng, p.lat, p.lng);
+      if (d > 30.0) continue; // 30m range
+
+      // Calculate bearing relative to my Heading
+      final absoluteBearing = _bearing(myLat, myLng, p.lat, p.lng);
+      var relative = absoluteBearing - myHeading;
+      // Normalize to -180 ~ 180
+      while (relative <= -180) {
+        relative += 360;
+      }
+      while (relative > 180) {
+        relative -= 360;
+      }
+
+      list.add({
+        'd': double.parse(d.toStringAsFixed(1)),
+        'b': double.parse(relative.toStringAsFixed(1)),
+        'id': p.userId.length > 4 ? p.userId.substring(0, 4) : p.userId,
+      });
+    }
+    return list;
+  }
+
+  static double _distanceM(double lat1, double lng1, double lat2, double lng2) {
+    const R = 6371000.0; // Earth radius in meters
+    final dLat = _degToRad(lat2 - lat1);
+    final dLng = _degToRad(lng2 - lng1);
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(_degToRad(lat1)) *
+            cos(_degToRad(lat2)) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return R * c;
+  }
+
+  static double _bearing(double lat1, double lng1, double lat2, double lng2) {
+    final dLng = _degToRad(lng2 - lng1);
+    final y = sin(dLng) * cos(_degToRad(lat2));
+    final x =
+        cos(_degToRad(lat1)) * sin(_degToRad(lat2)) -
+        sin(_degToRad(lat1)) * cos(_degToRad(lat2)) * cos(dLng);
+    final brng = atan2(y, x);
+    return (_radToDeg(brng) + 360) % 360;
+  }
+
+  static double _degToRad(double deg) => deg * (pi / 180.0);
+  static double _radToDeg(double rad) => rad * (180.0 / pi);
 }

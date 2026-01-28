@@ -33,55 +33,62 @@ class RankNeonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedRank = rankName ?? _rankNameFromScore(score);
-    // Loss: Grayscale border, No glow
-    final borderColor = isWin
-        ? accent.withOpacity(0.7)
-        : const Color(0xFF4A4A4A);
-    final glowColor = isWin ? accent : Colors.transparent;
-    final iconColor = isWin ? accent : const Color(0xFF808080);
-    final iconBgColor = isWin
-        ? accent.withOpacity(0.18)
-        : const Color(0xFF2A2A2A);
+    final isActive = score > 0;
+
+    // Inactive (0 score): Dimmed gray, no glow
+    // Active (Score > 0): Neon colors based on isWin/accent
+    final effectiveAccent = isActive ? accent : const Color(0xFF666666);
+    final glowActive = isActive && isWin;
+
+    final borderColor = glowActive
+        ? effectiveAccent.withOpacity(0.7)
+        : const Color(0xFF3A3A3A); // Darker border for inactive
+
+    final glowColor = glowActive ? effectiveAccent : Colors.transparent;
+    final iconColor = isActive ? effectiveAccent : const Color(0xFF666666);
+    final iconBgColor = isActive
+        ? effectiveAccent.withOpacity(0.18)
+        : const Color(0xFF222222);
 
     return GlowCard(
-      glow: isWin,
+      glow: glowActive,
       glowColor: glowColor,
-      blurRadius: isWin ? 12 : 0,
+      blurRadius: glowActive ? 12 : 0,
       borderColor: borderColor,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Top row: Icon + Title
+          // Top row: Icon + Title + Trend (if any)
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: iconBgColor,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isWin
-                        ? accent.withOpacity(0.5)
-                        : const Color(0xFF4A4A4A),
+                    color: isActive
+                        ? effectiveAccent.withOpacity(0.5)
+                        : const Color(0xFF3A3A3A),
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 18, color: iconColor),
+                child: Icon(icon, size: 16, color: iconColor),
               ),
               const SizedBox(width: 10),
               Text(
                 title,
                 style: TextStyle(
-                  color: isWin ? accent : AppColors.textMuted,
+                  color: isActive ? effectiveAccent : AppColors.textMuted,
                   fontWeight: FontWeight.w800,
                   fontSize: 14,
                 ),
               ),
               const Spacer(),
-              if (trend != RankTrend.none)
+              if (trend != RankTrend.none && isActive)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
@@ -93,58 +100,58 @@ class RankNeonCard extends StatelessWidget {
                                 ? Colors.greenAccent
                                 : Colors.redAccent)
                             .withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        trend == RankTrend.up
-                            ? Icons.arrow_upward_rounded
-                            : Icons.arrow_downward_rounded,
-                        size: 12,
-                        color: trend == RankTrend.up
-                            ? Colors.greenAccent
-                            : Colors.redAccent,
-                      ),
-                    ],
+                  child: Icon(
+                    trend == RankTrend.up
+                        ? Icons.arrow_upward_rounded
+                        : Icons.arrow_downward_rounded,
+                    size: 12,
+                    color: trend == RankTrend.up
+                        ? Colors.greenAccent
+                        : Colors.redAccent,
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Rank Name - Large and prominent
-          Text(
-            resolvedRank,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isWin ? AppColors.textPrimary : AppColors.textMuted,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Score - Smaller, secondary
+          const SizedBox(height: 16),
+
+          // Bottom Row: Rank Name (Left) + Score (Right)
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '$score',
+                resolvedRank,
                 style: TextStyle(
-                  color: isWin ? accent : AppColors.textMuted,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 22,
+                  color: isActive ? AppColors.textPrimary : AppColors.textMuted,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(width: 4),
-              Text(
-                'pts',
-                style: TextStyle(
-                  color: AppColors.textMuted.withOpacity(0.7),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '$score',
+                    style: TextStyle(
+                      color: isActive ? effectiveAccent : AppColors.textMuted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 24,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'PTS',
+                    style: TextStyle(
+                      color: AppColors.textMuted.withOpacity(0.6),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

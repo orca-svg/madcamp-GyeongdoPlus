@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +21,7 @@ class InGameCaptureScreen extends ConsumerStatefulWidget {
 }
 
 enum _CaptureTarget { nearest, select }
+
 enum _CaptureReason { nfc, visual, other }
 
 class _InGameCaptureScreenState extends ConsumerState<InGameCaptureScreen> {
@@ -41,7 +43,7 @@ class _InGameCaptureScreenState extends ConsumerState<InGameCaptureScreen> {
       body: GlassBackground(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 80),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -51,39 +53,63 @@ class _InGameCaptureScreenState extends ConsumerState<InGameCaptureScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('체포', style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        '체포',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         '수동 체포는 서버 최종 판정입니다.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppColors.textSecondary),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         allOk ? '체포 조건 충족' : '체포 조건 미충족',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: allOk ? AppColors.lime : AppColors.textMuted,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          color: allOk ? AppColors.lime : AppColors.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                if (kDebugMode)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      color: Colors.red.withOpacity(0.2),
+                      child: const Text(
+                        'DEBUG: 체포 조건 무시 가능',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 14),
                 Text('대상', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
                 _SegmentRow(
                   value: _target,
                   items: const [
-                    _SegmentItem(value: _CaptureTarget.nearest, label: '가장 가까운 적'),
-                    _SegmentItem(value: _CaptureTarget.select, label: '플레이어 선택'),
+                    _SegmentItem(
+                      value: _CaptureTarget.nearest,
+                      label: '가장 가까운 적',
+                    ),
+                    _SegmentItem(
+                      value: _CaptureTarget.select,
+                      label: '플레이어 선택',
+                    ),
                   ],
                   onChanged: (v) => setState(() => _target = v),
-                  enabledMap: {
-                    _CaptureTarget.select: targetId != null,
-                  },
+                  enabledMap: {_CaptureTarget.select: targetId != null},
                 ),
                 const SizedBox(height: 14),
                 Text('사유', style: Theme.of(context).textTheme.titleSmall),
@@ -103,14 +129,19 @@ class _InGameCaptureScreenState extends ConsumerState<InGameCaptureScreen> {
                   title: _loading ? '요청 중...' : '체포 확정 요청',
                   height: 48,
                   borderRadius: 14,
-                  onPressed: (_loading || !allOk || targetId == null || match == null || room.myId.isEmpty)
+                  onPressed:
+                      (_loading ||
+                          (!kDebugMode && !allOk) ||
+                          targetId == null ||
+                          match == null ||
+                          room.myId.isEmpty)
                       ? null
                       : () => _confirmCapture(
-                            context: context,
-                            matchId: match.matchId,
-                            playerId: room.myId,
-                            targetId: targetId,
-                          ),
+                          context: context,
+                          matchId: match.matchId,
+                          playerId: room.myId,
+                          targetId: targetId,
+                        ),
                   leading: const Icon(Icons.lock_rounded, color: Colors.white),
                 ),
               ],
@@ -210,7 +241,9 @@ class _SegmentButton<T> extends StatelessWidget {
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? AppColors.borderCyan.withOpacity(0.18) : Colors.transparent,
+          color: selected
+              ? AppColors.borderCyan.withOpacity(0.18)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(

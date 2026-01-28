@@ -27,6 +27,7 @@ class RoomCreateFormState {
   final RoomContactMode contactMode;
   final RoomReleaseScope releaseScope;
   final RoomReleaseOrder releaseOrder;
+  final double policeRatio;
   final List<GeoPointDto>? polygon;
   final GeoPointDto? jailCenter;
   final double? jailRadiusM;
@@ -38,22 +39,24 @@ class RoomCreateFormState {
     required this.contactMode,
     required this.releaseScope,
     required this.releaseOrder,
+    required this.policeRatio,
     required this.polygon,
     required this.jailCenter,
     required this.jailRadiusM,
   });
 
   factory RoomCreateFormState.initial() => const RoomCreateFormState(
-        mode: RoomCreateMode.normal,
-        maxPlayers: 8,
-        timeLimitSec: 600,
-        contactMode: RoomContactMode.nonContact,
-        releaseScope: RoomReleaseScope.partial,
-        releaseOrder: RoomReleaseOrder.fifo,
-        polygon: null,
-        jailCenter: null,
-        jailRadiusM: 12,
-      );
+    mode: RoomCreateMode.normal,
+    maxPlayers: 8,
+    timeLimitSec: 600,
+    contactMode: RoomContactMode.nonContact,
+    releaseScope: RoomReleaseScope.partial,
+    releaseOrder: RoomReleaseOrder.fifo,
+    policeRatio: 0.25,
+    polygon: null,
+    jailCenter: null,
+    jailRadiusM: 12,
+  );
 
   RoomCreateFormState copyWith({
     RoomCreateMode? mode,
@@ -62,6 +65,7 @@ class RoomCreateFormState {
     RoomContactMode? contactMode,
     RoomReleaseScope? releaseScope,
     RoomReleaseOrder? releaseOrder,
+    double? policeRatio,
     List<GeoPointDto>? polygon,
     GeoPointDto? jailCenter,
     double? jailRadiusM,
@@ -73,6 +77,7 @@ class RoomCreateFormState {
       contactMode: contactMode ?? this.contactMode,
       releaseScope: releaseScope ?? this.releaseScope,
       releaseOrder: releaseOrder ?? this.releaseOrder,
+      policeRatio: policeRatio ?? this.policeRatio,
       polygon: polygon ?? this.polygon,
       jailCenter: jailCenter ?? this.jailCenter,
       jailRadiusM: jailRadiusM ?? this.jailRadiusM,
@@ -81,20 +86,20 @@ class RoomCreateFormState {
 }
 
 String _modeWire(RoomCreateMode m) => switch (m) {
-      RoomCreateMode.normal => 'NORMAL',
-      RoomCreateMode.item => 'ITEM',
-      RoomCreateMode.ability => 'ABILITY',
-    };
+  RoomCreateMode.normal => 'NORMAL',
+  RoomCreateMode.item => 'ITEM',
+  RoomCreateMode.ability => 'ABILITY',
+};
 
 String _contactModeWire(RoomContactMode m) => switch (m) {
-      RoomContactMode.nonContact => 'NON_CONTACT',
-      RoomContactMode.contact => 'CONTACT',
-    };
+  RoomContactMode.nonContact => 'NON_CONTACT',
+  RoomContactMode.contact => 'CONTACT',
+};
 
 String _releaseOrderWire(RoomReleaseOrder o) => switch (o) {
-      RoomReleaseOrder.fifo => 'FIFO',
-      RoomReleaseOrder.lifo => 'LIFO',
-    };
+  RoomReleaseOrder.fifo => 'FIFO',
+  RoomReleaseOrder.lifo => 'LIFO',
+};
 
 Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
   final maxPlayers = state.maxPlayers.clamp(3, 50);
@@ -104,8 +109,9 @@ Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
   final jailCenter = state.jailCenter ?? _dummyJailCenter();
   final jailRadiusM = (state.jailRadiusM ?? 12).clamp(1, 200);
 
-  final releaseCount =
-      (state.releaseScope == RoomReleaseScope.all) ? (maxPlayers - 1) : 3;
+  final releaseCount = (state.releaseScope == RoomReleaseScope.all)
+      ? (maxPlayers - 1)
+      : 3;
 
   return <String, dynamic>{
     'mode': _modeWire(state.mode),
@@ -144,18 +150,17 @@ Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
         'policy': 'LIMITED',
         'radarPingTtlMs': 7000,
       },
+      'policeRatio': state.policeRatio,
     },
   };
 }
 
 List<GeoPointDto> _dummyPolygon() => const [
-      GeoPointDto(lat: 37.5675, lng: 126.9782),
-      GeoPointDto(lat: 37.5679, lng: 126.9825),
-      GeoPointDto(lat: 37.5652, lng: 126.9831),
-      GeoPointDto(lat: 37.5648, lng: 126.9790),
-    ];
+  GeoPointDto(lat: 37.5675, lng: 126.9782),
+  GeoPointDto(lat: 37.5679, lng: 126.9825),
+  GeoPointDto(lat: 37.5652, lng: 126.9831),
+  GeoPointDto(lat: 37.5648, lng: 126.9790),
+];
 
-GeoPointDto _dummyJailCenter() => const GeoPointDto(
-      lat: 37.5665,
-      lng: 126.9812,
-    );
+GeoPointDto _dummyJailCenter() =>
+    const GeoPointDto(lat: 37.5665, lng: 126.9812);
