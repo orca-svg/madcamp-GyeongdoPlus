@@ -100,7 +100,7 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                             children: [
                               KakaoMap(
                                 key: ValueKey(
-                                  'ingame_map_${polygons.hashCode}_${circles.hashCode}',
+                                  'ingame_map_${rules.zonePolygon?.length ?? 0}_${rules.jailCenter?.lat ?? 0}',
                                 ),
                                 center: center,
                                 currentLevel: 4,

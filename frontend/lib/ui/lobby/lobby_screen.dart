@@ -77,12 +77,13 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               ListView(
                 padding: EdgeInsets.fromLTRB(18, 14, 18, bottomInset),
                 children: [
+                  // Step 0: Room Code Card (New)
+                  _RoomCodeCard(roomId: room.roomId),
+                  const SizedBox(height: 12),
+
                   // Step 1: Game Config Card
                   const GameConfigCard(),
                   const SizedBox(height: 12),
-                  const SizedBox(height: 12),
-
-                  // Step 3: Interactive Member List
                   _membersCard(context, room, me?.id),
                   const SizedBox(height: 12),
                   const MiniMapCard(),
@@ -93,47 +94,49 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   ],
                 ],
               ),
+
               Positioned(
-                left: 18,
-                right: 18,
+                left: 0,
+                right: 0,
                 bottom: 0,
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (startNotice.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              startNotice,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                              textAlign: TextAlign.center,
-                            ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (startNotice.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 8,
+                          left: 18,
+                          right: 18,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            startNotice,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
-                      _lobbyActionBar(
-                        context,
-                        ref,
-                        canStart: canStart,
-                        height: bottomBarHeight,
                       ),
-                    ],
-                  ),
+                    _lobbyActionBar(
+                      context,
+                      ref,
+                      canStart: canStart,
+                      safeBottom: safeBottom,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -280,15 +283,20 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     BuildContext context,
     WidgetRef ref, {
     required bool canStart,
-    required double height,
+    required double safeBottom,
   }) {
     return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      padding: EdgeInsets.fromLTRB(18, 12, 18, safeBottom + 12),
       decoration: BoxDecoration(
-        color: AppColors.surface1.withOpacity(0.92),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-        border: Border.all(color: AppColors.outlineLow, width: 1),
+        color: AppColors.surface1.withOpacity(0.95),
+        border: const Border(top: BorderSide(color: AppColors.outlineLow)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -300,7 +308,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 ref.read(gamePhaseProvider.notifier).toOffGame();
               },
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
+                minimumSize: const Size.fromHeight(52),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -316,7 +324,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               key: const Key('lobbyStartButton'),
               variant: GradientButtonVariant.createRoom,
               title: '게임 시작',
-              height: 44,
+              height: 52,
               borderRadius: 14,
               onPressed: canStart
                   ? () {
@@ -507,6 +515,67 @@ class _InteractiveMemberRow extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoomCodeCard extends StatelessWidget {
+  final String roomId;
+  const _RoomCodeCard({required this.roomId});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlowCard(
+      glow: false,
+      borderColor: AppColors.outlineLow,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.qr_code_rounded, color: AppColors.textPrimary, size: 20),
+          const SizedBox(width: 10),
+          Text(
+            '참여 코드',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.surface2,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              roomId.length > 8 ? roomId.substring(0, 8).toUpperCase() : roomId,
+              style: const TextStyle(
+                fontFamily: 'Monospace',
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(4),
+            icon: const Icon(
+              Icons.copy_rounded,
+              size: 18,
+              color: AppColors.borderCyan,
+            ),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: roomId));
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('코드가 복사되었습니다.')));
+            },
+            tooltip: '코드 복사',
           ),
         ],
       ),

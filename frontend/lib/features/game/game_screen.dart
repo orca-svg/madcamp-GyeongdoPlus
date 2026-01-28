@@ -245,6 +245,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                             AppDimens.radiusCard,
                           ),
                           child: KakaoMap(
+                            key: ValueKey(
+                              'game_map_${polygons.length}_${markers.length}_${center.latitude}_${center.longitude}',
+                            ),
                             onMapCreated: (comp) {},
                             center: center,
                             currentLevel: 3,

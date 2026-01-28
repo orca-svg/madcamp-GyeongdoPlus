@@ -41,9 +41,11 @@ class StateSnapshotBuilder {
         ? room.policeCount
         : rules.policeCount;
 
-    final thiefAlive =
-        sim?.live.score.thiefFree ??
-        max(0, rules.maxPlayers - rules.policeCount);
+    final thiefAlive = (phase == GamePhase.lobby || sim == null)
+        ? (room.members.isNotEmpty
+              ? room.thiefCount
+              : max(0, rules.maxPlayers - rules.policeCount))
+        : sim!.live.score.thiefFree;
 
     final thiefCaptured = sim?.live.score.thiefCaptured ?? 0;
 
@@ -75,7 +77,7 @@ class StateSnapshotBuilder {
       },
       // Step 1에서는 실데이터 provider가 확정되지 않았으므로 0으로 고정.
       // 추후 이벤트/트래킹 provider가 생기면 교체합니다.
-      'my': {
+      'my': <String, dynamic>{
         'distanceM': 0,
         'captures': 0,
         'rescues': 0,
@@ -98,6 +100,7 @@ class StateSnapshotBuilder {
         'jailRadiusM': rules.jailRadiusM?.round(),
         'zonePoints': rules.zonePolygon?.length ?? 0,
       },
+      'rulesLabel': _buildRulesLabel(rules),
       'nearby': {'allyCount10m': allyCount10m, 'enemyNear': enemyNear},
       // 아이템/능력 모드 확장 포인트 (빈 객체로 시작)
       'modeOptions': <String, dynamic>{},
@@ -108,6 +111,18 @@ class StateSnapshotBuilder {
       'ts': DateTime.now().millisecondsSinceEpoch,
       'matchId': matchId,
       'payload': payload,
+    };
+  }
+
+  static Map<String, String> _buildRulesLabel(MatchRulesState rules) {
+    return {
+      'timeLimit': '${(rules.timeLimitSec / 60).round()}분',
+      'gameMode': rules.gameMode == GameMode.normal ? '일반 모드' : '아이템 모드',
+      'contactMode': rules.contactMode == 'RFID'
+          ? 'RFID'
+          : (rules.contactMode == 'CONTACT' ? '접촉식' : '비접촉'),
+      'releaseScope': rules.rescueReleaseScope == 'ALL' ? '전체 해방' : '부분 해방',
+      'jailRadius': '${rules.jailRadiusM?.round() ?? 15}m',
     };
   }
 

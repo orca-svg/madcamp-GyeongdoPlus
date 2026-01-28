@@ -214,15 +214,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                               onChanged: (v) => _setMaxPlayers(v.round()),
                             ),
                             const SizedBox(height: 6),
-                            // Ratio Slider
-                            Slider(
-                              min: 0.1,
-                              max: 0.5,
-                              divisions: 4,
-                              value: _form.policeRatio,
-                              onChanged: _setPoliceRatio,
-                            ),
-                            const SizedBox(height: 2),
+                            // Counts Row moved above Slider
                             Row(
                               children: [
                                 Text(
@@ -243,6 +235,15 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                                       ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 6),
+                            // Ratio Slider
+                            Slider(
+                              min: 0.1,
+                              max: 0.5,
+                              divisions: 4,
+                              value: _form.policeRatio,
+                              onChanged: _setPoliceRatio,
                             ),
                             const SizedBox(height: 12),
                             _LabeledRow(

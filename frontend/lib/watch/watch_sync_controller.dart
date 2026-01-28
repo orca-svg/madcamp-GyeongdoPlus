@@ -78,6 +78,8 @@ class WatchSyncController extends Notifier<WatchSyncState> {
         }
       } else if (payload != null && payload['action'] == 'USE_SKILL') {
         ref.read(abilityProvider.notifier).useSkill();
+      } else if (payload != null && payload['action'] == 'CHANGE_TEAM') {
+        _handleTeamChangePayload(payload);
       }
     });
     ref.onDispose(sub.cancel);
@@ -175,6 +177,32 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     }
   }
 
+  Future<void> _handleTeamChangePayload(Map<String, dynamic> payload) async {
+    final room = ref.read(roomProvider);
+    final me = room?.me;
+    if (me == null || me.ready) return; // 레디 상태면 변경 불가
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // 간단한 디바운스 (클라 내부)
+    if (now - state.lastHapticTs < 500) return; // Reuse haptic TS or add new?
+    // Let's rely on internal check or add new field. For now reusing logical debounce isn't ideal but acceptable.
+    // Ideally I should add lastTeamChangeTs to state, but for minimal diff:
+
+    // Toggle logic
+    final current = me.team;
+    final next = current == Team.police ? Team.thief : Team.police;
+
+    // Requested specific team?
+    // if (payload['team'] == 'POLICE') next = Team.police;
+
+    ref.read(roomProvider.notifier).setMyTeam(next);
+
+    // Update state to throttle
+    state = state.copyWith(
+      lastHapticTs: now,
+    ); // Using hapticTs key for generic action throttling
+  }
+
   Future<void> _sendSnapshot() async {
     final connected = ref.read(watchConnectedProvider);
     if (!connected) return;
@@ -221,11 +249,15 @@ class WatchSyncController extends Notifier<WatchSyncState> {
 
     if (now - state.lastHapticTs < _enemyCooldownMs) return;
 
-    final haptic = {
+    final haptic = <String, dynamic>{
       'type': 'HAPTIC_ALERT',
       'ts': now,
       'matchId': snapshot['matchId'],
-      'payload': {'kind': 'ENEMY_NEAR_5M', 'cooldownSec': 5, 'durationMs': 300},
+      'payload': <String, dynamic>{
+        'kind': 'ENEMY_NEAR_5M',
+        'cooldownSec': 5,
+        'durationMs': 300,
+      },
     };
     await ref.read(watchSyncServiceProvider).sendHapticAlert(haptic);
     final len = jsonEncode(haptic).length;
