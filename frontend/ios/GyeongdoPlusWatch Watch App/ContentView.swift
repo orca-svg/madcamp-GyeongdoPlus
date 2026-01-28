@@ -185,25 +185,23 @@ struct LobbyView: View {
 // MARK: - InGame Views
 struct InGamePagerView: View {
     @StateObject private var wc = WatchConnectivityManager.shared
-    
-    // activeTab 기반 탭 선택 (폰 미러링)
+
+    // activeTab 기반 탭 선택 (폰 미러링) - 3탭 구조
     private var selectedIndex: Int {
         guard let activeTab = wc.snapshot?.payload.activeTab else { return 0 }
         switch activeTab {
         case "INGAME_RADAR": return 0
-        case "INGAME_MAP": return 1
-        case "INGAME_CAPTURE": return 2
-        case "INGAME_SETTINGS": return 3
+        case "INGAME_STATUS", "INGAME_CAPTURE", "INGAME_MAP": return 1  // 통합
+        case "INGAME_RULES", "INGAME_SETTINGS": return 2  // 통합
         default: return 0
         }
     }
-    
+
     var body: some View {
         TabView(selection: .constant(selectedIndex)) {
-            InGameRadarView().tag(0)
-            InGameMapView().tag(1)
-            InGameCaptureView().tag(2)
-            InGameSettingsView().tag(3)
+            InGameRadarView().tag(0)      // 그래픽 레이더
+            InGameStatusView().tag(1)     // 통합 상태 뷰
+            InGameRulesView().tag(2)      // 규칙
         }
         .tabViewStyle(.page)
     }
@@ -214,157 +212,111 @@ struct InGameRadarView: View {
 
     var body: some View {
         let p = wc.snapshot?.payload
+        let teamColor: Color = p?.team == "POLICE" ? .cyan : .red
+
         ZStack(alignment: .bottomTrailing) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(spacing: 8) {
+                // 상단 바: 연결 상태 + 심박수
                 HStack {
                     ConnectionPill(isConnected: wc.isReachable)
                     Spacer()
-                    // Heart Rate
                     if wc.currentHeartRate > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "heart.fill")
-                                .foregroundColor(.red)
-                                .font(.system(size: 10))
-                            Text("\(wc.currentHeartRate)")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(Capsule())
+                        HeartRatePill(bpm: wc.currentHeartRate)
                     }
                 }
-                
+
+                // 위험 경고 (도둑 전용)
                 if (p?.nearby.enemyNear ?? false) && p?.team == "THIEF" {
                     DangerPill()
                 }
-                
-                // Header + Compass
-                HStack {
-                    Text("레이더").font(.system(size: 16, weight: .bold))
-                    Spacer()
-                    ZStack {
-                        Circle().fill(Color.gray.opacity(0.2)).frame(width: 32, height: 32)
-                        Image(systemName: "location.north.line.fill")
-                            .foregroundColor(.cyan)
-                            .font(.system(size: 20))
-                            .rotationEffect(.degrees(-wc.currentHeading))
-                    }
-                }
-                
-                Text("아군 10m: \(p?.nearby.allyCount10m ?? 0)")
-                    .font(.system(size: 12, weight: .semibold))
+
+                // 그래픽 레이더 (핵심)
+                GraphicalRadarView(
+                    allies: p?.nearby.allies ?? [],
+                    heading: wc.currentHeading,
+                    teamColor: teamColor
+                )
+                .frame(height: 120)
+
+                // 하단: 남은 시간
                 Text("남은 시간: \(p?.timeRemainSec ?? 0)s")
-                    .font(.system(size: 12, weight: .semibold))
-                LargeButton(title: "PING") {
-                    wc.sendAction(action: "PING", value: nil)
-                }
-                Spacer()
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
             }
-            .padding()
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
             .background(Color.black.opacity(0.92))
             .onTapGesture {
                 wc.sendAction(action: "OPEN_TAB", value: "INGAME_RADAR")
             }
-            
-            // Skill Button Overlay
+
+            // 스킬 버튼 오버레이 (우하단)
             if let skill = p?.my.skill, skill.type != "none" {
-                Button(action: { wc.sendAction(action: "USE_SKILL", value: nil) }) {
-                    ZStack {
-                        Circle().fill(Color.black.opacity(0.6)).frame(width: 50, height: 50)
-                        if !skill.ready {
-                            Circle()
-                                .trim(from: 0.0, to: CGFloat(1.0 - Double(skill.remain)/Double(max(1, skill.total))))
-                                .stroke(Color.cyan, lineWidth: 3)
-                                .rotationEffect(.degrees(-90))
-                                .frame(width: 48, height: 48)
-                        } else {
-                            Circle().stroke(Color.cyan, lineWidth: 3).frame(width: 50, height: 50)
-                        }
-                        
-                        Image(systemName: skill.sf)
-                            .font(.system(size: 20))
-                            .foregroundColor(skill.ready ? .white : .gray)
-                        
-                        if !skill.ready {
-                            Text("\(skill.remain)")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                .padding([.bottom, .trailing], 8)
-                .disabled(!skill.ready)
+                SkillButtonOverlay(skill: skill)
             }
         }
     }
 }
 
-struct InGameMapView: View {
-    @StateObject private var wc = WatchConnectivityManager.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ConnectionPill(isConnected: wc.isReachable)
-            Text("지도").font(.system(size: 16, weight: .bold))
-            Text("지도 정보가 여기에 표시됩니다")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .padding()
-        .background(Color.black.opacity(0.92))
-        .onTapGesture {
-            wc.sendAction(action: "OPEN_TAB", value: "INGAME_MAP")
-        }
-    }
-}
-
-struct InGameCaptureView: View {
+struct InGameStatusView: View {
     @StateObject private var wc = WatchConnectivityManager.shared
 
     var body: some View {
         let p = wc.snapshot?.payload
-        VStack(alignment: .leading, spacing: 10) {
-            ConnectionPill(isConnected: wc.isReachable)
-            Text("체포").font(.system(size: 16, weight: .bold))
-            Text("경찰: \(p?.counts.police ?? 0)")
-            Text("도둑 생존: \(p?.counts.thiefAlive ?? 0)")
-            Text("도둑 체포: \(p?.counts.thiefCaptured ?? 0)")
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                ConnectionPill(isConnected: wc.isReachable)
+                Text("상태").font(.system(size: 16, weight: .bold))
+
+                // 팀 카운트
+                HStack {
+                    StatItem(label: "경찰", value: "\(p?.counts.police ?? 0)", color: .cyan)
+                    StatItem(label: "도둑", value: "\(p?.counts.thiefAlive ?? 0)", color: .red)
+                }
+
+                // 체포/해방
+                if p?.team == "POLICE" {
+                    StatItem(label: "체포", value: "\(p?.counts.thiefCaptured ?? 0)", color: .orange)
+                } else {
+                    StatItem(label: "해방", value: "\(p?.my.rescues ?? 0)", color: .green)
+                }
+
+                // 이동 거리
+                StatItem(label: "이동", value: "\(p?.my.distanceM ?? 0)m", color: .purple)
+
+                Spacer()
+            }
+            .padding()
         }
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundColor(.secondary)
-        .padding()
         .background(Color.black.opacity(0.92))
         .onTapGesture {
-            wc.sendAction(action: "OPEN_TAB", value: "INGAME_CAPTURE")
+            wc.sendAction(action: "OPEN_TAB", value: "INGAME_STATUS")
         }
     }
 }
 
-struct InGameSettingsView: View {
+struct InGameRulesView: View {
     @StateObject private var wc = WatchConnectivityManager.shared
 
     var body: some View {
         let r = wc.snapshot?.payload.rulesLite
-        VStack(alignment: .leading, spacing: 10) {
-            ConnectionPill(isConnected: wc.isReachable)
-            Text("규칙").font(.system(size: 16, weight: .bold))
-            Text("접촉: \(r?.contactMode ?? "—")")
-            Text("해방: \(r?.releaseScope ?? "—") \(r?.releaseOrder ?? "")")
-            Text("감옥: \(r?.jailEnabled == true ? "ON" : "OFF")")
-            Text("반경: \(r?.jailRadiusM ?? 0)m")
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                ConnectionPill(isConnected: wc.isReachable)
+                Text("규칙").font(.system(size: 16, weight: .bold))
+                Text("접촉: \(r?.contactMode ?? "—")")
+                Text("해방: \(r?.releaseScope ?? "—") \(r?.releaseOrder ?? "")")
+                Text("감옥: \(r?.jailEnabled == true ? "ON" : "OFF")")
+                Text("반경: \(r?.jailRadiusM ?? 0)m")
+                Spacer()
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(.secondary)
+            .padding()
         }
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundColor(.secondary)
-        .padding()
         .background(Color.black.opacity(0.92))
         .onTapGesture {
-            wc.sendAction(action: "OPEN_TAB", value: "INGAME_SETTINGS")
+            wc.sendAction(action: "OPEN_TAB", value: "INGAME_RULES")
         }
     }
 }
@@ -536,5 +488,85 @@ struct SectionCard<Content: View>: View {
         .padding(10)
         .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+struct HeartRatePill: View {
+    let bpm: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "heart.fill")
+                .foregroundColor(.red)
+                .font(.system(size: 10))
+            Text("\(bpm)")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.white.opacity(0.1))
+        .clipShape(Capsule())
+    }
+}
+
+struct SkillButtonOverlay: View {
+    let skill: SnapshotSkill
+
+    var body: some View {
+        Button(action: {
+            WatchConnectivityManager.shared.sendAction(action: "USE_SKILL", value: nil)
+        }) {
+            ZStack {
+                Circle().fill(Color.black.opacity(0.6)).frame(width: 50, height: 50)
+                if !skill.ready {
+                    Circle()
+                        .trim(from: 0.0, to: CGFloat(1.0 - Double(skill.remain)/Double(max(1, skill.total))))
+                        .stroke(Color.cyan, lineWidth: 3)
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 48, height: 48)
+                } else {
+                    Circle().stroke(Color.cyan, lineWidth: 3).frame(width: 50, height: 50)
+                }
+
+                Image(systemName: skill.sf)
+                    .font(.system(size: 20))
+                    .foregroundColor(skill.ready ? .white : .gray)
+
+                if !skill.ready {
+                    Text("\(skill.remain)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .padding([.bottom, .trailing], 8)
+        .disabled(!skill.ready)
+    }
+}
+
+struct StatItem: View {
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(color)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.15))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(color.opacity(0.5), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }

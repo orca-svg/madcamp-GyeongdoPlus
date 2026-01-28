@@ -143,6 +143,37 @@ class _AbilityButtonState extends State<AbilityButton> {
                   ),
                 ),
               ),
+
+            // Clown Gauge Bar
+            if (widget.ability.type == AbilityType.clown && !isActive)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SizedBox(
+                  width: 72,
+                  child: Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: widget.ability.clownGauge,
+                          minHeight: 6,
+                          color: AppColors.lime,
+                          backgroundColor: AppColors.surface2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${(widget.ability.clownGauge * 100).toInt()}%',
+                        style: const TextStyle(
+                          color: AppColors.lime,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),

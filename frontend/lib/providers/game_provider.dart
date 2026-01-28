@@ -21,24 +21,25 @@ class PlayerState {
   final double lng;
   final String team; // 'POLICE' | 'THIEF'
   final double? heading;
+  final int? heartRate; // BPM from watch/server
+  final bool isArrested;
 
   const PlayerState({
     required this.userId,
     required this.lat,
     required this.lng,
     required this.team,
-
     this.heading,
+    this.heartRate,
     this.isArrested = false,
   });
-
-  final bool isArrested;
 
   PlayerState copyWith({
     double? lat,
     double? lng,
     String? team,
     double? heading,
+    int? heartRate,
     bool? isArrested,
   }) {
     return PlayerState(
@@ -47,6 +48,7 @@ class PlayerState {
       lng: lng ?? this.lng,
       team: team ?? this.team,
       heading: heading ?? this.heading,
+      heartRate: heartRate ?? this.heartRate,
     );
   }
 }
@@ -122,6 +124,7 @@ class GameController extends Notifier<GameState> {
       final lng = (payload['lng'] as num).toDouble();
       final team = payload['team'] as String? ?? 'THIEF'; // Default fallback
       final heading = (payload['heading'] as num?)?.toDouble();
+      final heartRate = (payload['heartRate'] as num?)?.toInt();
 
       final newPlayer = PlayerState(
         userId: userId,
@@ -129,6 +132,7 @@ class GameController extends Notifier<GameState> {
         lng: lng,
         team: team,
         heading: heading,
+        heartRate: heartRate,
       );
 
       final newMap = Map<String, PlayerState>.from(state.players);

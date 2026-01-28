@@ -5,6 +5,10 @@ import 'package:flutter/material.dart'; // For IconData, Icons
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/game_phase_provider.dart';
 import '../../../../core/services/audio_service.dart'; // Audio
+import '../../../../providers/game_provider.dart';
+import '../../../../providers/room_provider.dart';
+import '../../../../providers/interaction_service_provider.dart';
+import 'chaser_targets_provider.dart';
 // import '../game_screen.dart'; // Circular dependency if not careful, used for types? No.
 
 enum AbilityType {
@@ -67,6 +71,7 @@ class AbilityState {
   final int restingHeartRate;
   final int currentHeartRate;
   final double cooldownSpeed; // Debug info
+  final double clownGauge; // Clown ability gauge (0.0 ~ 1.0)
 
   const AbilityState({
     required this.type,
@@ -76,6 +81,7 @@ class AbilityState {
     this.restingHeartRate = 70,
     this.currentHeartRate = 70,
     this.cooldownSpeed = 1.0,
+    this.clownGauge = 0.0,
   });
 
   bool get isReady => cooldownRemainSec <= 0 && type != AbilityType.none;
@@ -89,6 +95,7 @@ class AbilityState {
     int? restingHeartRate,
     int? currentHeartRate,
     double? cooldownSpeed,
+    double? clownGauge,
   }) {
     return AbilityState(
       type: type ?? this.type,
@@ -98,6 +105,7 @@ class AbilityState {
       restingHeartRate: restingHeartRate ?? this.restingHeartRate,
       currentHeartRate: currentHeartRate ?? this.currentHeartRate,
       cooldownSpeed: cooldownSpeed ?? this.cooldownSpeed,
+      clownGauge: clownGauge ?? this.clownGauge,
     );
   }
 }
@@ -108,6 +116,7 @@ final abilityProvider = NotifierProvider<AbilityController, AbilityState>(
 
 class AbilityController extends Notifier<AbilityState> {
   Timer? _timer;
+  Timer? _chaserPingTimer;
   // Accumulator for fractional cooldown reduction
   double _accumulator = 0.0;
 
@@ -115,6 +124,7 @@ class AbilityController extends Notifier<AbilityState> {
   AbilityState build() {
     ref.onDispose(() {
       _timer?.cancel();
+      _chaserPingTimer?.cancel();
     });
 
     // Listen to phase to start/stop engine
@@ -166,35 +176,58 @@ class AbilityController extends Notifier<AbilityState> {
   }
 
   void _tick() {
-    if (state.cooldownRemainSec <= 0) return;
+    // Cooldown reduction logic
+    if (state.cooldownRemainSec > 0) {
+      final diff = state.currentHeartRate - state.restingHeartRate;
+      double speed = 1.0;
+      if (diff > 20) {
+        if (state.type.isPolice) speed = 1.02; // +2%
+        if (state.type.isThief) speed = 1.04; // +4%
+      }
 
-    final diff = state.currentHeartRate - state.restingHeartRate;
-    double speed = 1.0;
-    if (diff > 20) {
-      if (state.type.isPolice) speed = 1.02; // +2%
-      if (state.type.isThief) speed = 1.04; // +4%
-      // User request: "경찰 1.02배, 도둑 1.04배"
-      // Maybe they meant "+0.02 per BPM over 20"? Or flat bonus?
-      // "20일 때 가속 계수 적용" usually implies a threshold state.
-      // Or continuous? "BPM 100 (diff 30) -> speed?"
-      // Let's assume FLAT bonus for being "High HR" based on the phrasing "가속 계수 적용 (경찰 1.02배...)"
-      // Actually 1.02x means 2% faster. Over 60s -> 1.2s saved. Minimal.
-      // Maybe user meant "per 1 BPM"? Or significantly larger multiplier?
-      // "1.02배" is very specific. I'll stick to it.
+      // Accumulate
+      _accumulator += speed;
+
+      int reduction = 0;
+      if (_accumulator >= 1.0) {
+        reduction = _accumulator.floor();
+        _accumulator -= reduction;
+      }
+
+      if (reduction > 0) {
+        final next = max(0, state.cooldownRemainSec - reduction);
+        state = state.copyWith(cooldownRemainSec: next, cooldownSpeed: speed);
+      }
     }
 
-    // Accumulate
-    _accumulator += speed;
+    // Clown gauge logic
+    if (state.type == AbilityType.clown && !state.isSkillActive) {
+      try {
+        final interaction = ref.read(interactionServiceProvider);
+        final distances = interaction.state.distances;
+        final room = ref.read(roomProvider);
+        final myTeam = room.me?.team;
 
-    int reduction = 0;
-    if (_accumulator >= 1.0) {
-      reduction = _accumulator.floor();
-      _accumulator -= reduction;
-    }
+        // Check if police within 7m
+        final hasNearbyPolice = distances.values.any((d) {
+          // For thief, enemy = police
+          final isEnemy = myTeam == Team.thief && d.distanceMeters < 7.0;
+          return isEnemy;
+        });
 
-    if (reduction > 0) {
-      final next = max(0, state.cooldownRemainSec - reduction);
-      state = state.copyWith(cooldownRemainSec: next, cooldownSpeed: speed);
+        if (hasNearbyPolice) {
+          final newGauge = min(1.0, state.clownGauge + 0.02); // +2% per second
+          state = state.copyWith(clownGauge: newGauge);
+
+          // Auto-activate skill when gauge reaches 100%
+          if (newGauge >= 1.0) {
+            useSkill();
+            state = state.copyWith(clownGauge: 0.0); // Reset gauge
+          }
+        }
+      } catch (e) {
+        // InteractionService might not be available yet
+      }
     }
   }
 
@@ -213,10 +246,43 @@ class AbilityController extends Notifier<AbilityState> {
       isUsing: true, // Trigger 'active' state if needed
     );
 
+    // Ability-specific logic
+    if (state.type == AbilityType.chaser) {
+      _startChaserPing();
+    }
+
     // Duration logic? Some skills have duration.
     // For now, just trigger.
 
     // Haptic feedback via Watch?
     // Done by WatchSyncController hearing 'USE_SKILL' or implicit.
+  }
+
+  /// Chaser ability: Ping high heart rate targets every 2 seconds
+  void _startChaserPing() {
+    _chaserPingTimer?.cancel();
+
+    _chaserPingTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (state.type != AbilityType.chaser || !state.isSkillActive) {
+        stopChaserPing();
+        return;
+      }
+
+      final gameState = ref.read(gameProvider);
+
+      // Filter thieves with heart rate >= 150 BPM
+      final highHrThieves = gameState.players.values.where((p) {
+        return p.team == 'THIEF' && (p.heartRate ?? 0) >= 150;
+      }).toList();
+
+      // Update chaser targets provider
+      ref.read(chaserTargetsProvider.notifier).updateTargets(highHrThieves);
+    });
+  }
+
+  void stopChaserPing() {
+    _chaserPingTimer?.cancel();
+    _chaserPingTimer = null;
+    ref.read(chaserTargetsProvider.notifier).clear();
   }
 }

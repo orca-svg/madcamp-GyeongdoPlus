@@ -16,6 +16,7 @@ import '../map/game_map_renderer.dart';
 import '../ingame/widgets/game_rules_overlay.dart';
 import 'providers/ability_provider.dart';
 import 'providers/item_provider.dart';
+import 'providers/chaser_targets_provider.dart';
 import 'widgets/item_slot_hud.dart';
 import 'widgets/ability_button.dart';
 import '../../core/services/audio_service.dart'; // Audio
@@ -93,6 +94,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final room = ref.watch(roomProvider);
     final gameState = ref.watch(gameProvider);
     final ability = ref.watch(abilityProvider);
+    final chaserTargets = ref.watch(chaserTargetsProvider);
 
     // 1. Build Static Map Elements
     List<GeoPointDto>? zonePolygon;
@@ -191,6 +193,20 @@ class _GameScreenState extends ConsumerState<GameScreen> {
           markerImageSrc: myImageSrc,
         ),
       );
+    }
+
+    // Chaser Target Markers (150+ BPM thieves)
+    if (ability.type == AbilityType.chaser && ability.isSkillActive) {
+      for (final target in chaserTargets) {
+        markers.add(
+          Marker(
+            markerId: 'chaser_ping_${target.userId}',
+            latLng: LatLng(target.lat, target.lng),
+            infoWindowContent: '추격 대상 (${target.heartRate} BPM)',
+            markerImageSrc: 'assets/icon/marker_red.png', // Use red marker for targets
+          ),
+        );
+      }
     }
 
     // Map Center

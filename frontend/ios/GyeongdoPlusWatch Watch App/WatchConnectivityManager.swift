@@ -84,9 +84,23 @@ struct SnapshotRulesLite: Codable {
     let zonePoints: Int
 }
 
+struct AllyBlip: Codable, Identifiable {
+    var id: String { allyId }
+    let d: Double      // distance (meters)
+    let b: Double      // relative bearing (degrees, -180 ~ 180)
+    let allyId: String // player ID (first 4 chars)
+
+    enum CodingKeys: String, CodingKey {
+        case d
+        case b
+        case allyId = "id"
+    }
+}
+
 struct SnapshotNearby: Codable {
     let allyCount10m: Int?
     let enemyNear: Bool?
+    let allies: [AllyBlip]?
 }
 
 struct HapticEnvelope: Codable {
