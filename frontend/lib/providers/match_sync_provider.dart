@@ -167,7 +167,8 @@ class MatchSyncController extends Notifier<MatchSyncState> {
   bool _updateSeq(int? seq) {
     if (seq == null) return false;
     final prev = state.lastSeq;
-    final gap = prev != null && seq != (prev + 1);
+    // Only detect true gaps (missing messages), not duplicates
+    final gap = prev != null && seq > (prev + 1);
     state = state.copyWith(lastSeq: seq);
     return gap;
   }

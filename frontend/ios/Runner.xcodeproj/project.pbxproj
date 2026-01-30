@@ -61,7 +61,7 @@
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = Watch;
-			dstSubfolderSpec = 16;
+			dstSubfolderSpec = 6;
 			files = (
 				4F263F0F2F24FFE5006A5552 /* GyeongdoPlusWatch Watch App.app in Embed Watch Content */,
 			);
@@ -575,7 +575,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#!/bin/sh\nset -e\nset -u\nset -o pipefail\n\n# 1) flutter_export_environment.sh가 실제로 있는지 확인\nENV_FILE=\"${SRCROOT}/Flutter/flutter_export_environment.sh\"\nif [ ! -f \"$ENV_FILE\" ]; then\n  echo \"❌ Missing: $ENV_FILE\"\n  echo \"→ 터미널에서 Flutter 프로젝트 루트(frontend)에서 'flutter pub get' 다시 실행하세요.\"\n  exit 1\nfi\n\n# 2) Flutter 환경변수 로드\nsource \"$ENV_FILE\"\n\n# 3) FLUTTER_ROOT 검증\necho \"FLUTTER_ROOT=$FLUTTER_ROOT\"\nif [ ! -x \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" ]; then\n  echo \"❌ xcode_backend.sh not found at:\"\n  echo \"   $FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\"\n  exit 1\nfi\n\n# 4) Flutter build\n\"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build\n";
+			shellScript = "#!/bin/sh\nset -e\nset -u\nset -o pipefail\n\n# --- BEGIN SIMULATOR DEBUG INTERCEPTOR ---\n# If targeting a simulator, force Debug mode to avoid AOT assembly failure.\nif [[ \"$SDK_NAME\" == *\"simulator\"* ]]; then\n  echo \"⚠️ Simulator detected. Overriding CONFIGURATION to Debug.\"\n  export CONFIGURATION=Debug\nfi\n# --- END SIMULATOR DEBUG INTERCEPTOR ---\n\n# 1) flutter_export_environment.sh가 실제로 있는지 확인\nENV_FILE=\"${SRCROOT}/Flutter/flutter_export_environment.sh\"\nif [ ! -f \"$ENV_FILE\" ]; then\n  echo \"❌ Missing: $ENV_FILE\"\n  echo \"→ 터미널에서 Flutter 프로젝트 루트(frontend)에서 'flutter pub get' 다시 실행하세요.\"\n  exit 1\nfi\n\n# 2) Flutter 환경변수 로드\nsource \"$ENV_FILE\"\n\n# 3) FLUTTER_ROOT 검증\necho \"FLUTTER_ROOT=$FLUTTER_ROOT\"\nif [ ! -x \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" ]; then\n  echo \"❌ xcode_backend.sh not found at:\"\n  echo \"   $FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\"\n  exit 1\nfi\n\n# 4) Flutter build\n\"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build\n";
 		};
 		CF1AC3468C62E61ACC22D4A9 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -809,8 +809,8 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				GENERATE_INFOPLIST_FILE = NO;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.junyeop.gyeongdoplus.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -827,8 +827,8 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				GENERATE_INFOPLIST_FILE = NO;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.junyeop.gyeongdoplus.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -843,8 +843,8 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				GENERATE_INFOPLIST_FILE = NO;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.junyeop.gyeongdoplus.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -870,7 +870,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "GyeongdoPlusWatch Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = GyeongdoPlusWatch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -899,7 +899,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 				ENABLE_BITCODE = NO;
 				SKIP_INSTALL = YES;
 			};
@@ -923,7 +923,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "GyeongdoPlusWatch Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = GyeongdoPlusWatch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -949,7 +949,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 				ENABLE_BITCODE = NO;
 				SKIP_INSTALL = YES;
 			};
@@ -973,7 +973,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "GyeongdoPlusWatch Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = GyeongdoPlusWatch;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -999,7 +999,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 				ENABLE_BITCODE = NO;
 				SKIP_INSTALL = YES;
 			};
@@ -1019,9 +1019,9 @@
 				DEVELOPMENT_TEAM = 5C7HQNL7LK;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.junyeop.gyeongdoplus.watchkitapp.tests;
@@ -1036,7 +1036,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GyeongdoPlusWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GyeongdoPlusWatch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
 			name = Debug;
 		};
@@ -1054,9 +1054,9 @@
 				DEVELOPMENT_TEAM = 5C7HQNL7LK;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.junyeop.gyeongdoplus.watchkitapp.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1068,7 +1068,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GyeongdoPlusWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GyeongdoPlusWatch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
 			name = Release;
 		};
@@ -1086,9 +1086,9 @@
 				DEVELOPMENT_TEAM = 5C7HQNL7LK;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.junyeop.gyeongdoplus.watchkitapp.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1100,7 +1100,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GyeongdoPlusWatch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GyeongdoPlusWatch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
 			name = Profile;
 		};
@@ -1117,9 +1117,9 @@
 				DEVELOPMENT_TEAM = 5C7HQNL7LK;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.junyeop.gyeongdoplus.GyeongdoPlusWatch-Watch-AppUITests";
@@ -1134,7 +1134,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "GyeongdoPlusWatch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
 			name = Debug;
 		};
@@ -1151,9 +1151,9 @@
 				DEVELOPMENT_TEAM = 5C7HQNL7LK;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.junyeop.gyeongdoplus.GyeongdoPlusWatch-Watch-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1165,7 +1165,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "GyeongdoPlusWatch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
 			name = Release;
 		};
@@ -1182,9 +1182,9 @@
 				DEVELOPMENT_TEAM = 5C7HQNL7LK;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.junyeop.gyeongdoplus.GyeongdoPlusWatch-Watch-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1196,7 +1196,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "GyeongdoPlusWatch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 8.0;
 			};
 			name = Profile;
 		};

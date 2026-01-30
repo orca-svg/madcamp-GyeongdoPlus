@@ -89,7 +89,14 @@ class WsClient {
   void sendEnvelope<T>(WsEnvelope<T> env, Map<String, dynamic> Function(T) payloadToJson) {
     final ch = _ch;
     if (ch == null) return;
-    ch.sink.add(jsonEncode(env.toJson(payloadToJson)));
+    try {
+      final json = env.toJson(payloadToJson);
+      final encoded = jsonEncode(json);
+      ch.sink.add(encoded);
+    } catch (e, stackTrace) {
+      print('[WsClient] Failed to send envelope (type: ${env.type}): $e');
+      print('[WsClient] Stack trace: $stackTrace');
+    }
   }
 
   void _open() {
@@ -99,7 +106,11 @@ class WsClient {
     _epoch += 1;
 
     try {
-      _ch = IOWebSocketChannel.connect(url, headers: _headers);
+      _ch = IOWebSocketChannel.connect(
+        url,
+        headers: _headers,
+        connectTimeout: const Duration(seconds: 15),
+      );
     } catch (e) {
       _onSocketError(e);
       return;
@@ -131,14 +142,19 @@ class WsClient {
     try {
       final raw = event is String ? event : utf8.decode(event as List<int>);
       final decoded = jsonDecode(raw);
-      if (decoded is! Map) return;
+      if (decoded is! Map) {
+        print('[WsClient] Received non-Map JSON: ${decoded.runtimeType}');
+        return;
+      }
       final env = WsEnvelope.fromJson<Object?>(
         json: decoded.cast<String, dynamic>(),
         payloadFromJson: (rawPayload) => rawPayload,
       );
       _envelopeCtrl.add(env);
-    } catch (_) {
-      // ignore malformed payload
+    } catch (e, stackTrace) {
+      print('[WsClient] Failed to parse message: $e');
+      print('[WsClient] Raw event: ${event.toString().substring(0, min(200, event.toString().length))}');
+      print('[WsClient] Stack trace: $stackTrace');
     }
   }
 

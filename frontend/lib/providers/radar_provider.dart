@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../net/ws/dto/match_state.dart';
 import '../net/ws/dto/radar_ping.dart';
+import '../net/ws/ws_envelope.dart';
 import 'match_sync_provider.dart';
 import 'room_provider.dart';
 
@@ -55,15 +56,20 @@ final radarProvider = Provider<RadarUiState>((ref) {
   final room = ref.watch(roomProvider);
 
   final match = sync.lastMatchState?.payload;
-  final ping = sync.lastRadarPing?.payload;
+  final pingEnvelope = sync.lastRadarPing;
+  final ping = pingEnvelope?.payload;
 
   final progress = match?.live.captureProgress?.progress01 ?? 0.0;
 
-  final pings = _buildUiPings(ping);
+  // Check if radar ping has expired based on TTL
+  final isPingValid = _isPingValid(pingEnvelope);
+  final validPing = isPingValid ? ping : null;
+
+  final pings = _buildUiPings(validPing);
   final allyCount = room.policeCount;
   final enemyCount = room.thiefCount;
 
-  final danger = (ping?.pings.isNotEmpty ?? false) || (match?.state == 'RUNNING');
+  final danger = (validPing?.pings.isNotEmpty ?? false) || (match?.state == 'RUNNING');
   final dangerTitle = danger ? '경고: 주변 신호 감지' : '상태 양호';
 
   return RadarUiState(
@@ -72,8 +78,8 @@ final radarProvider = Provider<RadarUiState>((ref) {
     safetyText: (match?.state ?? '—'),
     danger: danger,
     dangerTitle: dangerTitle,
-    directionText: _directionText(ping),
-    distanceText: _distanceText(ping),
+    directionText: _directionText(validPing),
+    distanceText: _distanceText(validPing),
     etaText: _etaText(match),
     progress01: progress.clamp(0.0, 1.0),
     pings: pings,
@@ -132,4 +138,18 @@ String _etaText(MatchStateDto? match) {
   if (endsAt == null) return '—';
   final remain = max(0, endsAt - now);
   return '${(remain / 1000).toStringAsFixed(0)}초';
+}
+
+bool _isPingValid(WsEnvelope<RadarPingPayload>? envelope) {
+  if (envelope == null) return false;
+  final ping = envelope.payload;
+  final receivedAtMs = envelope.ts ?? 0;
+  if (receivedAtMs == 0) return true; // No timestamp, assume valid
+
+  final nowMs = DateTime.now().millisecondsSinceEpoch;
+  final elapsedMs = nowMs - receivedAtMs;
+  final ttlMs = ping.ttlMs;
+
+  // Ping is valid if it hasn't exceeded TTL
+  return elapsedMs < ttlMs;
 }

@@ -32,6 +32,8 @@ class LobbyScreen extends ConsumerStatefulWidget {
 }
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
+  bool _isStarting = false;
+
   @override
   void initState() {
     super.initState();
@@ -349,26 +351,42 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               title: '게임 시작',
               height: 52,
               borderRadius: 14,
-              onPressed: canStart
+              onPressed: canStart && !_isStarting
                   ? () async {
-                      final success = await ref
-                          .read(roomProvider.notifier)
-                          .startGame();
-                      if (!success && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              ref.read(roomProvider).errorMessage ?? '게임 시작 실패',
+                      setState(() => _isStarting = true);
+                      try {
+                        final success = await ref
+                            .read(roomProvider.notifier)
+                            .startGame();
+                        if (!success && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ref.read(roomProvider).errorMessage ?? '게임 시작 실패',
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isStarting = false);
+                        }
                       }
                     }
                   : null,
-              leading: const Icon(
-                Icons.play_arrow_rounded,
-                color: Colors.white,
-              ),
+              leading: _isStarting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                    ),
             ),
           ),
         ],
