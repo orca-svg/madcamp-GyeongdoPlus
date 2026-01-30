@@ -39,6 +39,13 @@ class WsConnectionState {
   }
 }
 
+/// WebSocket client with automatic reconnection and exponential backoff.
+///
+/// TODO: Add heartbeat/ping-pong mechanism to:
+/// - Detect dead connections that appear open (NAT timeout, proxy drop)
+/// - Keep connection alive through firewalls/proxies
+/// - Validate bidirectional connectivity
+/// Recommended: Send ping every 30s, reconnect if no pong within 60s
 class WsClient {
   WebSocketChannel? _ch;
   StreamSubscription? _sub;

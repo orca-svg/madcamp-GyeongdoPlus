@@ -35,9 +35,13 @@ class MatchStateDto {
 
   factory MatchStateDto.fromJson(Map<String, dynamic> json) {
     final playersRaw = (json['players'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
+    final stateRaw = (json['state'] ?? 'LOBBY').toString().toUpperCase();
+    final validStates = {'LOBBY', 'PREP', 'RUNNING', 'ENDED'};
+    final state = validStates.contains(stateRaw) ? stateRaw : 'LOBBY';
+
     return MatchStateDto(
       matchId: (json['matchId'] ?? '').toString(),
-      state: (json['state'] ?? 'LOBBY').toString(),
+      state: state,
       mode: (json['mode'] ?? '').toString(),
       rules: MatchRulesDto.fromJson((json['rules'] as Map? ?? const {}).cast<String, dynamic>()),
       time: MatchTimeDto.fromJson((json['time'] as Map? ?? const {}).cast<String, dynamic>()),

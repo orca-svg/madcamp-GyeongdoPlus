@@ -380,10 +380,6 @@ class _ArenaMapPreviewCard extends StatelessWidget {
     // ignore: avoid_print
     print('[MatchMapPreview ${DateTime.now().toIso8601String()}] build');
 
-    if (DateTime.now().millisecondsSinceEpoch < 0) {
-      return _noticeCard(context, 'unused');
-    }
-
     // NOTE: 이번 단계에서는 KakaoMap/WebView를 절대 렌더하지 않는다(placeholder만).
     final kakaoKeyOk = (dotenv.isInitialized
         ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty

@@ -8,13 +8,14 @@ void showAppSnackBar(
   Duration duration = const Duration(seconds: 2),
   bool isError = false,
   SnackBarAction? action,
+  bool hasBottomNav = true, // Set to false for lobby/postGame screens
 }) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.clearSnackBars();
 
   final bottomInset = MediaQuery.of(context).padding.bottom;
-  final navH = kBottomNavigationBarHeight;
+  final navH = hasBottomNav ? kBottomNavigationBarHeight : 0;
   final fg = isError ? AppColors.red : AppColors.textPrimary;
 
   final snack = SnackBar(

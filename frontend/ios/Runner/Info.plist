@@ -130,5 +130,11 @@
 	<string>게임 중 도둑/경찰 간의 근접 감지를 위해 블루투스가 필요합니다.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>게임 중 다른 플레이어에게 내 위치를 알리기 위해 블루투스가 필요합니다.</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+		<string>gps</string>
+		<string>location-services</string>
+	</array>
 </dict>
 </plist>

@@ -16,6 +16,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
 
   @override
   void initState() {
@@ -35,9 +36,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   void _onScroll() {
+    if (_isLoadingMore) return; // Prevent multiple concurrent loads
+
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      ref.read(userProvider.notifier).loadMoreHistory();
+      _isLoadingMore = true;
+      ref.read(userProvider.notifier).loadMoreHistory().then((_) {
+        if (mounted) {
+          setState(() => _isLoadingMore = false);
+        }
+      });
     }
   }
 

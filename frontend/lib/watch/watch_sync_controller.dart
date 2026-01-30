@@ -18,28 +18,32 @@ class WatchSyncState {
   final GamePhase phase;
   final int lastSnapshotTs;
   final int lastHapticTs;
+  final int lastTeamChangeTs;
   final int? currentHeartRate;
 
   const WatchSyncState({
     required this.phase,
     required this.lastSnapshotTs,
     required this.lastHapticTs,
+    required this.lastTeamChangeTs,
     this.currentHeartRate,
   });
 
   factory WatchSyncState.initial(GamePhase phase) =>
-      WatchSyncState(phase: phase, lastSnapshotTs: 0, lastHapticTs: 0);
+      WatchSyncState(phase: phase, lastSnapshotTs: 0, lastHapticTs: 0, lastTeamChangeTs: 0);
 
   WatchSyncState copyWith({
     GamePhase? phase,
     int? lastSnapshotTs,
     int? lastHapticTs,
+    int? lastTeamChangeTs,
     int? currentHeartRate,
   }) {
     return WatchSyncState(
       phase: phase ?? this.phase,
       lastSnapshotTs: lastSnapshotTs ?? this.lastSnapshotTs,
       lastHapticTs: lastHapticTs ?? this.lastHapticTs,
+      lastTeamChangeTs: lastTeamChangeTs ?? this.lastTeamChangeTs,
       currentHeartRate: currentHeartRate ?? this.currentHeartRate,
     );
   }
@@ -186,10 +190,8 @@ class WatchSyncController extends Notifier<WatchSyncState> {
     if (me == null || me.ready) return; // 레디 상태면 변경 불가
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    // 간단한 디바운스 (클라 내부)
-    if (now - state.lastHapticTs < 500) return; // Reuse haptic TS or add new?
-    // Let's rely on internal check or add new field. For now reusing logical debounce isn't ideal but acceptable.
-    // Ideally I should add lastTeamChangeTs to state, but for minimal diff:
+    // Throttle team changes to prevent rapid toggling
+    if (now - state.lastTeamChangeTs < 500) return;
 
     // Toggle logic
     final current = me.team;
@@ -202,6 +204,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
 
     // Update state to throttle
     state = state.copyWith(
+      lastTeamChangeTs: now,
       lastHapticTs: now,
     ); // Using hapticTs key for generic action throttling
   }
