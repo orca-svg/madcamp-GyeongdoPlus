@@ -15,6 +15,7 @@ import '../../providers/match_rules_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../net/ws/ws_client_provider.dart';
+import '../../net/socket/socket_io_client_provider.dart';
 import '../../providers/ws_ui_status_provider.dart';
 import '../zone/zone_editor_screen.dart';
 
@@ -166,7 +167,12 @@ class MatchScreen extends ConsumerWidget {
                   durationMin: rules.durationMin,
                   onChanged: (v) {
                     ref.read(matchRulesProvider.notifier).setDurationMin(v);
-                    // TODO: 서버 시간 변경 메시지 스키마 확정 후 WS(action/patch 등)로 전송.
+                    // Sync time change to server via Socket.IO
+                    ref
+                        .read(socketIoClientProvider.notifier)
+                        .emit('update_settings', {
+                      'timeLimit': v * 60,
+                    });
                   },
                 ),
                 const SizedBox(height: 22),

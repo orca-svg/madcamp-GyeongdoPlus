@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/history/record_model.dart';
 import 'user_provider.dart';
 
-/// Records data source (offline dummy for now).
-///
-/// TODO: Replace with server-authoritative data:
-/// - REST: fetch MatchResult list
-/// - WS: consume MatchState(ENDED) snapshots and build summaries
+/// Maps server-fetched match history (via UserProvider) into UI-ready RecordSummary list.
+/// Server data is the source of truth; local fallback defaults are used only for
+/// fields not yet returned by the API (ratingDelta, distanceM, mode).
 final recordsProvider = Provider<List<RecordSummary>>((ref) {
   final userState = ref.watch(userProvider);
   final history = userState.matchHistory;
@@ -15,26 +13,26 @@ final recordsProvider = Provider<List<RecordSummary>>((ref) {
   if (history.isEmpty) return [];
 
   return history.map((record) {
-    // Map DTO to UI Model
-
-    // Attempt to infer mode or default to NORMAL
-    // If specific mode info becomes available in DTO, update here.
-    String mode = 'NORMAL';
+    // NOTE: GameInfoDto does not yet return 'mode' from server.
+    // Default to 'NORMAL' until API exposes per-match mode.
+    const mode = 'NORMAL';
 
     return RecordSummary(
       id: record.matchId,
       mode: mode,
       myTeam: record.role,
       result: record.result,
-      // API currently doesn't return rating delta per match, defaulting to 0 or logic
-      ratingDelta: (record.result == 'WIN') ? 10 : -5,
+      // NOTE: MatchRecordDto does not yet return ratingDelta from server.
+      // Estimate from result until API provides actual MMR delta.
+      ratingDelta: (record.result == 'WIN') ? 10 : (record.result == 'DRAW' ? 0 : -5),
       playedAt: record.gameInfo.playedAt,
       durationSec: record.gameInfo.playTime,
-      // Map catch/rescue count
+      // Map catch/rescue count from server stats
       capturesOrRescues: record.role == 'POLICE'
           ? record.myStat.catchCount
           : (record.myStat.rescueCount ?? 0),
-      // Distance not in MatchRecordDto summary yet, default 0
+      // NOTE: MyStatDto does not yet return distanceM from server.
+      // Default to 0 until API provides per-match distance.
       distanceM: 0,
     );
   }).toList();

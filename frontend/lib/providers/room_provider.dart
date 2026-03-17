@@ -330,7 +330,12 @@ class RoomController extends Notifier<RoomState> {
         .emit('update_settings', config.toJson());
   }
 
+  /// Debug-only: enter lobby without server connection
   void enterLobbyOffline({required String myName}) {
+    if (!kDebugMode) {
+      debugPrint('[ROOM] enterLobbyOffline blocked in release mode');
+      return;
+    }
     final myId = _newId();
     state = RoomState(
       inRoom: true,
@@ -480,14 +485,6 @@ class RoomController extends Notifier<RoomState> {
 
   Future<bool> joinRoom({required String myName, required String code}) async {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
-    final rawInput = code.trim().toUpperCase();
-
-    // 1. Mock/Offline Fallback for Testing
-    if (['TEST', 'OFFLINE', '0000'].contains(rawInput)) {
-      debugPrint('[ROOM] Mock Join Triggered with code: $rawInput');
-      enterLobbyOffline(myName: name);
-      return true;
-    }
 
     final normalizedCode = _normalizeCode(code);
     state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
@@ -640,8 +637,9 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
+  /// Debug-only: add a fake member for testing
   void addFakeMember() {
-    if (!state.inRoom) return;
+    if (!kDebugMode || !state.inRoom) return;
 
     const names = ['참가자C', '참가자D'];
     final existing = state.members.map((m) => m.name).toSet();
@@ -668,8 +666,9 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
+  /// Debug-only: toggle ready for all non-self members
   void toggleFakeReadyAll() {
-    if (!state.inRoom) return;
+    if (!kDebugMode || !state.inRoom) return;
     if (state.members.isEmpty) return;
 
     final others = state.members.where((m) => m.id != state.myId).toList();
@@ -685,7 +684,9 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
+  /// Debug-only: add bot members
   void addBots({required int count}) {
+    if (!kDebugMode) return;
     for (var i = 0; i < count; i++) {
       addFakeMember();
     }
@@ -703,8 +704,9 @@ class RoomController extends Notifier<RoomState> {
     return result.success;
   }
 
+  /// Debug-only: set all bot members' ready state
   void setBotsReady({required bool ready}) {
-    if (!state.inRoom) return;
+    if (!kDebugMode || !state.inRoom) return;
     if (state.members.isEmpty) return;
     state = state.copyWith(
       members: [

@@ -1,7 +1,10 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:io' show Platform;
+import 'dart:math' show max;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../net/ws/builders/ws_builders.dart';
 import '../net/ws/dto/telemetry.dart';
@@ -9,6 +12,7 @@ import '../net/ws/ws_client.dart';
 import 'game_phase_provider.dart';
 import 'match_sync_provider.dart';
 import 'room_provider.dart';
+import '../watch/watch_sync_controller.dart';
 
 class TelemetrySchedulerState {
   final bool running;
@@ -41,7 +45,6 @@ final telemetrySchedulerProvider =
 
 class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
   Timer? _timer;
-  final _rng = Random();
   WsClient? _client;
 
   int _boostHz = 0;
@@ -56,8 +59,19 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
     return TelemetrySchedulerState.initial();
   }
 
-  void start() {
+  Future<void> start() async {
     if (state.running) return;
+
+    // Ensure GPS permission before starting
+    final p = await Geolocator.checkPermission();
+    if (p == LocationPermission.denied) {
+      final requested = await Geolocator.requestPermission();
+      if (requested == LocationPermission.denied) {
+        debugPrint('[TELEMETRY] Permission denied - cannot start');
+        return;
+      }
+    }
+
     state = state.copyWith(running: true);
     _scheduleNextTick();
   }
@@ -90,7 +104,7 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
     state = state.copyWith(effectiveHz: hz, boostUntilMs: _boostUntilMs > now ? _boostUntilMs : null);
 
     final intervalMs = max(100, (1000 / hz).round());
-    _timer = Timer(Duration(milliseconds: intervalMs), _tick);
+    _timer = Timer(Duration(milliseconds: intervalMs), () => _tick());
   }
 
   double _computeHz(int nowMs) {
@@ -112,7 +126,7 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
     return hz.clamp(0.2, 10.0);
   }
 
-  void _tick() {
+  Future<void> _tick() async {
     if (!state.running) return;
 
     final client = _client;
@@ -131,7 +145,7 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
     }
 
     final now = DateTime.now().millisecondsSinceEpoch;
-    _buffer.add(_mockSample(now));
+    _buffer.add(await _buildRealSample(now));
     while (_buffer.length > 20) {
       _buffer.removeAt(0);
     }
@@ -143,10 +157,11 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
         _buffer.removeRange(0, batch.length);
         _lastSendMs = now;
 
+        final platform = Platform.isIOS ? 'ios' : 'android';
         final payload = TelemetryBatchPayload(
           matchId: matchId,
           playerId: playerId,
-          device: const TelemetryDevice(platform: 'ios', model: 'unknown'),
+          device: TelemetryDevice(platform: platform, model: 'unknown'),
           samples: batch,
         );
 
@@ -158,14 +173,44 @@ class TelemetrySchedulerController extends Notifier<TelemetrySchedulerState> {
     _scheduleNextTick();
   }
 
-  TelemetrySample _mockSample(int nowMs) {
-    final heading = _rng.nextDouble() * 360;
-    final bpm = 70 + _rng.nextInt(40);
+  /// Build a telemetry sample using real device GPS data.
+  /// Falls back to a GPS-less sample if location cannot be obtained.
+  Future<TelemetrySample> _buildRealSample(int nowMs) async {
+    TelemetryGps? gps;
+    double? heading;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 3),
+        ),
+      );
+      gps = TelemetryGps(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        accM: pos.accuracy,
+        speedMps: pos.speed >= 0 ? pos.speed : null,
+      );
+      heading = pos.heading;
+    } catch (e) {
+      debugPrint('[TELEMETRY] GPS unavailable: $e');
+    }
+
+    // Get Heart Rate from Watch if available
+    TelemetryHeart? heart;
+    try {
+      final watchSync = ref.read(watchSyncControllerProvider);
+      if ((watchSync.currentHeartRate ?? 0) > 0) {
+        heart = TelemetryHeart(bpm: watchSync.currentHeartRate!);
+      }
+    } catch (_) {}
+
     final mode = ref.read(gamePhaseProvider).name;
     return TelemetrySample(
       tMs: nowMs,
-      motion: TelemetryMotion(headingDeg: heading),
-      heart: TelemetryHeart(bpm: bpm),
+      gps: gps,
+      heart: heart,
+      motion: heading != null ? TelemetryMotion(headingDeg: heading) : null,
       context: TelemetryContext(mode: mode),
     );
   }

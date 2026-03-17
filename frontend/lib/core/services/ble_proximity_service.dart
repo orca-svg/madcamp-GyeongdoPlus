@@ -112,14 +112,18 @@ class BleProximityService {
         return false;
       }
 
-      // TODO: Implement BLE advertising via platform channel
-      // Flutter Blue Plus doesn't support advertising natively
-      // Would need native iOS/Android code to advertise manufacturer data
-      debugPrint('[BLE] Advertising not yet implemented (requires platform channel)');
+      // LIMITATION: flutter_blue_plus does not support BLE peripheral
+      // advertising natively. Full implementation requires:
+      //   1. iOS: CBPeripheralManager via Swift MethodChannel
+      //   2. Android: BluetoothLeAdvertiser via Kotlin MethodChannel
+      // Currently, scanning works but other players won't be discoverable
+      // unless they run a native advertising companion app or service.
+      debugPrint('[BLE] Advertising unavailable: requires native platform channel');
+      debugPrint('[BLE] Scanning is available for devices that advertise natively');
       debugPrint('[BLE] My UUID: ${_userIdToUuid(_myUserId)}');
 
-      _isAdvertising = true;
-      return true;
+      _isAdvertising = false;
+      return false;
     } catch (e) {
       debugPrint('[BLE] Failed to start advertising: $e');
       return false;

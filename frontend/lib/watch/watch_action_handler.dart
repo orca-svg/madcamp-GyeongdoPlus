@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/haptics/haptics.dart';
 import '../providers/active_tab_provider.dart';
 import '../providers/room_provider.dart';
+import '../net/socket/socket_io_client_provider.dart';
 import 'watch_bridge.dart';
 
 /// WATCH_ACTION 스트림을 구독하고 폰 상태를 변경하는 핸들러
@@ -86,8 +88,13 @@ class WatchActionHandler {
   }
 
   void _handlePing() {
-    // TODO: Implement ping action (e.g., send ping to server or trigger local effect)
-    debugPrint('[WATCH][ACTION] Ping received');
+    // Trigger haptic feedback on the phone
+    Haptics.pattern(HapticPattern.enemyPing);
+    // Notify server of the watch ping action
+    ref.read(socketIoClientProvider.notifier).emit('watch_ping', {
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    });
+    debugPrint('[WATCH][ACTION] Ping sent to server');
   }
 }
 

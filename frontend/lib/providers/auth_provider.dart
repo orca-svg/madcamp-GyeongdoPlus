@@ -155,17 +155,20 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Debug-only: mock auth for local testing without server.
+  /// Blocked in release builds.
   Future<bool> signInWithTestCredentials({
     required String id,
     required String password,
   }) async {
+    if (!kDebugMode) return false;
     if (state.status == AuthStatus.signingIn) return false;
     state = state.copyWith(status: AuthStatus.signingIn);
     debugPrint('[AUTH] signIn(test) start');
 
     try {
       await Future<void>.delayed(const Duration(milliseconds: 500));
-      // Mock validation
+      // Debug-only mock validation
       if (id.isNotEmpty) {
         final token = 'test_token_${DateTime.now().millisecondsSinceEpoch}';
         final user = UserModel.guest().copyWith(nickname: id);
@@ -273,8 +276,10 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// 카카오 로그인 (실제 API 호출)
+  /// Debug-only: stubbed Kakao login for local testing.
+  /// Blocked in release builds.
   Future<void> signInWithKakaoStub() async {
+    if (!kDebugMode) return;
     if (state.status == AuthStatus.signingIn) return;
     state = state.copyWith(status: AuthStatus.signingIn);
     debugPrint('[AUTH] signIn(kakao-stub) start');
