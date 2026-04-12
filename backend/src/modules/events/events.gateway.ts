@@ -245,7 +245,11 @@ export class EventsGateway
     }
 
     const nextReady = data.isReady ?? data.ready ?? false;
-    await this.redisService.hset(`game:${matchId}:player:${userId}`, {
+    const playerKey = `game:${matchId}:player:${userId}`;
+    if (!(await this.redisService.exists(playerKey))) {
+      throw new BadRequestException('참가자를 찾을 수 없습니다.');
+    }
+    await this.redisService.hset(playerKey, {
       ready: nextReady ? 'true' : 'false',
     });
 
