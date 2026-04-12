@@ -102,8 +102,12 @@ extension ActiveTabExt on ActiveTab {
         return ActiveTab.ingameRadar;
       case 'INGAME_MAP':
         return ActiveTab.ingameMap;
+      case 'INGAME_STATUS':
+        return ActiveTab.ingameMap;
       case 'INGAME_CAPTURE':
         return ActiveTab.ingameCapture;
+      case 'INGAME_RULES':
+        return ActiveTab.ingameSettings;
       case 'INGAME_SETTINGS':
         return ActiveTab.ingameSettings;
       case 'POSTGAME_SUMMARY':

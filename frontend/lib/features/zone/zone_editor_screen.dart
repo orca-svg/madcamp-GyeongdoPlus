@@ -8,11 +8,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import '../../core/app_dimens.dart';
+import '../../core/env.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
@@ -21,7 +21,9 @@ import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
 
 class ZoneEditorScreen extends ConsumerStatefulWidget {
-  const ZoneEditorScreen({super.key});
+  final bool forceFallbackMap;
+
+  const ZoneEditorScreen({super.key, this.forceFallbackMap = false});
 
   @override
   ConsumerState<ZoneEditorScreen> createState() => _ZoneEditorScreenState();
@@ -42,7 +44,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   String? _mapDiag;
   bool _mapDiagScheduled = false;
   Timer? _mapDiagTimer;
-  bool _keyLogged = false;
 
   // Initial GPS Location
   LatLng? _initialPos;
@@ -61,8 +62,6 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     _jailRadiusM = rules.jailRadiusM;
 
     _initGps(); // Fire and forget
-
-    _keyLogged = true;
   }
 
   Future<void> _initGps() async {
@@ -108,16 +107,13 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   bool get _mapEnabled {
     const isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
     if (isFlutterTest) return false;
-    final kakaoJsAppKey =
-        (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
-            ?.trim() ??
-        '';
-    return kakaoJsAppKey.isNotEmpty;
+    return Env.canRenderMaps;
   }
 
   @override
   Widget build(BuildContext context) {
-    final showMap = !_mapRenderDisabledThisStage && _mapEnabled;
+    final showMap =
+        !_mapRenderDisabledThisStage && !widget.forceFallbackMap && _mapEnabled;
     _scheduleMapDiag(showMap);
 
     // Debug bypass: skip host check when started directly via DEBUG_START_ZONE_EDITOR
@@ -175,11 +171,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                         top: 10,
                         right: 10,
                         child: _DebugPill(
-                          keyOk: (dotenv.isInitialized
-                              ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '')
-                                    .trim()
-                                    .isNotEmpty
-                              : false),
+                          keyOk: Env.canRenderMaps,
                           built: _mapBuilt,
                           showMap: showMap,
                         ),
@@ -370,9 +362,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                 top: 10,
                 right: 10,
                 child: _DebugPill(
-                  keyOk: (dotenv.isInitialized
-                      ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty
-                      : false),
+                  keyOk: Env.canRenderMaps,
                   built: _mapBuilt,
                   showMap: showMap,
                 ),
@@ -487,7 +477,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   }
 
   void _addPointFallback() {
-    final base = const GeoPointDto(lat: 37.5665, lng: 126.9780);
+    final base = _fallbackBasePoint();
     final i = _pointsConfirmed.length;
     final p = GeoPointDto(
       lat: base.lat + (i * 0.0007),
@@ -501,8 +491,19 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   void _setJailCenterFallback() {
     final center = (_pointsConfirmed.isNotEmpty)
         ? _pointsConfirmed.first
-        : const GeoPointDto(lat: 37.5665, lng: 126.9780);
-    setState(() => _jailCenter = center.clamp());
+        : _fallbackBasePoint();
+    setState(() {
+      _jailCenter = center.clamp();
+      _jailRadiusM ??= _defaultJailRadiusM;
+    });
+  }
+
+  GeoPointDto _fallbackBasePoint() {
+    final pos = _initialPos;
+    if (pos != null) {
+      return GeoPointDto(lat: pos.latitude, lng: pos.longitude).clamp();
+    }
+    return const GeoPointDto(lat: 37.5665, lng: 126.9780);
   }
 
   void _save() {

@@ -1,10 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
-import '../../core/widgets/ws_status_pill.dart';
 import '../../core/app_dimens.dart';
+import '../../core/env.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
@@ -14,9 +14,7 @@ import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
-import '../../net/ws/ws_client_provider.dart';
 import '../../net/socket/socket_io_client_provider.dart';
-import '../../providers/ws_ui_status_provider.dart';
 import '../zone/zone_editor_screen.dart';
 
 class MatchScreen extends ConsumerWidget {
@@ -27,46 +25,9 @@ class MatchScreen extends ConsumerWidget {
     final room = ref.watch(roomProvider);
     final rules = ref.watch(matchRulesProvider);
     final sync = ref.watch(matchSyncProvider);
-    final wsUi = ref.watch(wsUiStatusProvider);
+    final socketState = ref.watch(socketIoClientProvider);
     final isHost = room.amIHost;
     final lastState = sync.lastMatchState?.payload;
-
-    if (lastState == null) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBody: true,
-        body: GlassBackground(
-          child: SafeArea(
-            bottom: true,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                18,
-                14,
-                18,
-                AppDimens.bottomBarHIn + 12,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('경기 설정', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  WsStatusPill(
-                    model: wsUi,
-                    onReconnect: wsUi.showReconnect
-                        ? () => ref
-                              .read(wsConnectionProvider.notifier)
-                              .userReconnect()
-                        : null,
-                  ),
-                  const SizedBox(height: 14),
-                  _ServerSyncCard(state: null, matchId: sync.currentMatchId),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -93,20 +54,16 @@ class MatchScreen extends ConsumerWidget {
                   ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 14),
-                WsStatusPill(
-                  model: wsUi,
-                  onReconnect: wsUi.showReconnect
-                      ? () => ref
-                            .read(wsConnectionProvider.notifier)
-                            .userReconnect()
-                      : null,
+                _SocketStatusPill(
+                  statusText: socketState.status.name,
+                  connected:
+                      socketState.status == SocketIoConnStatus.connected ||
+                      socketState.status == SocketIoConnStatus.reconnecting,
                 ),
                 const SizedBox(height: 10),
                 _ServerSyncCard(
                   state: lastState,
-                  matchId:
-                      sync.currentMatchId ??
-                      sync.lastMatchState?.payload.matchId,
+                  matchId: room.roomId,
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -167,12 +124,9 @@ class MatchScreen extends ConsumerWidget {
                   durationMin: rules.durationMin,
                   onChanged: (v) {
                     ref.read(matchRulesProvider.notifier).setDurationMin(v);
-                    // Sync time change to server via Socket.IO
                     ref
-                        .read(socketIoClientProvider.notifier)
-                        .emit('update_settings', {
-                      'timeLimit': v * 60,
-                    });
+                        .read(roomProvider.notifier)
+                        .updateRoomSettings(timeLimit: v * 60);
                   },
                 ),
                 const SizedBox(height: 22),
@@ -187,20 +141,60 @@ class MatchScreen extends ConsumerWidget {
                   jailCenter: rules.jailCenter,
                   jailRadiusM: rules.jailRadiusM,
                 ),
-                const SizedBox(height: 22),
-                Text('테스트', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                GradientButton(
-                  variant: GradientButtonVariant.joinRoom,
-                  title: '경기 종료(테스트)',
-                  onPressed: () =>
-                      ref.read(gamePhaseProvider.notifier).toPostGame(),
-                  leading: const Icon(Icons.flag_rounded, color: Colors.white),
-                ),
+                if (kDebugMode) ...[
+                  const SizedBox(height: 22),
+                  Text('테스트', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  GradientButton(
+                    variant: GradientButtonVariant.joinRoom,
+                    title: '경기 종료(테스트)',
+                    onPressed: () =>
+                        ref.read(gamePhaseProvider.notifier).toPostGame(),
+                    leading: const Icon(Icons.flag_rounded, color: Colors.white),
+                  ),
+                ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SocketStatusPill extends StatelessWidget {
+  final bool connected;
+  final String statusText;
+
+  const _SocketStatusPill({
+    required this.connected,
+    required this.statusText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = connected ? AppColors.lime : AppColors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface2.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.cable_rounded, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            '실시간 ${statusText.toUpperCase()}',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -387,9 +381,7 @@ class _ArenaMapPreviewCard extends StatelessWidget {
     print('[MatchMapPreview ${DateTime.now().toIso8601String()}] build');
 
     // NOTE: 이번 단계에서는 KakaoMap/WebView를 절대 렌더하지 않는다(placeholder만).
-    final kakaoKeyOk = (dotenv.isInitialized
-        ? (dotenv.env['KAKAO_JS_APP_KEY'] ?? '').trim().isNotEmpty
-        : false);
+    final kakaoKeyOk = Env.canRenderMaps;
     final points = (polygon ?? const <GeoPointDto>[])
         .map((p) => LatLng(p.lat, p.lng))
         .toList(growable: false);
@@ -528,7 +520,7 @@ class _ServerSyncCard extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                '서버 동기화 대기 중…',
+                'Socket.IO 기반 실시간 방 정보를 사용 중입니다.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),

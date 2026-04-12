@@ -1,22 +1,42 @@
-# 1. Node.js 설치된 리눅스 준비 (가벼운 버전)
-FROM node:18-alpine
+FROM node:20-alpine AS build
 
-# 2. 작업 폴더 생성
 WORKDIR /app
 
-# 3. 패키지 파일들 먼저 복사 (캐싱 효과)
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
+RUN npm ci
 
-# 4. 라이브러리 설치
-RUN npm install
-
-# 5. 나머지 모든 소스 코드 복사
-COPY . .
-
+COPY prisma ./prisma
 RUN npx prisma generate
 
-# 6. (선택) TypeScript 빌드 (NestJS 등을 쓴다면 필수)
-RUN npm run build
+COPY nest-cli.json tsconfig*.json eslint.config.mjs ./
+COPY src ./src
+COPY test ./test
+COPY scripts ./scripts
 
-# 7. 서버 실행 (package.json에 적힌 시작 명령어)
-CMD ["npm", "run", "start:prod"]
+RUN npm run build
+RUN npm prune --omit=dev
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+RUN apk add --no-cache openssl
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/scripts ./scripts
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || '3000') + '/health').then((res) => { if (!res.ok) process.exit(1); }).catch(() => process.exit(1));"
+
+CMD ["sh", "./scripts/start-prod.sh"]

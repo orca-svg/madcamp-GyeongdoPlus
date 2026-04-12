@@ -29,7 +29,7 @@ enum ItemType {
     durationSec: 7,
   ),
   block(
-    id: 'BLOCK',
+    id: 'RESCUE_BLOCK',
     label: '차단기',
     team: Team.police,
     description: '구출 차단',
@@ -37,7 +37,7 @@ enum ItemType {
     durationSec: 0,
   ),
   detector(
-    id: 'DETECTOR',
+    id: 'THIEF_DETECTOR',
     label: '탐지기',
     team: Team.police,
     description: '5m 이내 적 탐지 시 진동',
@@ -45,7 +45,7 @@ enum ItemType {
     durationSec: 15,
   ),
   siren(
-    id: 'SIREN',
+    id: 'AREA_SIREN',
     label: '사이렌',
     team: Team.police,
     description: '30m 내 도둑에게 소음 경보',
@@ -63,7 +63,7 @@ enum ItemType {
     durationSec: 20,
   ),
   boost(
-    id: 'BOOST',
+    id: 'RESCUE_BOOST',
     label: '부스터',
     team: Team.thief,
     description: '구출 속도 촉진',

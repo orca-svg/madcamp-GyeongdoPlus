@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/env.dart';
 import '../../core/haptics/haptics.dart';
 import '../../providers/match_sync_provider.dart';
 import '../../providers/room_provider.dart';
@@ -131,7 +132,7 @@ class WsConnectionController extends Notifier<WsConnectionState> {
         state.status == WsConnStatus.reconnecting) {
       return;
     }
-    final u = url ?? Uri(scheme: 'wss', host: 'api.gyeongdo.plus', path: '/v1/ws');
+    final u = url ?? Uri.parse(Env.wsUrl);
     await ref.read(wsClientProvider).connect(url: u, headers: headers);
   }
 
@@ -148,7 +149,7 @@ class WsConnectionController extends Notifier<WsConnectionState> {
   }
 
   Future<void> forceReconnect() async {
-    final u = Uri(scheme: 'wss', host: 'api.gyeongdo.plus', path: '/v1/ws');
+    final u = Uri.parse(Env.wsUrl);
     await disconnect();
     await ref.read(wsClientProvider).connect(url: u, headers: null);
   }

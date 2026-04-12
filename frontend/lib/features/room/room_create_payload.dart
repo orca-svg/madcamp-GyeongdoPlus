@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../../providers/match_rules_provider.dart';
 
 enum RoomCreateMode { normal, item, ability }
@@ -21,6 +23,8 @@ class ZoneSetupResult {
 }
 
 class RoomCreateFormState {
+  static const Object _unset = Object();
+
   final RoomCreateMode mode;
   final int maxPlayers;
   final int timeLimitSec;
@@ -66,9 +70,9 @@ class RoomCreateFormState {
     RoomReleaseScope? releaseScope,
     RoomReleaseOrder? releaseOrder,
     double? policeRatio,
-    List<GeoPointDto>? polygon,
-    GeoPointDto? jailCenter,
-    double? jailRadiusM,
+    Object? polygon = _unset,
+    Object? jailCenter = _unset,
+    Object? jailRadiusM = _unset,
   }) {
     return RoomCreateFormState(
       mode: mode ?? this.mode,
@@ -78,9 +82,13 @@ class RoomCreateFormState {
       releaseScope: releaseScope ?? this.releaseScope,
       releaseOrder: releaseOrder ?? this.releaseOrder,
       policeRatio: policeRatio ?? this.policeRatio,
-      polygon: polygon ?? this.polygon,
-      jailCenter: jailCenter ?? this.jailCenter,
-      jailRadiusM: jailRadiusM ?? this.jailRadiusM,
+      polygon: polygon == _unset ? this.polygon : polygon as List<GeoPointDto>?,
+      jailCenter: jailCenter == _unset
+          ? this.jailCenter
+          : jailCenter as GeoPointDto?,
+      jailRadiusM: jailRadiusM == _unset
+          ? this.jailRadiusM
+          : jailRadiusM as double?,
     );
   }
 }
@@ -105,8 +113,8 @@ Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
   final maxPlayers = state.maxPlayers.clamp(3, 50);
   final timeLimit = state.timeLimitSec.clamp(300, 1800);
 
-  final polygon = state.polygon ?? _dummyPolygon();
-  final jailCenter = state.jailCenter ?? _dummyJailCenter();
+  final polygon = state.polygon ?? const <GeoPointDto>[];
+  final jailCenter = state.jailCenter;
   final jailRadiusM = (state.jailRadiusM ?? 12).clamp(1, 200);
 
   final releaseCount = (state.releaseScope == RoomReleaseScope.all)
@@ -119,11 +127,12 @@ Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
     'timeLimit': timeLimit,
     'mapConfig': <String, dynamic>{
       'polygon': polygon.map((p) => p.toJson()).toList(growable: false),
-      'jail': <String, dynamic>{
-        'lat': jailCenter.lat,
-        'lng': jailCenter.lng,
-        'radiusM': jailRadiusM,
-      },
+      if (jailCenter != null)
+        'jail': <String, dynamic>{
+          'lat': jailCenter.lat,
+          'lng': jailCenter.lng,
+          'radiusM': jailRadiusM,
+        },
     },
     'rules': <String, dynamic>{
       'contactMode': _contactModeWire(state.contactMode),
@@ -155,12 +164,48 @@ Map<String, dynamic> buildRoomCreatePayload(RoomCreateFormState state) {
   };
 }
 
-List<GeoPointDto> _dummyPolygon() => const [
-  GeoPointDto(lat: 37.5675, lng: 126.9782),
-  GeoPointDto(lat: 37.5679, lng: 126.9825),
-  GeoPointDto(lat: 37.5652, lng: 126.9831),
-  GeoPointDto(lat: 37.5648, lng: 126.9790),
-];
+List<GeoPointDto> buildCircularZonePolygon({
+  required GeoPointDto center,
+  required double radiusM,
+  int vertices = 16,
+}) {
+  final safeVertices = vertices.clamp(8, 64).toInt();
+  const earthRadiusM = 6378137.0;
+  final angularDistance = radiusM / earthRadiusM;
+  final lat1 = _degToRad(center.lat);
+  final lng1 = _degToRad(center.lng);
 
-GeoPointDto _dummyJailCenter() =>
-    const GeoPointDto(lat: 37.5665, lng: 126.9812);
+  return [
+    for (var i = 0; i < safeVertices; i++)
+      _pointAtBearing(
+        lat1: lat1,
+        lng1: lng1,
+        angularDistance: angularDistance,
+        bearingRad: (2 * math.pi * i) / safeVertices,
+      ),
+  ];
+}
+
+GeoPointDto _pointAtBearing({
+  required double lat1,
+  required double lng1,
+  required double angularDistance,
+  required double bearingRad,
+}) {
+  final lat2 = math.asin(
+    math.sin(lat1) * math.cos(angularDistance) +
+        math.cos(lat1) * math.sin(angularDistance) * math.cos(bearingRad),
+  );
+  final lng2 =
+      lng1 +
+      math.atan2(
+        math.sin(bearingRad) * math.sin(angularDistance) * math.cos(lat1),
+        math.cos(angularDistance) - math.sin(lat1) * math.sin(lat2),
+      );
+
+  return GeoPointDto(lat: _radToDeg(lat2), lng: _radToDeg(lng2)).clamp();
+}
+
+double _degToRad(double degrees) => degrees * math.pi / 180.0;
+
+double _radToDeg(double radians) => radians * 180.0 / math.pi;

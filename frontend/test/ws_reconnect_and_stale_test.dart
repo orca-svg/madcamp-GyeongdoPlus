@@ -103,7 +103,7 @@ void main() {
       ],
     );
 
-    await container.read(roomProvider.notifier).createRoom(myName: 'me');
+    container.read(roomProvider.notifier).enterLobbyOffline(myName: 'me');
     container.read(matchSyncProvider.notifier).setCurrentMatchId('m_123');
 
     container.read(wsRouterProvider);
@@ -142,7 +142,7 @@ void main() {
       ],
     );
 
-    await container.read(roomProvider.notifier).createRoom(myName: 'me');
+    container.read(roomProvider.notifier).enterLobbyOffline(myName: 'me');
     final room = container.read(roomProvider);
     container.read(matchSyncProvider.notifier).setCurrentMatchId('m_123');
 
@@ -197,7 +197,7 @@ void main() {
       ],
     );
 
-    await container.read(roomProvider.notifier).createRoom(myName: 'me');
+    container.read(roomProvider.notifier).enterLobbyOffline(myName: 'me');
     container.read(matchSyncProvider.notifier).setCurrentMatchId('m_123');
 
     container.read(wsRouterProvider);

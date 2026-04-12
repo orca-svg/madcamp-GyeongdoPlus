@@ -198,6 +198,15 @@ class MyStatDto {
   @ApiProperty({ example: 3 })
   catchCount: number;
 
+  @ApiProperty({ example: 1 })
+  releaseCount: number;
+
+  @ApiProperty({ example: 840, description: '생존 시간 (초)' })
+  survivalTime: number;
+
+  @ApiProperty({ example: 1825.5, description: '이동 거리 (m)' })
+  distanceMoved: number;
+
   @ApiProperty({ example: 85 })
   contribution: number;
 }
@@ -236,6 +245,9 @@ class GameRulesDto {
 
 // 4. 게임 상세 정보
 class GameInfoDto {
+  @ApiProperty({ example: 'ABILITY' })
+  mode: string;
+
   @ApiProperty({ example: 8 })
   maxPlayers: number;
 

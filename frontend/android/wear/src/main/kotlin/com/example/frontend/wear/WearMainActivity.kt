@@ -1,24 +1,28 @@
 package com.example.frontend.wear
 
 import android.annotation.SuppressLint
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,16 +34,30 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.OutlinedButton
+import androidx.wear.compose.material.Text
 import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 class WearMainActivity : ComponentActivity() {
 
     private var receiver: BroadcastReceiver? = null
+    private var sensorManager: SensorManager? = null
+    private var heartRateListener: SensorEventListener? = null
+    private var lastHeartRateSentAtMs: Long = 0L
+    private var latestMatchId: String? = null
+
+    companion object {
+        private const val bodySensorPermissionRequestCode = 1001
+    }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +66,11 @@ class WearMainActivity : ComponentActivity() {
         val snapshotState = mutableStateOf<WatchSnapshot?>(null)
         val radarState = mutableStateOf("수신 대기 중…")
         val progressState = mutableStateOf<Float?>(null)
+        val heartRateState = mutableStateOf<Int?>(null)
+
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        ensureBodySensorsPermission()
+        startHeartRateUpdates(heartRateState)
 
         receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
@@ -56,6 +79,7 @@ class WearMainActivity : ComponentActivity() {
                     WearMessageService.ACTION_STATE -> {
                         try {
                             snapshotState.value = WatchSnapshot.fromJson(json)
+                            latestMatchId = snapshotState.value?.matchId
                         } catch (_: Throwable) { }
                     }
                     WearMessageService.ACTION_RADAR -> {
@@ -114,7 +138,11 @@ class WearMainActivity : ComponentActivity() {
                     )
                 }
 
-                Surface(color = Color(0xFF0E1426)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF0E1426))
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -141,6 +169,7 @@ class WearMainActivity : ComponentActivity() {
                                 radarState = radarState.value,
                                 captureProgress = progressState.value,
                                 allies = snapshot?.activeAllies ?: emptyList(),
+                                heartRateBpm = heartRateState.value ?: snapshot?.myHr,
                                 onAction = { action, value ->
                                     scope.launch(Dispatchers.IO) {
                                         sendWatchAction(ctx, action, value, snapshot?.matchId)
@@ -165,8 +194,90 @@ class WearMainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        heartRateListener?.let { listener ->
+            sensorManager?.unregisterListener(listener)
+        }
+        heartRateListener = null
         receiver?.let { unregisterReceiver(it) }
         receiver = null
+    }
+
+    private fun ensureBodySensorsPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return
+        }
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BODY_SENSORS,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.BODY_SENSORS),
+            bodySensorPermissionRequestCode,
+        )
+    }
+
+    private fun startHeartRateUpdates(heartRateState: MutableState<Int?>) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BODY_SENSORS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val manager = sensorManager ?: return
+        val sensor = manager.getDefaultSensor(Sensor.TYPE_HEART_RATE) ?: return
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                val bpm = event.values.firstOrNull()?.roundToInt() ?: return
+                if (bpm <= 0) return
+
+                heartRateState.value = bpm
+                val now = System.currentTimeMillis()
+                if (now - lastHeartRateSentAtMs < 5000) {
+                    return
+                }
+
+                lastHeartRateSentAtMs = now
+                lifecycleScope.launch(Dispatchers.IO) {
+                    sendWatchAction(
+                        this@WearMainActivity,
+                        "HEART_RATE",
+                        bpm,
+                        latestMatchId,
+                    )
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }
+
+        heartRateListener = listener
+        manager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (
+            requestCode == bodySensorPermissionRequestCode &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        ) {
+            val heartRateState = mutableStateOf<Int?>(null)
+            startHeartRateUpdates(heartRateState)
+        }
     }
 }
 
@@ -181,8 +292,8 @@ private fun ConnectionPill(connected: Boolean) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text, color = color, fontSize = MaterialTheme.typography.labelMedium.fontSize)
-        Text("WATCH: OK", color = Color(0xFF39FF14), fontSize = MaterialTheme.typography.labelMedium.fontSize)
+        Text(text, color = color, fontSize = 12.sp)
+        Text("WATCH: OK", color = Color(0xFF39FF14), fontSize = 12.sp)
     }
 }
 
@@ -206,16 +317,16 @@ private fun OffGameView(
         Text(
             "경찰/도둑 랭크 요약",
             color = Color(0xFF8FA3C6),
-            fontSize = MaterialTheme.typography.bodySmall.fontSize
+            fontSize = 12.sp
         )
         Spacer(Modifier.height(4.dp))
         Button(
             modifier = Modifier.fillMaxWidth(),
-            onClick = { onAction("OPEN_STATS", null) }
+            onClick = { onAction("OPEN_TAB", "OFFGAME_RECENT") }
         ) { Text("최근 경기") }
         OutlinedButton(
             modifier = Modifier.fillMaxWidth(),
-            onClick = { onAction("OPEN_RULES", null) }
+            onClick = { onAction("OPEN_TAB", "OFFGAME_PROFILE") }
         ) { Text("내 정보") }
     }
 }
@@ -226,7 +337,7 @@ private fun LobbyView(
     team: String,
     onAction: (String, Any?) -> Unit
 ) {
-    var ready by remember { mutableStateOf(false) }
+    val isPolice = team == "POLICE"
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -234,18 +345,25 @@ private fun LobbyView(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         TeamTag(team = team)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = { onAction("SELECT_TEAM", "POLICE") }
+            ) { Text(if (isPolice) "경찰 ✓" else "경찰") }
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = { onAction("SELECT_TEAM", "THIEF") }
+            ) { Text(if (!isPolice) "도둑 ✓" else "도둑") }
+        }
         Button(
             modifier = Modifier.fillMaxWidth().height(48.dp),
-            onClick = {
-                ready = !ready
-                onAction("READY_TOGGLE", ready)
-            }
-        ) { Text(if (ready) "READY ✓" else "READY") }
+            onClick = { onAction("READY_TOGGLE", null) }
+        ) { Text(if (snapshot?.profileReady == true) "READY ✓" else "READY") }
 
         Text("규칙 요약", fontWeight = FontWeight.SemiBold)
-        Text(snapshot?.rulesLiteText() ?: "규칙 정보 없음", fontSize = MaterialTheme.typography.bodySmall.fontSize)
+        Text(snapshot?.rulesLiteText() ?: "규칙 정보 없음", fontSize = 12.sp)
         Text("참가자 요약", fontWeight = FontWeight.SemiBold)
-        Text(snapshot?.countsText() ?: "인원 정보 없음", fontSize = MaterialTheme.typography.bodySmall.fontSize)
+        Text(snapshot?.countsText() ?: "인원 정보 없음", fontSize = 12.sp)
     }
 }
 
@@ -258,6 +376,7 @@ private fun InGameView(
     radarState: String, // Debug text, can be ignored
     captureProgress: Float?,
     allies: List<RadarAlly>,
+    heartRateBpm: Int?,
     onAction: (String, Any?) -> Unit
 ) {
     var tab by remember { mutableStateOf(0) }
@@ -284,26 +403,46 @@ private fun InGameView(
                 RadarCanvas(allies = allies)
                 if (captureProgress != null) {
                     Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(progress = { captureProgress })
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .background(Color(0xFF2C3545))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(captureProgress.coerceIn(0f, 1f))
+                                .height(6.dp)
+                                .background(Color(0xFF00E5FF))
+                        )
+                    }
                 }
             }
             1 -> {
                 Text("Rules", fontWeight = FontWeight.SemiBold)
-                Text(snapshot?.rulesLiteText() ?: "규칙 정보 없음", fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                Text(snapshot?.rulesLiteText() ?: "규칙 정보 없음", fontSize = 12.sp)
             }
             2 -> {
                 Text("Stats", fontWeight = FontWeight.SemiBold)
-                Text(snapshot?.countsText() ?: "카운트 없음", fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                Text(snapshot?.countsText() ?: "카운트 없음", fontSize = 12.sp)
             }
             else -> {
                 Text("Heart", fontWeight = FontWeight.SemiBold)
-                Text("HR: ${snapshot?.myHr ?: "-"}")
+                Text("HR: ${heartRateBpm ?: "-"}")
             }
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onAction("OPEN_RULES", null) }) { Text("Rules") }
-            OutlinedButton(onClick = { onAction("OPEN_STATS", null) }) { Text("Stats") }
+            OutlinedButton(onClick = { onAction("OPEN_TAB", "INGAME_MAP") }) { Text("지도") }
+            OutlinedButton(onClick = { onAction("OPEN_TAB", "INGAME_CAPTURE") }) { Text("체포") }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { onAction("OPEN_TAB", "INGAME_SETTINGS") }) { Text("설정") }
+            OutlinedButton(onClick = { onAction("PING", null) }) { Text("핑") }
+            if (mode == "ABILITY") {
+                OutlinedButton(onClick = { onAction("USE_SKILL", null) }) { Text("스킬") }
+            }
         }
     }
 }
@@ -393,6 +532,7 @@ private data class WatchSnapshot(
     val counts: JSONObject?,
     val rulesLite: JSONObject?,
     val my: JSONObject?,
+    val profileReady: Boolean = false,
     val activeAllies: List<RadarAlly> = emptyList()
 ) {
     val displayName: String? = null
@@ -462,6 +602,7 @@ private data class WatchSnapshot(
                 counts = payload.optJSONObject("counts"),
                 rulesLite = payload.optJSONObject("rulesLite"),
                 my = payload.optJSONObject("my"),
+                profileReady = payload.optJSONObject("profile")?.optBoolean("isReady") ?: false,
                 activeAllies = alliesList 
             )
         }

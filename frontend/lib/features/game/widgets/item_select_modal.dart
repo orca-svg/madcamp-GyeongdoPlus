@@ -87,9 +87,14 @@ class ItemSelectModal extends ConsumerWidget {
                     item: item,
                     team: team,
                     onTap: () {
-                      // Select for next available slot
                       final itemState = ref.read(itemProvider);
-                      final slotIndex = itemState.slots.length;
+                      final slotIndex = itemState.slots.indexWhere(
+                        (slot) => slot.item == ItemType.none,
+                      );
+                      if (slotIndex < 0) {
+                        Navigator.of(context).pop();
+                        return;
+                      }
                       ref.read(itemProvider.notifier).selectItem(slotIndex, item);
                       Navigator.of(context).pop();
                     },

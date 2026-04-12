@@ -14,7 +14,14 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    await container.read(roomProvider.notifier).joinRoom(myName: '나', code: 'ABCD');
+    container.read(roomProvider.notifier).enterLobbyOffline(myName: '나');
+    container.read(roomProvider.notifier).addFakeMember();
+    final others = container
+        .read(roomProvider)
+        .members
+        .where((m) => !m.isHost)
+        .toList();
+    container.read(roomProvider.notifier).setHostId(others.first.id);
     final room = container.read(roomProvider);
     expect(room.amIHost, isFalse);
 

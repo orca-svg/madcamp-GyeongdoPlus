@@ -31,8 +31,14 @@ coverage/
 # Local env files
 .env
 .env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 *.keystore
 *.jks
+*.pem
+*.p12
+*.mobileprovision
 
 # Logs
 *.log
@@ -52,3 +58,8 @@ code_dump.txt
 GEMINI.md
 API_CONSISTENCY_REPORT.md
 docs/*
+docs/private/
+docs/**/*.private.md
+docs/**/*.internal.md
+docs/**/*.local.md
+AGENTS.md

@@ -76,8 +76,10 @@ class GameRepository {
             case 'user_left':
             case 'player_left':
             case 'member_left':
+            case 'user_kicked':
               if (payload is Map<String, dynamic>) {
                 final userId =
+                    payload['kickedUserId'] ??
                     payload['leftUserId'] ??
                     payload['userId'] ??
                     payload['id'] ??
@@ -89,6 +91,7 @@ class GameRepository {
               return null;
 
             case 'member_updated':
+            case 'user_role_changed':
             case 'player_update':
             case 'player_updated':
             case 'team_changed':
@@ -148,12 +151,12 @@ class GameRepository {
   }
 
   Future<RepositoryResult<ArrestDataDto>> arrest(
-    String matchId,
-    String targetId,
-  ) async {
+    String matchId, {
+    String? copId,
+  }) async {
     try {
       final response = await _api.arrest(
-        ArrestDto(matchId: matchId, targetId: targetId),
+        ArrestDto(matchId: matchId, copId: copId),
       );
       if (response.success) {
         return RepositoryResult.success(response.data);

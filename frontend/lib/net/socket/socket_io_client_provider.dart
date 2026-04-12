@@ -187,6 +187,7 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
       'settings_updated',
       'room_updated',
       'member_updated',
+      'user_role_changed',
       'player_update',
       'player_updated',
       'team_changed',
@@ -198,7 +199,9 @@ class SocketIoController extends Notifier<SocketIoConnectionState> {
       'member_ready',
       'ready',
       'siren_activated',
+      'user_kicked',
       'full_rules_update',
+      'integrity_warning',
     ];
 
     for (final eventName in serverEvents) {

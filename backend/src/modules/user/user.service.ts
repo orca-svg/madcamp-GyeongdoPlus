@@ -139,6 +139,9 @@ export class UserService {
         role: record.role,
         myStat: {
           catchCount: record.catchCount,
+          releaseCount: record.releaseCount,
+          survivalTime: record.survivalTime,
+          distanceMoved: record.distanceMoved,
           contribution: record.contribution,
         },
         gameInfo: {

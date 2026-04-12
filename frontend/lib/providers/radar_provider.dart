@@ -1,21 +1,20 @@
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 
-import '../net/ws/dto/match_state.dart';
-import '../net/ws/dto/radar_ping.dart';
-import '../net/ws/ws_envelope.dart';
-import 'match_sync_provider.dart';
+import 'game_provider.dart';
 import 'room_provider.dart';
 
 enum RadarPingKind { ally, enemy }
 
 class RadarPing {
   final RadarPingKind kind;
-  final double angleRad; // 0..2pi
-  final double radius01; // 0..1
+  final double angleRad;
+  final double radius01;
   final bool hasBearing;
   final double distanceM;
+
   const RadarPing({
     required this.kind,
     required this.angleRad,
@@ -52,104 +51,88 @@ class RadarUiState {
 }
 
 final radarProvider = Provider<RadarUiState>((ref) {
-  final sync = ref.watch(matchSyncProvider);
+  final game = ref.watch(gameProvider);
   final room = ref.watch(roomProvider);
+  final myPos = game.myPosition;
+  final myTeam = room.me?.team == Team.police ? 'POLICE' : 'THIEF';
 
-  final match = sync.lastMatchState?.payload;
-  final pingEnvelope = sync.lastRadarPing;
-  final ping = pingEnvelope?.payload;
+  if (myPos == null) {
+    return const RadarUiState(
+      allyCount: 0,
+      enemyCount: 0,
+      safetyText: '위치 대기',
+      danger: false,
+      dangerTitle: '신호 없음',
+      directionText: '—',
+      distanceText: '—',
+      etaText: '—',
+      progress01: 0,
+      pings: [],
+    );
+  }
 
-  final progress = match?.live.captureProgress?.progress01 ?? 0.0;
+  final pings = <RadarPing>[];
+  RadarPing? closestEnemy;
 
-  // Check if radar ping has expired based on TTL
-  final isPingValid = _isPingValid(pingEnvelope);
-  final validPing = isPingValid ? ping : null;
+  for (final player in game.players.values) {
+    if (player.userId == room.myId) continue;
 
-  final pings = _buildUiPings(validPing);
-  final allyCount = room.policeCount;
-  final enemyCount = room.thiefCount;
+    final distance = Geolocator.distanceBetween(
+      myPos.latitude,
+      myPos.longitude,
+      player.lat,
+      player.lng,
+    );
+    final bearing = Geolocator.bearingBetween(
+      myPos.latitude,
+      myPos.longitude,
+      player.lat,
+      player.lng,
+    );
+    final heading = myPos.heading.isNaN ? 0.0 : myPos.heading;
+    final relativeBearing = ((bearing - heading) + 360.0) % 360.0;
+    final ping = RadarPing(
+      kind: player.team == myTeam ? RadarPingKind.ally : RadarPingKind.enemy,
+      angleRad: relativeBearing * pi / 180.0,
+      radius01: (distance / 120.0).clamp(0.0, 1.0),
+      hasBearing: true,
+      distanceM: distance,
+    );
+    pings.add(ping);
 
-  final danger = (validPing?.pings.isNotEmpty ?? false) || (match?.state == 'RUNNING');
-  final dangerTitle = danger ? '경고: 주변 신호 감지' : '상태 양호';
+    if (ping.kind == RadarPingKind.enemy &&
+        (closestEnemy == null || ping.distanceM < closestEnemy.distanceM)) {
+      closestEnemy = ping;
+    }
+  }
+
+  final allyCount = pings.where((p) => p.kind == RadarPingKind.ally).length;
+  final enemyCount = pings.where((p) => p.kind == RadarPingKind.enemy).length;
+  final directionText = closestEnemy == null
+      ? '—'
+      : _directionText(closestEnemy.angleRad);
+  final distanceText = closestEnemy == null
+      ? '—'
+      : '~${closestEnemy.distanceM.round()}m';
 
   return RadarUiState(
     allyCount: allyCount,
     enemyCount: enemyCount,
-    safetyText: (match?.state ?? '—'),
-    danger: danger,
-    dangerTitle: dangerTitle,
-    directionText: _directionText(validPing),
-    distanceText: _distanceText(validPing),
-    etaText: _etaText(match),
-    progress01: progress.clamp(0.0, 1.0),
+    safetyText: enemyCount > 0 ? '주변 적 감지' : '안전',
+    danger: enemyCount > 0,
+    dangerTitle: enemyCount > 0 ? '경고: 주변 신호 감지' : '신호 없음',
+    directionText: directionText,
+    distanceText: distanceText,
+    etaText: '—',
+    progress01: 0,
     pings: pings,
   );
 });
 
-List<RadarPing> _buildUiPings(RadarPingPayload? payload) {
-  if (payload == null) return const [];
-
-  const maxRangeM = 60.0;
-  return [
-    for (final p in payload.pings)
-      _buildPing(p, maxRangeM),
-  ];
-}
-
-RadarPing _buildPing(RadarPingVector p, double maxRangeM) {
-  final hasBearing = p.bearingDeg.isFinite;
-  return RadarPing(
-    kind: _kindFromServer(p.kind),
-    angleRad: hasBearing ? _degToRad(p.bearingDeg) : 0.0,
-    radius01: (p.distanceM / maxRangeM).clamp(0.0, 1.0),
-    hasBearing: hasBearing,
-    distanceM: p.distanceM,
-  );
-}
-
-RadarPingKind _kindFromServer(String kind) {
-  final k = kind.toUpperCase();
-  if (k.contains('ALLY') || k.contains('FRIEND') || k.contains('POLICE')) return RadarPingKind.ally;
-  if (k.contains('ENEMY') || k.contains('THIEF')) return RadarPingKind.enemy;
-  return RadarPingKind.enemy;
-}
-
-double _degToRad(double deg) => (deg % 360) * pi / 180.0;
-
-String _directionText(RadarPingPayload? payload) {
-  if (payload == null || payload.pings.isEmpty) return '—';
-  final bearing = payload.pings.first.bearingDeg % 360;
-  if (bearing < 45 || bearing >= 315) return '북쪽 방향';
-  if (bearing < 135) return '동쪽 방향';
-  if (bearing < 225) return '남쪽 방향';
-  return '서쪽 방향';
-}
-
-String _distanceText(RadarPingPayload? payload) {
-  if (payload == null || payload.pings.isEmpty) return '—';
-  final d = payload.pings.first.distanceM;
-  return '~${d.toStringAsFixed(0)}m';
-}
-
-String _etaText(MatchStateDto? match) {
-  if (match == null) return '—';
-  final now = match.time.serverNowMs;
-  final endsAt = match.time.endsAtMs;
-  if (endsAt == null) return '—';
-  final remain = max(0, endsAt - now);
-  return '${(remain / 1000).toStringAsFixed(0)}초';
-}
-
-bool _isPingValid(WsEnvelope<RadarPingPayload>? envelope) {
-  if (envelope == null) return false;
-  final ping = envelope.payload;
-  final receivedAtMs = envelope.ts ?? 0;
-  if (receivedAtMs == 0) return true; // No timestamp, assume valid
-
-  final nowMs = DateTime.now().millisecondsSinceEpoch;
-  final elapsedMs = nowMs - receivedAtMs;
-  final ttlMs = ping.ttlMs;
-
-  // Ping is valid if it hasn't exceeded TTL
-  return elapsedMs < ttlMs;
+String _directionText(double angleRad) {
+  final deg = (angleRad * 180 / pi) % 360;
+  if (deg < 45 || deg >= 315) return '정면';
+  if (deg < 135) return '오른쪽';
+  if (deg < 225) return '후방';
+  return '왼쪽';
 }

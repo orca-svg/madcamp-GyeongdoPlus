@@ -1,16 +1,16 @@
 import 'dart:async';
-import 'dart:math';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/audio_service.dart';
 import '../models/item_slot.dart';
 import '../models/item_type.dart';
 import '../../../data/dto/game_dto.dart';
 import '../../../providers/app_providers.dart';
 import '../../../providers/room_provider.dart';
 import '../../../net/socket/socket_io_client_provider.dart';
-import '../../../core/services/audio_service.dart'; // Audio
 
 /// Item state
 class ItemState {
@@ -68,7 +68,6 @@ class ItemState {
 /// Item controller
 class ItemController extends Notifier<ItemState> {
   Timer? _tickTimer;
-  final Random _rand = Random();
 
   @override
   ItemState build() {
@@ -87,8 +86,8 @@ class ItemController extends Notifier<ItemState> {
         case 'radar_activated':
           // Handle radar effect (game_screen will listen)
           break;
-        case 'siren_activated':
-          // Handle siren effect
+        case 'play_siren':
+          _handleSirenActivated(event.payload);
           break;
         // Add other item events as needed
       }
@@ -101,16 +100,8 @@ class ItemController extends Notifier<ItemState> {
       '[ITEM] Initializing for game: ${gameDurationSec}s, team: $myTeam',
     );
 
-    // Start with 1 slot, grant random item
-    final slot0 = ItemSlot.empty(0);
-    final randomItem = _getRandomItemForTeam(myTeam);
-    final initialSlot = slot0.copyWith(
-      item: randomItem,
-      status: SlotStatus.ready,
-    );
-
     state = ItemState(
-      slots: [initialSlot],
+      slots: [ItemSlot.empty(0)],
       maxSlots: 1,
       gameElapsedSec: 0,
       gameDurationSec: gameDurationSec,
@@ -119,7 +110,7 @@ class ItemController extends Notifier<ItemState> {
 
     // Start tick timer
     _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
-    debugPrint('[ITEM] Granted initial item: ${randomItem.label}');
+    debugPrint('[ITEM] Waiting for 10min/20min selection windows');
   }
 
   /// Stop timer
@@ -135,28 +126,19 @@ class ItemController extends Notifier<ItemState> {
     final newElapsed = state.gameElapsedSec + 1;
     var newSlots = List<ItemSlot>.from(state.slots);
     var newMaxSlots = state.maxSlots;
+    var pendingChoiceModal = false;
 
-    // Time-based slot expansion
-    if (newElapsed == 600 && newMaxSlots < 2) {
-      // 10 minutes
+    // Backend item flow: choose at 10 minutes and 20 minutes.
+    if (newElapsed == 600) {
+      pendingChoiceModal = true;
+      debugPrint('[ITEM] 10min reached: opening first item choice');
+    } else if (newElapsed == 1200) {
       newMaxSlots = 2;
-      _grantRandomItem(1, state.myTeam!);
-      debugPrint('[ITEM] 10min reached: Slot 1 granted');
-    } else if (newElapsed == 900 && newMaxSlots < 2) {
-      // 15 minutes - Choice modal
-      state = state.copyWith(pendingChoiceModal: true);
-      debugPrint('[ITEM] 15min reached: Choice modal triggered');
-      return; // User will select
-    } else if (newElapsed == 1200 && newMaxSlots < 3) {
-      // 20 minutes
-      newMaxSlots = 3;
-      _grantRandomItem(2, state.myTeam!);
-      debugPrint('[ITEM] 20min reached: Slot 2 granted');
-    } else if (newElapsed == state.gameDurationSec - 300 && newMaxSlots >= 2) {
-      // 5 minutes before end - Emergency choice
-      state = state.copyWith(pendingChoiceModal: true);
-      debugPrint('[ITEM] 5min remaining: Emergency choice modal triggered');
-      return;
+      if (!newSlots.any((slot) => slot.index == 1)) {
+        newSlots.add(ItemSlot.empty(1));
+      }
+      pendingChoiceModal = true;
+      debugPrint('[ITEM] 20min reached: opening second item choice');
     }
 
     // Update cooldowns and active effects
@@ -207,32 +189,8 @@ class ItemController extends Notifier<ItemState> {
       slots: newSlots,
       maxSlots: newMaxSlots,
       empActive: newEmpActive,
+      pendingChoiceModal: pendingChoiceModal,
     );
-  }
-
-  /// Grant random item to slot
-  void _grantRandomItem(int slotIndex, Team team) {
-    final randomItem = _getRandomItemForTeam(team);
-    final newSlot = ItemSlot(
-      index: slotIndex,
-      item: randomItem,
-      status: SlotStatus.ready,
-    );
-
-    final newSlots = List<ItemSlot>.from(state.slots);
-    if (slotIndex >= newSlots.length) {
-      newSlots.add(newSlot);
-    } else {
-      newSlots[slotIndex] = newSlot;
-    }
-
-    state = state.copyWith(slots: newSlots);
-    state = state.copyWith(slots: newSlots);
-
-    // Play SFX
-    ref.read(audioServiceProvider).playSfx(AudioType.itemGet);
-
-    debugPrint('[ITEM] Granted ${randomItem.label} to slot $slotIndex');
   }
 
   /// Select item for a slot (user choice)
@@ -302,9 +260,6 @@ class ItemController extends Notifier<ItemState> {
         // Execute local effect
         _executeLocalEffect(slot.item);
 
-        // Emit socket event for server-side effects
-        _emitItemEffect(slot.item);
-
         // Update slot status
         final newSlots = List<ItemSlot>.from(state.slots);
         if (slot.item.isInstant) {
@@ -348,23 +303,15 @@ class ItemController extends Notifier<ItemState> {
     }
   }
 
-  /// Emit socket event for server-side effects
-  void _emitItemEffect(ItemType item) {
-    final socket = ref.read(socketIoClientProvider.notifier);
-    final room = ref.read(roomProvider);
-
-    final payload = {'matchId': room.roomId, 'itemId': item.id};
-
-    socket.emit('use_item', payload);
-    debugPrint('[ITEM] Emitted use_item: ${item.id}');
-  }
-
   /// Handle EMP activation from socket
   void _handleEmpActivated(Map<String, dynamic> payload) {
     // Only police are affected
     if (state.myTeam != Team.police) return;
 
-    final durationSec = payload['durationSec'] as int? ?? 15;
+    final durationSec =
+        (payload['durationSec'] as int?) ??
+        (payload['duration'] as int?) ??
+        15;
     state = state.copyWith(
       empActive: true,
       empActiveUntil: DateTime.now().add(Duration(seconds: durationSec)),
@@ -375,15 +322,21 @@ class ItemController extends Notifier<ItemState> {
     );
   }
 
+  void _handleSirenActivated(Map<String, dynamic> payload) {
+    final room = ref.read(roomProvider);
+    final targetId = payload['targetId']?.toString();
+    if (targetId != null && targetId.isNotEmpty && targetId != room.myId) {
+      return;
+    }
+
+    ref.read(audioServiceProvider).playSfx(AudioType.siren);
+    HapticFeedback.heavyImpact();
+    debugPrint('[ITEM] Siren alert received');
+  }
+
   /// Clear pending choice modal
   void clearPendingModal() {
     state = state.copyWith(pendingChoiceModal: false);
-  }
-
-  /// Get random item for team
-  ItemType _getRandomItemForTeam(Team team) {
-    final items = ItemType.forTeam(team);
-    return items[_rand.nextInt(items.length)];
   }
 }
 

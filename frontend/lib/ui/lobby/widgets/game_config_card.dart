@@ -7,7 +7,6 @@ import '../../../core/widgets/glow_card.dart';
 
 import '../../../providers/room_provider.dart';
 import '../../../providers/match_rules_provider.dart' as rules;
-import '../../../net/socket/socket_io_client_provider.dart';
 
 class GameConfigCard extends ConsumerWidget {
   const GameConfigCard({super.key});
@@ -194,11 +193,13 @@ class GameConfigCard extends ConsumerWidget {
 
         rulesNotifier.applyOfflineRoomConfig(payload);
 
-        // 2. Emit Settings Update to Server
-        // As per request: socket.emit('update_settings', newSettings)
-        ref
-            .read(socketIoClientProvider.notifier)
-            .emit('update_settings', payload);
+        ref.read(roomProvider.notifier).updateRoomSettings(
+          mode: result.gameMode.wire,
+          maxPlayers: result.maxPlayers,
+          timeLimit: result.timeLimitSec,
+          rules: payload['rules'],
+          mapConfig: payload['mapConfig'],
+        );
       }
     });
   }

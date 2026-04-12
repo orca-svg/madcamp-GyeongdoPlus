@@ -186,7 +186,7 @@ class WatchSyncController extends Notifier<WatchSyncState> {
 
   Future<void> _handleTeamChangePayload(Map<String, dynamic> payload) async {
     final room = ref.read(roomProvider);
-    final me = room?.me;
+    final me = room.me;
     if (me == null || me.ready) return; // 레디 상태면 변경 불가
 
     final now = DateTime.now().millisecondsSinceEpoch;

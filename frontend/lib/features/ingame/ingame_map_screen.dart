@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import '../../core/app_dimens.dart';
+import '../../core/env.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
@@ -99,23 +100,30 @@ class _InGameMapScreenState extends ConsumerState<InGameMapScreen> {
                           ),
                           child: Stack(
                             children: [
-                              KakaoMap(
-                                key: ValueKey(
-                                  'ingame_map_${rules.zonePolygon?.length ?? 0}_${rules.jailCenter?.lat ?? 0}',
+                              if (Env.canRenderMaps)
+                                KakaoMap(
+                                  key: ValueKey(
+                                    'ingame_map_${rules.zonePolygon?.length ?? 0}_${rules.jailCenter?.lat ?? 0}',
+                                  ),
+                                  onMapCreated: (controller) {
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _mapController = controller;
+                                    });
+                                  },
+                                  center: center,
+                                  currentLevel: 4,
+                                  zoomControl: true,
+                                  mapTypeControl: false,
+                                  polygons: polygons,
+                                  circles: circles,
+                                )
+                              else
+                                const Center(
+                                  child: Text(
+                                    'Map disabled: configure Kakao map key for this build.',
+                                  ),
                                 ),
-                                onMapCreated: (controller) {
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _mapController = controller;
-                                  });
-                                },
-                                center: center,
-                                currentLevel: 4,
-                                zoomControl: true,
-                                mapTypeControl: false,
-                                polygons: polygons,
-                                circles: circles,
-                              ),
                               Positioned(
                                 top: 10,
                                 right: 10,

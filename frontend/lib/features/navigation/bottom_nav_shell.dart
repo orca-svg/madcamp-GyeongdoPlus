@@ -8,8 +8,8 @@ import '../../providers/game_phase_provider.dart';
 import '../../providers/match_mode_provider.dart';
 import '../../providers/shell_tab_request_provider.dart';
 import '../../providers/watch_provider.dart';
-import '../../net/ws/ws_client_provider.dart';
 import '../../providers/room_provider.dart';
+import '../../net/socket/socket_io_client_provider.dart';
 import '../../net/socket/socket_io_router.dart';
 import '../../watch/watch_action_handler.dart';
 import '../../ui/lobby/lobby_screen.dart';
@@ -43,7 +43,6 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     super.initState();
 
     unawaited(ref.read(watchConnectedProvider.notifier).init());
-    ref.read(wsRouterProvider);
     ref.read(socketIoRouterProvider); // Initialize Socket.IO router
     ref.read(
       watchActionHandlerInitProvider,
@@ -53,7 +52,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
     _phaseSub = ref.listenManual<GamePhase>(gamePhaseProvider, (prev, next) {
       if (!mounted) return;
       if (next == GamePhase.offGame) {
-        ref.read(wsConnectionProvider.notifier).disconnect();
+        ref.read(socketIoClientProvider.notifier).disconnect();
         final requested = ref.read(shellTabRequestProvider.notifier).consume();
         if (requested != null &&
             requested >= 0 &&
@@ -161,7 +160,7 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
             if (exit == true) {
               // Leave room logic
               ref.read(roomProvider.notifier).leaveRoom();
-              // Phase change listener will handle navigation reset
+              ref.read(gamePhaseProvider.notifier).toOffGame();
             }
           },
           child: Stack(
@@ -188,12 +187,12 @@ class _BottomNavShellState extends ConsumerState<BottomNavShell> {
   /// 모드에 따라 IN_GAME 탭 구성을 동적으로 생성
   List<InGameTabSpec> _buildInGameTabs() {
     return [
-      InGameTabSpec(icon: Icons.map_rounded, label: '지도', screen: GameScreen()),
       InGameTabSpec(
-        icon: Icons.sports_esports_rounded,
-        label: '게임',
+        icon: Icons.radar_rounded,
+        label: '레이더',
         screen: RadarScreen(),
       ),
+      InGameTabSpec(icon: Icons.map_rounded, label: '지도', screen: GameScreen()),
       InGameTabSpec(
         icon: Icons.lock_rounded,
         label: '체포',

@@ -307,6 +307,9 @@ class UpdatedSettingsDto {
   @ApiProperty({ example: 'ITEM' })
   mode: string;
 
+  @ApiProperty({ example: 8, required: false })
+  maxPlayers?: number;
+
   @ApiProperty({ example: 1200 })
   timeLimit: number;
 

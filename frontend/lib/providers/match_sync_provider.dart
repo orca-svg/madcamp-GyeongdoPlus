@@ -70,6 +70,11 @@ class MatchSyncController extends Notifier<MatchSyncState> {
     );
   }
 
+  void reset() {
+    _capture95MatchId = null;
+    state = MatchSyncState.initial();
+  }
+
   void setMatchState(WsEnvelope<MatchStateDto> env) {
     _maybeCapture95(env.payload);
     final arena = env.payload.arena;

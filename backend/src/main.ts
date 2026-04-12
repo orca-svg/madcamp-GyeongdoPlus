@@ -2,9 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { parseCorsOrigins } from './common/utils/cors.util';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    cors: {
+      origin: parseCorsOrigins(process.env.CORS_ORIGINS),
+      credentials: true,
+    },
+  });
 
   // 1. 유효성 검사 (DTO) 전역 적용
   app.useGlobalPipes(new ValidationPipe({
@@ -21,11 +27,13 @@ async function bootstrap() {
     .addBearerAuth() // 나중에 JWT 인증 토큰 넣을 때 필요
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  
-  // 'api'라는 주소로 Swagger를 띄우겠다는 설정
-  SwaggerModule.setup('api', app, document); 
+  if (process.env.SWAGGER_ENABLED !== 'false') {
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document);
+  }
 
-  await app.listen(3000);
+  const host = process.env.HOST || '0.0.0.0';
+  const port = parseInt(process.env.PORT || '3000', 10);
+  await app.listen(port, host);
 }
 bootstrap();

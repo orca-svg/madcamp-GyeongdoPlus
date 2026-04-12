@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import '../../core/app_dimens.dart';
+import '../../core/env.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
@@ -32,44 +34,56 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   final _renderer = GameMapRenderer();
   Timer? _gameTimer;
   Duration _elapsed = Duration.zero;
+  bool _systemsBooted = false;
 
   @override
   void initState() {
     super.initState();
-    // Start tracking location and connecting socket listeners
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(gameProvider.notifier).startGame();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootGameSystems());
+  }
 
-      // Play Game BGM
-      ref.read(audioServiceProvider).playBgm(AudioType.bgmChase);
+  Future<void> _bootGameSystems() async {
+    if (_systemsBooted) return;
 
-      // Initialize item system
-      final rules = ref.read(matchRulesProvider);
-      final room = ref.read(roomProvider);
-      final myTeam = room.me?.team;
-      if (myTeam != null) {
-        ref
-            .read(itemProvider.notifier)
-            .initializeForGame(
-              gameDurationSec: rules.timeLimitSec,
-              myTeam: myTeam,
-            );
-      }
+    final started = await ref.read(gameProvider.notifier).startGame();
+    if (!mounted || !started) return;
 
-      // Start global timer
-      _gameTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (!mounted) return;
-        setState(() {
-          _elapsed += const Duration(seconds: 1);
-        });
+    _systemsBooted = true;
+
+    ref.read(audioServiceProvider).playBgm(AudioType.bgmChase);
+
+    final rules = ref.read(matchRulesProvider);
+    final room = ref.read(roomProvider);
+    final myTeam = room.me?.team;
+    final abilityState = ref.read(abilityProvider);
+
+    if (rules.gameMode == GameMode.ability &&
+        myTeam != null &&
+        abilityState.type == AbilityType.none) {
+      final defaultAbility = myTeam == Team.police
+          ? AbilityType.scanner
+          : AbilityType.shadow;
+      ref.read(abilityProvider.notifier).setType(defaultAbility);
+    }
+
+    if (myTeam != null) {
+      ref
+          .read(itemProvider.notifier)
+          .initializeForGame(gameDurationSec: rules.timeLimitSec, myTeam: myTeam);
+    }
+
+    _gameTimer?.cancel();
+    _gameTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _elapsed += const Duration(seconds: 1);
       });
     });
   }
 
   @override
   void dispose() {
-    // Stop tracking handled by provider if needed, or explicitly here
-    // ref.read(gameProvider.notifier).stopGame();
+    ref.read(gameProvider.notifier).stopGame();
     ref.read(itemProvider.notifier).stop();
     // Stop BGM
     ref.read(audioServiceProvider).stopBgm();
@@ -273,19 +287,25 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                           borderRadius: BorderRadius.circular(
                             AppDimens.radiusCard,
                           ),
-                          child: KakaoMap(
-                            key: ValueKey(
-                              'game_map_${polygons.length}_${markers.length}_${center.latitude}_${center.longitude}',
-                            ),
-                            onMapCreated: (comp) {},
-                            center: center,
-                            currentLevel: 3,
-                            zoomControl: true,
-                            mapTypeControl: false,
-                            polygons: polygons,
-                            circles: circles,
-                            markers: markers,
-                          ),
+                          child: Env.canRenderMaps
+                              ? KakaoMap(
+                                  key: ValueKey(
+                                    'game_map_${polygons.length}_${markers.length}_${center.latitude}_${center.longitude}',
+                                  ),
+                                  onMapCreated: (comp) {},
+                                  center: center,
+                                  currentLevel: 3,
+                                  zoomControl: true,
+                                  mapTypeControl: false,
+                                  polygons: polygons,
+                                  circles: circles,
+                                  markers: markers,
+                                )
+                              : const Center(
+                                  child: Text(
+                                    'Map disabled: configure Kakao map key for this build.',
+                                  ),
+                                ),
                         ),
                       ),
                     ),
@@ -341,26 +361,89 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   ),
                 ),
 
-              // Debug Info
-              Positioned(
-                bottom: 20,
-                left: 20,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  color: Colors.black54,
-                  child: Text(
-                    'Players: ${gameState.players.length} / Visible: ${markers.length}\n'
-                    'Tracking: ${gameState.isTracking}\n'
-                    'MyPos: ${myPos?.latitude.toStringAsFixed(4)}, ${myPos?.longitude.toStringAsFixed(4)}\n'
-                    'Ability: ${ability.type.label} (${ability.isSkillActive
-                        ? "Active"
-                        : ability.isReady
-                        ? "Ready"
-                        : "${ability.cooldownRemainSec}s"})',
-                    style: const TextStyle(color: Colors.white, fontSize: 10),
+              if (kDebugMode)
+                Positioned(
+                  bottom: 20,
+                  left: 20,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    color: Colors.black54,
+                    child: Text(
+                      'Players: ${gameState.players.length} / Visible: ${markers.length}\n'
+                      'Tracking: ${gameState.isTracking}\n'
+                      'MyPos: ${myPos?.latitude.toStringAsFixed(4)}, ${myPos?.longitude.toStringAsFixed(4)}\n'
+                      'Ability: ${ability.type.label} (${ability.isSkillActive
+                          ? "Active"
+                          : ability.isReady
+                          ? "Ready"
+                          : "${ability.cooldownRemainSec}s"})',
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                    ),
                   ),
                 ),
-              ),
+              if (gameState.blockingMessage != null)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: GlowCard(
+                      glow: false,
+                      borderColor: AppColors.orange.withOpacity(0.45),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '위치 설정 필요',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            gameState.blockingMessage!,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(height: 1.4),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () async {
+                                    ref
+                                        .read(gameProvider.notifier)
+                                        .clearBlockingIssue();
+                                    await _bootGameSystems();
+                                  },
+                                  child: const Text('다시 시도'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () async {
+                                    if (gameState.blockingReason ==
+                                        GameStartBlock.locationService) {
+                                      await Geolocator.openLocationSettings();
+                                    } else {
+                                      await Geolocator.openAppSettings();
+                                    }
+                                  },
+                                  child: Text(
+                                    gameState.blockingReason ==
+                                            GameStartBlock.locationService
+                                        ? '위치 켜기'
+                                        : '앱 설정 열기',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -218,20 +218,25 @@ Map<String, dynamic> _$GetRoomDetailsResponseDtoToJson(
 UpdateRoomDto _$UpdateRoomDtoFromJson(Map<String, dynamic> json) =>
     UpdateRoomDto(
       mode: json['mode'] as String?,
+      maxPlayers: (json['maxPlayers'] as num?)?.toInt(),
       timeLimit: (json['timeLimit'] as num?)?.toInt(),
       mapConfig: json['mapConfig'],
+      rules: json['rules'],
     );
 
 Map<String, dynamic> _$UpdateRoomDtoToJson(UpdateRoomDto instance) =>
     <String, dynamic>{
       'mode': instance.mode,
+      'maxPlayers': instance.maxPlayers,
       'timeLimit': instance.timeLimit,
       'mapConfig': instance.mapConfig,
+      'rules': instance.rules,
     };
 
 UpdatedSettingsDto _$UpdatedSettingsDtoFromJson(Map<String, dynamic> json) =>
     UpdatedSettingsDto(
       mode: json['mode'] as String,
+      maxPlayers: (json['maxPlayers'] as num?)?.toInt(),
       timeLimit: (json['timeLimit'] as num).toInt(),
       mapConfig: json['mapConfig'],
       rules: json['rules'],
@@ -240,6 +245,7 @@ UpdatedSettingsDto _$UpdatedSettingsDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$UpdatedSettingsDtoToJson(UpdatedSettingsDto instance) =>
     <String, dynamic>{
       'mode': instance.mode,
+      'maxPlayers': instance.maxPlayers,
       'timeLimit': instance.timeLimit,
       'mapConfig': instance.mapConfig,
       'rules': instance.rules,

@@ -223,10 +223,18 @@ class GetRoomDetailsResponseDto {
 @JsonSerializable()
 class UpdateRoomDto {
   final String? mode;
+  final int? maxPlayers;
   final int? timeLimit;
   final dynamic mapConfig;
+  final dynamic rules;
 
-  UpdateRoomDto({this.mode, this.timeLimit, this.mapConfig});
+  UpdateRoomDto({
+    this.mode,
+    this.maxPlayers,
+    this.timeLimit,
+    this.mapConfig,
+    this.rules,
+  });
 
   Map<String, dynamic> toJson() => _$UpdateRoomDtoToJson(this);
 }
@@ -234,12 +242,14 @@ class UpdateRoomDto {
 @JsonSerializable()
 class UpdatedSettingsDto {
   final String mode;
+  final int? maxPlayers;
   final int timeLimit;
   final dynamic mapConfig;
   final dynamic rules;
 
   UpdatedSettingsDto({
     required this.mode,
+    this.maxPlayers,
     required this.timeLimit,
     required this.mapConfig,
     this.rules,
@@ -271,6 +281,56 @@ class UpdateRoomResponseDto {
 
   factory UpdateRoomResponseDto.fromJson(Map<String, dynamic> json) =>
       _$UpdateRoomResponseDtoFromJson(json);
+}
+
+class UpdateRoleDto {
+  final String matchId;
+  final String role;
+
+  UpdateRoleDto({required this.matchId, required this.role});
+
+  Map<String, dynamic> toJson() => {
+    'matchId': matchId,
+    'role': role,
+  };
+}
+
+class UpdateRoleDataDto {
+  final String userId;
+  final String role;
+  final String updatedAt;
+
+  UpdateRoleDataDto({
+    required this.userId,
+    required this.role,
+    required this.updatedAt,
+  });
+
+  factory UpdateRoleDataDto.fromJson(Map<String, dynamic> json) =>
+      UpdateRoleDataDto(
+        userId: json['userId'] as String? ?? '',
+        role: json['role'] as String? ?? '',
+        updatedAt: json['updatedAt'] as String? ?? '',
+      );
+}
+
+class UpdateRoleResponseDto {
+  final bool? success;
+  final String? message;
+  final UpdateRoleDataDto? data;
+  final dynamic error;
+
+  UpdateRoleResponseDto({this.success, this.message, this.data, this.error});
+
+  factory UpdateRoleResponseDto.fromJson(Map<String, dynamic> json) =>
+      UpdateRoleResponseDto(
+        success: json['success'] as bool?,
+        message: json['message'] as String?,
+        data: json['data'] is Map<String, dynamic>
+            ? UpdateRoleDataDto.fromJson(json['data'] as Map<String, dynamic>)
+            : null,
+        error: json['error'],
+      );
 }
 
 // ------------------------------------------------------------------

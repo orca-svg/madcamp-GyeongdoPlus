@@ -156,6 +156,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               .contribution, // Using contribution as score delta
                           date: _formatDate(item.gameInfo.playedAt),
                           resultText: isWin ? '승리' : '패배',
+                          modeLabel: _modeLabel(item.gameInfo.mode),
+                          detailText:
+                              '${_formatPlayTime(item.gameInfo.playTime)} · ${_formatDistance(item.myStat.distanceMoved)}',
                         );
                       },
                     );
@@ -171,5 +174,28 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatPlayTime(int sec) {
+    final min = sec ~/ 60;
+    final remain = sec % 60;
+    return '$min분 ${remain.toString().padLeft(2, '0')}초';
+  }
+
+  String _formatDistance(double? meters) {
+    if (meters == null) return '이동거리 -';
+    if (meters >= 1000) return '이동거리 ${(meters / 1000).toStringAsFixed(1)}km';
+    return '이동거리 ${meters.toStringAsFixed(0)}m';
+  }
+
+  String _modeLabel(String mode) {
+    switch (mode.toUpperCase()) {
+      case 'ITEM':
+        return '아이템';
+      case 'ABILITY':
+        return '능력';
+      default:
+        return '일반';
+    }
   }
 }

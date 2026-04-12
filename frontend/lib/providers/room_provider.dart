@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -5,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/dto/lobby_dto.dart';
 import '../data/repositories/game_repository.dart';
+import '../features/game/providers/ability_provider.dart';
 import '../models/game_config.dart';
 import '../net/socket/socket_io_client_provider.dart';
 import 'app_providers.dart';
 import 'auth_provider.dart';
 import 'match_rules_provider.dart';
+import 'match_sync_provider.dart';
 import 'game_phase_provider.dart';
 
 enum Team { police, thief }
@@ -49,6 +52,8 @@ class RoomMember {
 }
 
 class RoomState {
+  static const Object _noChange = Object();
+
   final bool inRoom;
   final RoomStatus status;
   final String roomId;
@@ -89,7 +94,7 @@ class RoomState {
     String? roomId,
     String? roomCode,
     String? myId,
-    String? errorMessage,
+    Object? errorMessage = _noChange,
     List<RoomMember>? members,
     GameConfig? config,
     Map<String, dynamic>? mapConfig,
@@ -100,7 +105,9 @@ class RoomState {
       roomId: roomId ?? this.roomId,
       roomCode: roomCode ?? this.roomCode,
       myId: myId ?? this.myId,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: identical(errorMessage, _noChange)
+          ? this.errorMessage
+          : errorMessage as String?,
       members: members ?? this.members,
       config: config ?? this.config,
       mapConfig: mapConfig ?? this.mapConfig,
@@ -170,6 +177,19 @@ class RoomController extends Notifier<RoomState> {
           addMember(p);
         }
       } else if (event is MemberLeftEvent) {
+        if (event.userId == state.myId && event.userId.isNotEmpty) {
+          ref.read(matchRulesProvider.notifier).reset();
+          ref.read(matchSyncProvider.notifier).reset();
+          ref.read(abilityProvider.notifier).reset();
+          ref.read(socketIoClientProvider.notifier).disconnect();
+          state = RoomState.initial().copyWith(
+            status: RoomStatus.error,
+            errorMessage: '방에서 내보내졌습니다.',
+          );
+          ref.read(gamePhaseProvider.notifier).toOffGame();
+          return;
+        }
+
         if (event.userId.isNotEmpty) {
           removeMember(event.userId);
         }
@@ -194,6 +214,8 @@ class RoomController extends Notifier<RoomState> {
         final p = event.payload;
         if (p.containsKey('room')) {
           _syncFromPayload(p['room']);
+        } else if (p['updatedSettings'] is Map<String, dynamic>) {
+          _syncFromPayload((p['updatedSettings'] as Map<String, dynamic>));
         } else if (p.containsKey('settings') ||
             p.containsKey('rules') ||
             p.containsKey('maxPlayers') ||
@@ -230,13 +252,18 @@ class RoomController extends Notifier<RoomState> {
       final membersList = data['members'] as List;
       final list = membersList.map((x) {
         final id = x['userId'] ?? x['id'] ?? x['user_id'] ?? '';
+        final teamValue =
+            x['team'] ?? x['role'] ?? x['newRole'] ?? x['newTeam'];
         return RoomMember(
           id: id.toString(),
           name: x['nickname'] ?? x['name'] ?? 'Unknown',
-          team: (x['team'] == 'POLICE' || x['role'] == 'POLICE')
-              ? Team.police
-              : Team.thief,
-          ready: x['isReady'] ?? x['ready'] ?? x['is_ready'] ?? false,
+          team: (teamValue == 'POLICE') ? Team.police : Team.thief,
+          ready:
+              x['isReady'] ??
+              x['ready'] ??
+              x['is_ready'] ??
+              x['newReady'] ??
+              false,
           isHost: x['isHost'] ?? x['host'] ?? false,
         );
       }).toList();
@@ -254,13 +281,17 @@ class RoomController extends Notifier<RoomState> {
   void _parseAndSetMembers(List<dynamic> rawList) {
     final list = rawList.map((x) {
       final id = x['userId'] ?? x['id'] ?? x['user_id'] ?? '';
+      final teamValue = x['team'] ?? x['role'] ?? x['newRole'] ?? x['newTeam'];
       return RoomMember(
         id: id.toString(),
         name: x['nickname'] ?? x['name'] ?? 'Unknown',
-        team: (x['team'] == 'POLICE' || x['role'] == 'POLICE')
-            ? Team.police
-            : Team.thief,
-        ready: x['isReady'] ?? x['ready'] ?? x['is_ready'] ?? false,
+        team: (teamValue == 'POLICE') ? Team.police : Team.thief,
+        ready:
+            x['isReady'] ??
+            x['ready'] ??
+            x['is_ready'] ??
+            x['newReady'] ??
+            false,
         isHost: x['isHost'] ?? x['host'] ?? false,
       );
     }).toList();
@@ -271,6 +302,9 @@ class RoomController extends Notifier<RoomState> {
     final id = x['userId'] ?? x['id'] ?? x['user_id'];
     if (id == null) return;
     final idStr = id.toString();
+    final nextRole = x['team'] ?? x['role'] ?? x['newRole'] ?? x['newTeam'];
+    final nextReady =
+        x['isReady'] ?? x['ready'] ?? x['is_ready'] ?? x['newReady'];
 
     state = state.copyWith(
       members: [
@@ -278,12 +312,10 @@ class RoomController extends Notifier<RoomState> {
           if (m.id == idStr)
             m.copyWith(
               name: x['nickname'] ?? x['name'],
-              team: (x['team'] != null || x['role'] != null)
-                  ? ((x['team'] == 'POLICE' || x['role'] == 'POLICE')
-                        ? Team.police
-                        : Team.thief)
+              team: nextRole != null
+                  ? ((nextRole == 'POLICE') ? Team.police : Team.thief)
                   : null,
-              ready: x['isReady'] ?? x['ready'] ?? x['is_ready'],
+              ready: nextReady,
               isHost: x['isHost'] ?? x['host'],
             )
           else
@@ -296,6 +328,7 @@ class RoomController extends Notifier<RoomState> {
     final id = x['userId'] ?? x['id'] ?? x['user_id'];
     if (id == null) return;
     final idStr = id.toString();
+    final teamValue = x['team'] ?? x['role'] ?? x['newRole'] ?? x['newTeam'];
 
     // Prevent duplicates
     if (state.members.any((m) => m.id == idStr)) return;
@@ -303,10 +336,9 @@ class RoomController extends Notifier<RoomState> {
     final newMember = RoomMember(
       id: idStr,
       name: x['nickname'] ?? x['name'] ?? 'Unknown',
-      team: (x['team'] == 'POLICE' || x['role'] == 'POLICE')
-          ? Team.police
-          : Team.thief,
-      ready: x['isReady'] ?? x['ready'] ?? x['is_ready'] ?? false,
+      team: (teamValue == 'POLICE') ? Team.police : Team.thief,
+      ready:
+          x['isReady'] ?? x['ready'] ?? x['is_ready'] ?? x['newReady'] ?? false,
       isHost: x['isHost'] ?? x['host'] ?? false,
     );
     state = state.copyWith(members: [...state.members, newMember]);
@@ -325,9 +357,15 @@ class RoomController extends Notifier<RoomState> {
   void updateConfig(GameConfig config) {
     if (!state.amIHost) return;
     state = state.copyWith(config: config);
-    ref
-        .read(socketIoClientProvider.notifier)
-        .emit('update_settings', config.toJson());
+    unawaited(
+      updateRoomSettings(
+        mode: config.gameMode.wireName,
+        timeLimit: config.durationMin * 60,
+        rules: {
+          'jailRule': {'jailEnabled': config.jailEnabled},
+        },
+      ),
+    );
   }
 
   /// Debug-only: enter lobby without server connection
@@ -368,9 +406,12 @@ class RoomController extends Notifier<RoomState> {
     final rulesMap = {
       'contactMode': rulesState.contactMode,
       'jailRule': {
+        'jailEnabled': rulesState.jailEnabled,
         'rescue': {
           'queuePolicy': rulesState.rescueReleaseOrder,
-          'releaseCount': rulesState.rescueReleaseScope == 'PARTIAL' ? 1 : 999,
+          'releaseCount': rulesState.rescueReleaseScope == 'PARTIAL'
+              ? 3
+              : (rulesState.maxPlayers - 1),
         },
       },
     };
@@ -386,11 +427,9 @@ class RoomController extends Notifier<RoomState> {
           }
         : null;
 
-    final mapConfig = {
+    final mapConfig = <String, dynamic>{
       'polygon': polygon,
-      'jail':
-          jail ??
-          {'lat': 37.5665, 'lng': 126.9780, 'radiusM': 15.0}, // Fallback
+      if (jail != null) 'jail': jail,
     };
 
     // Create DTO
@@ -425,6 +464,7 @@ class RoomController extends Notifier<RoomState> {
         ],
         config: GameConfig.initial(),
       );
+      ref.read(matchSyncProvider.notifier).setCurrentMatchId(data.matchId);
 
       // Connect to Socket.IO with JWT token
       final jwtToken = ref.read(authProvider).accessToken;
@@ -466,6 +506,7 @@ class RoomController extends Notifier<RoomState> {
         'rules': data.settings.rules,
       };
       ref.read(matchRulesProvider.notifier).applyOfflineRoomConfig(fullPayload);
+      state = state.copyWith(mapConfig: data.settings.mapConfig);
 
       _parseAndSetMembers(
         data.players
@@ -487,6 +528,13 @@ class RoomController extends Notifier<RoomState> {
     final name = myName.trim().isEmpty ? '김선수' : myName.trim();
 
     final normalizedCode = _normalizeCode(code);
+    if (normalizedCode.isEmpty) {
+      state = state.copyWith(
+        status: RoomStatus.error,
+        errorMessage: '유효하지 않은 방 코드입니다.',
+      );
+      return false;
+    }
     state = state.copyWith(status: RoomStatus.loading, errorMessage: null);
 
     final lobbyRepo = ref.read(lobbyRepositoryProvider);
@@ -523,6 +571,7 @@ class RoomController extends Notifier<RoomState> {
         config: GameConfig.initial(),
         mapConfig: data.mapConfig,
       );
+      ref.read(matchSyncProvider.notifier).setCurrentMatchId(data.matchId);
 
       // Connect socket
       final jwtToken = ref.read(authProvider).accessToken;
@@ -557,11 +606,30 @@ class RoomController extends Notifier<RoomState> {
   void leaveRoom() {
     state = RoomState.initial();
     ref.read(matchRulesProvider.notifier).reset();
+    ref.read(matchSyncProvider.notifier).reset();
+    ref.read(abilityProvider.notifier).reset();
     ref.read(socketIoClientProvider.notifier).disconnect();
   }
 
   void reset() {
     state = RoomState.initial();
+    ref.read(matchSyncProvider.notifier).reset();
+    ref.read(abilityProvider.notifier).reset();
+  }
+
+  void clearError() {
+    if (state.errorMessage == null && state.status != RoomStatus.error) return;
+
+    state = state.copyWith(
+      status: state.status == RoomStatus.error
+          ? (state.inRoom ? RoomStatus.success : RoomStatus.idle)
+          : state.status,
+      errorMessage: null,
+    );
+  }
+
+  void setError(String message) {
+    state = state.copyWith(status: RoomStatus.error, errorMessage: message);
   }
 
   void toggleReady() {
@@ -607,23 +675,88 @@ class RoomController extends Notifier<RoomState> {
     final me = state.me;
     if (me == null) return;
     if (me.ready) return;
+    final previousTeam = me.team;
     state = state.copyWith(
       members: [
         for (final m in state.members)
           if (m.id == state.myId) m.copyWith(team: team) else m,
       ],
     );
-    // Send socket event - send both 'role' and 'team' for compatibility
+    unawaited(_syncMyTeam(team, previousTeam));
+  }
+
+  Future<void> updateRoomSettings({
+    String? mode,
+    int? maxPlayers,
+    int? timeLimit,
+    dynamic mapConfig,
+    dynamic rules,
+  }) async {
+    if (!state.inRoom || !state.amIHost) return;
+
+    final repo = ref.read(lobbyRepositoryProvider);
+    final result = await repo.updateRoom(
+      state.roomId,
+      UpdateRoomDto(
+        mode: mode,
+        maxPlayers: maxPlayers,
+        timeLimit: timeLimit,
+        mapConfig: mapConfig,
+        rules: rules,
+      ),
+    );
+
+    if (result.success && result.data != null) {
+      final settings = result.data!.updatedSettings;
+      final payload = {
+        'mode': settings.mode,
+        'maxPlayers': settings.maxPlayers,
+        'timeLimit': settings.timeLimit,
+        'mapConfig': settings.mapConfig,
+        'rules': settings.rules,
+      };
+      ref.read(matchRulesProvider.notifier).applyOfflineRoomConfig(payload);
+      state = state.copyWith(
+        mapConfig: settings.mapConfig as Map<String, dynamic>?,
+        status: RoomStatus.success,
+        errorMessage: null,
+      );
+      return;
+    }
+
+    if (!result.success) {
+      debugPrint('[ROOM] Update settings failed: ${result.errorMessage}');
+      state = state.copyWith(
+        status: RoomStatus.error,
+        errorMessage: result.errorMessage ?? '방 설정 변경에 실패했습니다.',
+      );
+    }
+  }
+
+  Future<void> _syncMyTeam(Team team, Team previousTeam) async {
+    if (!state.inRoom) return;
+
     final roleStr = team == Team.police ? 'POLICE' : 'THIEF';
-    ref.read(socketIoClientProvider.notifier).emit('change_role', {
-      'role': roleStr,
-      'team': roleStr,
-    });
-    // Some backends might prefer 'change_team' as event name
-    ref.read(socketIoClientProvider.notifier).emit('change_team', {
-      'role': roleStr,
-      'team': roleStr,
-    });
+    final repo = ref.read(lobbyRepositoryProvider);
+    final result = await repo.updateRole(
+      UpdateRoleDto(matchId: state.roomId, role: roleStr),
+    );
+
+    if (result.success) {
+      return;
+    }
+
+    debugPrint('[ROOM] Update role failed: ${result.errorMessage}');
+    if (!state.inRoom) return;
+
+    state = state.copyWith(
+      status: RoomStatus.error,
+      errorMessage: result.errorMessage ?? '팀 변경에 실패했습니다.',
+      members: [
+        for (final m in state.members)
+          if (m.id == state.myId) m.copyWith(team: previousTeam) else m,
+      ],
+    );
   }
 
   void updateHost(String memberId) => setHostId(memberId);
@@ -716,17 +849,12 @@ class RoomController extends Notifier<RoomState> {
     );
   }
 
-  String _newRoomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final len = 4 + _rand.nextInt(3); // 4~6
-    return List.generate(len, (_) => chars[_rand.nextInt(chars.length)]).join();
-  }
-
   String _normalizeCode(String raw) {
     final trimmed = raw.trim().toUpperCase();
     final cleaned = trimmed.replaceAll(RegExp(r'[^A-Z0-9]'), '');
-    if (cleaned.isEmpty) return _newRoomCode();
-    // Allow variable length codes from backend (e.g. 6-8 chars)
+    if (cleaned == 'TEST' || cleaned == '0000') {
+      return '';
+    }
     return cleaned;
   }
 

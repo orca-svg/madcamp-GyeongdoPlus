@@ -128,6 +128,8 @@ export class LobbyService {
       this.eventsGateway.server.to(matchId).emit('user_joined', {
         userId,
         nickname,
+        role: 'POLICE',
+        team: 'POLICE',
         isHost: false,
         ready: false
       });
@@ -138,8 +140,11 @@ export class LobbyService {
       message: '방에 입장했습니다.',
       data: {
         matchId: matchId,
-        myRole: 'NONE',
+        myRole: 'POLICE',
         hostId: globalState.host_id,
+        mapConfig: globalState.map_config
+          ? JSON.parse(globalState.map_config)
+          : {},
       },
       error: null
     };
@@ -309,8 +314,10 @@ export class LobbyService {
       matchId,
       updatedSettings: {
         mode: updatedMatch.mode,
+        maxPlayers: updatedMatch.maxPlayers,
         timeLimit: updatedMatch.timeLimit,
         mapConfig: updatedMatch.mapConfig,
+        rules: updatedMatch.rules,
       }
     });
 
@@ -321,6 +328,7 @@ export class LobbyService {
         matchId: updatedMatch.id,
         updatedSettings: {
           mode: updatedMatch.mode,
+          maxPlayers: updatedMatch.maxPlayers,
           timeLimit: updatedMatch.timeLimit,
           mapConfig: updatedMatch.mapConfig,
           rules: updatedMatch.rules,
@@ -410,11 +418,39 @@ export class LobbyService {
       );
     }
 
-    const playerKeys = await this.redisService.keys(`game:${matchId}:player:*`);
-    const playerCount = playerKeys.length;
+    if (match.status !== 'WAITING') {
+      throw new ConflictException('이미 시작되었거나 종료된 게임입니다.');
+    }
+
+    const playerKeys = (await this.redisService.keys(`game:${matchId}:player:*`)).filter(
+      (key) => key.split(':').length === 4,
+    );
+    const players = await Promise.all(
+      playerKeys.map(async (key) => {
+        const data = await this.redisService.hgetall(key);
+        return {
+          userId: key.split(':').pop() || '',
+          role: data.role || 'NONE',
+          ready: data.ready === 'true',
+          isHost: data.is_host === 'true',
+        };
+      }),
+    );
+    const playerCount = players.length;
     
     if (playerCount < 2) { 
       throw new BadRequestException('게임 시작을 위해 최소 2명이 필요합니다.');
+    }
+
+    const policeCount = players.filter((p) => p.role === 'POLICE').length;
+    const thiefCount = players.filter((p) => p.role === 'THIEF').length;
+    if (policeCount < 1 || thiefCount < 1) {
+      throw new BadRequestException('경찰과 도둑 팀에 각각 최소 한 명이 필요합니다.');
+    }
+
+    const hasUnreadyMember = players.some((p) => !p.isHost && !p.ready);
+    if (hasUnreadyMember) {
+      throw new BadRequestException('모든 참가자가 준비 상태여야 게임을 시작할 수 있습니다.');
     }
 
     const startedMatch = await this.prisma.gameMatch.update({
@@ -428,13 +464,15 @@ export class LobbyService {
     await this.redisService.hset(`game:${matchId}:state`, {
       game_status: 'PLAYING',
       start_time: new Date().toISOString(),
-      total_thief_count: Math.floor(playerCount / 2).toString(), 
+      total_thief_count: thiefCount.toString(),
     });
 
     this.eventsGateway.server.to(matchId).emit('game_started', {
         matchId,
         startTime: startedMatch.startedAt,
-        gameDuration: startedMatch.timeLimit 
+        gameDuration: startedMatch.timeLimit,
+        policeCount,
+        thiefCount,
     });
 
     return {

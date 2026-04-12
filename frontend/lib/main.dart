@@ -4,11 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 
 import 'app.dart';
+import 'core/env.dart';
 
 Future<void> main() async {
   await runZonedGuarded(
@@ -34,18 +34,8 @@ Future<void> main() async {
         ),
       );
 
-      // .env 로드 (파일 없으면 optional)
-      await dotenv.load(fileName: '.env', isOptional: true);
-      print('[perf] dotenv.load: ${stopWatch.elapsedMilliseconds}ms');
-
-      final kakaoJsKey =
-          (dotenv.isInitialized ? dotenv.env['KAKAO_JS_APP_KEY'] : null)
-              ?.trim() ??
-          '';
-      final kakaoNativeKey =
-          (dotenv.isInitialized ? dotenv.env['KAKAO_NATIVE_APP_KEY'] : null)
-              ?.trim() ??
-          '';
+      final kakaoJsKey = Env.kakaoJsAppKey;
+      final kakaoNativeKey = Env.kakaoNativeAppKey;
 
       // ignore: avoid_print
       print(

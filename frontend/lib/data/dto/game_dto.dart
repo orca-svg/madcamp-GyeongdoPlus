@@ -94,11 +94,13 @@ class MoveResponseDto {
 class ArrestDto {
   final String matchId;
   final String? copId;
-  final String? targetId; // Added for Auto-Arrest
 
-  ArrestDto({required this.matchId, this.copId, this.targetId});
+  ArrestDto({required this.matchId, this.copId});
 
-  Map<String, dynamic> toJson() => _$ArrestDtoToJson(this);
+  Map<String, dynamic> toJson() => {
+    'matchId': matchId,
+    if (copId != null && copId!.isNotEmpty) 'copId': copId,
+  };
 }
 
 @JsonSerializable()

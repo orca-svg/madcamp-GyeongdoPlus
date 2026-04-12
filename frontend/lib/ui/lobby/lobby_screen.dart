@@ -13,6 +13,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../core/widgets/inline_error_banner.dart';
 
 import '../../providers/game_phase_provider.dart';
 
@@ -33,18 +34,19 @@ class LobbyScreen extends ConsumerStatefulWidget {
 
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   bool _isStarting = false;
+  String? _startErrorMessage;
+  late final AudioService _audioService;
 
   @override
   void initState() {
     super.initState();
-    // Play Lobby BGM
-    ref.read(audioServiceProvider).playBgm(AudioType.bgmLobby);
+    _audioService = ref.read(audioServiceProvider);
+    _audioService.playBgm(AudioType.bgmLobby);
   }
 
   @override
   void dispose() {
-    // Stop BGM when leaving lobby (e.g. to Game or Home)
-    ref.read(audioServiceProvider).stopBgm();
+    _audioService.stopBgm();
     super.dispose();
   }
 
@@ -153,6 +155,20 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                                 ),
                             textAlign: TextAlign.center,
                           ),
+                        ),
+                      ),
+                    if (_startErrorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 8,
+                          left: 18,
+                          right: 18,
+                        ),
+                        child: InlineErrorBanner(
+                          message: _startErrorMessage!,
+                          onRetry: canStart && !_isStarting
+                              ? () => _handleStartGame(ref)
+                              : null,
                         ),
                       ),
                     _lobbyActionBar(
@@ -352,27 +368,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               height: 52,
               borderRadius: 14,
               onPressed: canStart && !_isStarting
-                  ? () async {
-                      setState(() => _isStarting = true);
-                      try {
-                        final success = await ref
-                            .read(roomProvider.notifier)
-                            .startGame();
-                        if (!success && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                ref.read(roomProvider).errorMessage ?? '게임 시작 실패',
-                              ),
-                            ),
-                          );
-                        }
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isStarting = false);
-                        }
-                      }
-                    }
+                  ? () => _handleStartGame(ref)
                   : null,
               leading: _isStarting
                   ? const SizedBox(
@@ -383,10 +379,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(
-                      Icons.play_arrow_rounded,
-                      color: Colors.white,
-                    ),
+                  : const Icon(Icons.play_arrow_rounded, color: Colors.white),
             ),
           ),
         ],
@@ -418,6 +411,25 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       ),
       child: Text(label),
     );
+  }
+
+  Future<void> _handleStartGame(WidgetRef ref) async {
+    setState(() {
+      _isStarting = true;
+      _startErrorMessage = null;
+    });
+    try {
+      final success = await ref.read(roomProvider.notifier).startGame();
+      if (!mounted) return;
+      if (!success) {
+        final message = ref.read(roomProvider).errorMessage ?? '게임 시작 실패';
+        setState(() => _startErrorMessage = message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isStarting = false);
+      }
+    }
   }
 }
 
@@ -614,6 +626,7 @@ class _RoomCodeCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
+              key: const Key('roomCodeText'),
               roomId
                   .toUpperCase(), // Display full code as received from backend
               style: const TextStyle(

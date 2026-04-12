@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/lobby_api.dart';
 import '../../data/dto/lobby_dto.dart';
 import 'repository_result.dart';
@@ -50,6 +49,41 @@ class LobbyRepository {
       } else {
         return RepositoryResult.failure(
           response.message ?? 'Failed to get room details',
+        );
+      }
+    } catch (e) {
+      return RepositoryResult.failure(e.toString());
+    }
+  }
+
+  Future<RepositoryResult<UpdateRoomDataDto>> updateRoom(
+    String matchId,
+    UpdateRoomDto dto,
+  ) async {
+    try {
+      final response = await _api.updateRoom(matchId, dto);
+      if (response.success == true && response.data != null) {
+        return RepositoryResult.success(response.data!);
+      } else {
+        return RepositoryResult.failure(
+          response.message ?? 'Failed to update room',
+        );
+      }
+    } catch (e) {
+      return RepositoryResult.failure(e.toString());
+    }
+  }
+
+  Future<RepositoryResult<UpdateRoleDataDto>> updateRole(
+    UpdateRoleDto dto,
+  ) async {
+    try {
+      final response = await _api.updateRole(dto);
+      if (response.success == true && response.data != null) {
+        return RepositoryResult.success(response.data!);
+      } else {
+        return RepositoryResult.failure(
+          response.message ?? 'Failed to update role',
         );
       }
     } catch (e) {

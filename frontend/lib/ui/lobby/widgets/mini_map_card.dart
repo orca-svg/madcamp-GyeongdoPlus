@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
+import '../../../core/env.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glow_card.dart';
 import '../../../providers/room_provider.dart';
@@ -94,6 +95,22 @@ class MiniMapCard extends ConsumerWidget {
             fillOpacity: 0.1,
           )
         : null;
+
+    if (!Env.canRenderMaps) {
+      return GlowCard(
+        glow: false,
+        borderColor: AppColors.outlineLow,
+        child: const SizedBox(
+          height: 180,
+          child: Center(
+            child: Text(
+              'Kakao Map key is not configured.\nMap preview disabled for this build.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
 
     return GlowCard(
       glow: false,

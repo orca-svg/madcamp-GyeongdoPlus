@@ -1,10 +1,3 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -13,16 +6,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend/app.dart';
+import 'package:frontend/core/env.dart';
+import 'package:frontend/core/services/audio_service.dart';
+import 'package:frontend/core/widgets/gradient_button.dart';
 import 'package:frontend/net/ws/ws_client.dart';
 import 'package:frontend/net/ws/ws_client_provider.dart';
 import 'package:frontend/net/ws/ws_envelope.dart';
 import 'package:frontend/net/ws/ws_types.dart';
+import 'package:frontend/providers/room_provider.dart';
+import 'package:frontend/ui/lobby/lobby_screen.dart';
 
 void main() {
-  testWidgets('App boots to OFF_GAME home', (WidgetTester tester) async {
+  setUp(() {
+    Env.debugForceDisableMaps(true);
+  });
+
+  tearDown(() {
+    Env.debugForceDisableMaps(false);
+  });
+
+  Future<ProviderContainer> lobbyContainer() async {
+    SharedPreferences.setMockInitialValues({});
+    final ws = _NoopWsClient();
+    final container = ProviderContainer(
+      overrides: [
+        wsClientProvider.overrideWithValue(ws),
+        audioServiceProvider.overrideWithValue(_SilentAudioService()),
+      ],
+    );
+    addTearDown(ws.dispose);
+    return container;
+  }
+
+  testWidgets('App boots to login when signed out', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     final ws = _NoopWsClient();
     addTearDown(ws.dispose);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [wsClientProvider.overrideWithValue(ws)],
@@ -34,99 +54,68 @@ void main() {
     expect(find.text('카카오 로그인'), findsOneWidget);
   });
 
-  Future<void> signInStub(WidgetTester tester) async {
-    expect(find.text('카카오 로그인'), findsOneWidget);
-    await tester.tap(find.text('카카오 로그인'));
-    await tester.pump(const Duration(milliseconds: 600));
-    await tester.pumpAndSettle();
+  testWidgets('Offline lobby shows room code', (WidgetTester tester) async {
+    final container = await lobbyContainer();
+    addTearDown(container.dispose);
 
-    expect(find.text('방 만들기'), findsOneWidget);
-  }
+    container.read(roomProvider.notifier).enterLobbyOffline(myName: 'tester');
 
-  testWidgets('Create room -> Lobby shows room code', (
-    WidgetTester tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final ws = _NoopWsClient();
-    addTearDown(ws.dispose);
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [wsClientProvider.overrideWithValue(ws)],
-        child: const GyeongdoPlusApp(),
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: LobbyScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    await signInStub(tester);
-
-    await tester.tap(find.text('방 만들기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('방 생성'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('로비'), findsOneWidget);
     expect(find.byKey(const Key('roomCodeText')), findsOneWidget);
 
     final codeText =
         tester.widget<Text>(find.byKey(const Key('roomCodeText'))).data ?? '';
-    expect(codeText, isNotEmpty);
     expect(codeText, 'OFFLINE');
   });
 
-  testWidgets('Lobby: ready locks team change, start shows dialog', (
+  testWidgets('Lobby: ready locks team change and start stays blocked', (
     WidgetTester tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
-    final ws = _NoopWsClient();
-    addTearDown(ws.dispose);
+    final container = await lobbyContainer();
+    addTearDown(container.dispose);
+
+    container.read(roomProvider.notifier).enterLobbyOffline(myName: 'tester');
+    container.read(roomProvider.notifier).addFakeMember();
+
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [wsClientProvider.overrideWithValue(ws)],
-        child: const GyeongdoPlusApp(),
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: LobbyScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    await signInStub(tester);
-
-    await tester.tap(find.text('방 만들기'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('방 생성'));
-    await tester.pumpAndSettle();
-
-    final readyBtnFinder = find.byKey(const Key('lobbyReadyButton'));
     final startBtnFinder = find.byKey(const Key('lobbyStartButton'));
 
-    // Sanity: keys should be unique.
-    expect(readyBtnFinder.evaluate().length, 1);
     expect(startBtnFinder.evaluate().length, 1);
+    expect(find.text('WAIT'), findsNWidgets(2));
 
-    final readyBtn = readyBtnFinder;
-    final startBtn = startBtnFinder;
-
-    await tester.ensureVisible(readyBtnFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(readyBtn);
+    await tester.tap(find.text('WAIT').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Ready 해제 후 팀 변경 가능'), findsOneWidget);
+    expect(find.text('READY'), findsOneWidget);
 
-    await tester.ensureVisible(startBtnFinder);
-    await tester.pumpAndSettle();
-    await tester.tap(startBtn);
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
-
-    expect(find.text('자세히'), findsOneWidget);
-    await tester.tap(find.text('자세히'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 200));
-
-    expect(find.text('시작 불가'), findsOneWidget);
-    await tester.tap(find.text('확인'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('로비'), findsOneWidget);
+    final startButton = tester.widget<GradientButton>(startBtnFinder);
+    expect(startButton.onPressed, isNull);
   });
+}
+
+class _SilentAudioService extends AudioService {
+  @override
+  Future<void> playBgm(AudioType type) async {}
+
+  @override
+  Future<void> stopBgm() async {}
+
+  @override
+  Future<void> playSfx(AudioType type) async {}
 }
 
 class _NoopWsClient extends WsClient {

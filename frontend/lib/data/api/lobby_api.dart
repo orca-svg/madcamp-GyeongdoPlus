@@ -28,6 +28,9 @@ abstract class LobbyApi {
     @Body() UpdateRoomDto dto,
   );
 
+  @PATCH('/lobby/role')
+  Future<UpdateRoleResponseDto> updateRole(@Body() UpdateRoleDto dto);
+
   @POST('/lobby/start')
   Future<StartGameResponseDto> startGame(@Body() StartGameDto dto);
 }

@@ -8,6 +8,8 @@ class HistoryCard extends StatelessWidget {
   final int scoreDelta; // Positive, negative, or zero
   final String date;
   final String resultText; // e.g., "경찰 승리", "도둑 검거 실패"
+  final String? modeLabel;
+  final String? detailText;
 
   const HistoryCard({
     super.key,
@@ -16,6 +18,8 @@ class HistoryCard extends StatelessWidget {
     required this.scoreDelta,
     required this.date,
     required this.resultText,
+    this.modeLabel,
+    this.detailText,
   });
 
   @override
@@ -79,6 +83,23 @@ class HistoryCard extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
+                if (modeLabel != null || detailText != null) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (modeLabel != null)
+                        _chip(modeLabel!, teamColor.withOpacity(0.16), teamColor),
+                      if (detailText != null)
+                        _chip(
+                          detailText!,
+                          AppColors.surface1,
+                          AppColors.textSecondary,
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -126,6 +147,25 @@ class HistoryCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _chip(String text, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withOpacity(0.18)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: fg,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

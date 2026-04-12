@@ -183,12 +183,18 @@ class MatchHistoryQueryDto {
 @JsonSerializable()
 class MyStatDto {
   final int catchCount;
-  final int? rescueCount; // Added for Thief stats
+  final int? rescueCount; // Legacy alias
+  final int? releaseCount;
+  final int? survivalTime;
+  final double? distanceMoved;
   final int contribution;
 
   MyStatDto({
     required this.catchCount,
     this.rescueCount,
+    this.releaseCount,
+    this.survivalTime,
+    this.distanceMoved,
     required this.contribution,
   });
 
@@ -228,6 +234,7 @@ class GameRulesDto {
 
 @JsonSerializable()
 class GameInfoDto {
+  final String mode;
   final int maxPlayers;
   final int timeLimit;
   final MapConfigDto mapConfig;
@@ -236,6 +243,7 @@ class GameInfoDto {
   final GameRulesDto rules;
 
   GameInfoDto({
+    required this.mode,
     required this.maxPlayers,
     required this.timeLimit,
     required this.mapConfig,

@@ -14,6 +14,11 @@ import '../features/game/providers/ability_provider.dart';
 import '../features/game/services/interaction_service.dart';
 import '../core/services/audio_service.dart'; // Audio
 
+enum GameStartBlock {
+  locationPermission,
+  locationService,
+}
+
 // Simple model for player state in game
 class PlayerState {
   final String userId;
@@ -49,6 +54,7 @@ class PlayerState {
       team: team ?? this.team,
       heading: heading ?? this.heading,
       heartRate: heartRate ?? this.heartRate,
+      isArrested: isArrested ?? this.isArrested,
     );
   }
 }
@@ -57,25 +63,44 @@ class GameState {
   final bool isTracking;
   final Map<String, PlayerState> players;
   final Position? myPosition;
+  final String? blockingMessage;
+  final GameStartBlock? blockingReason;
 
   const GameState({
     required this.isTracking,
     required this.players,
     this.myPosition,
+    this.blockingMessage,
+    this.blockingReason,
   });
 
   factory GameState.initial() =>
-      const GameState(isTracking: false, players: {}, myPosition: null);
+      const GameState(
+        isTracking: false,
+        players: {},
+        myPosition: null,
+        blockingMessage: null,
+        blockingReason: null,
+      );
 
   GameState copyWith({
     bool? isTracking,
     Map<String, PlayerState>? players,
     Position? myPosition,
+    String? blockingMessage,
+    GameStartBlock? blockingReason,
+    bool clearBlockingIssue = false,
   }) {
     return GameState(
       isTracking: isTracking ?? this.isTracking,
       players: players ?? this.players,
       myPosition: myPosition ?? this.myPosition,
+      blockingMessage: clearBlockingIssue
+          ? null
+          : blockingMessage ?? this.blockingMessage,
+      blockingReason: clearBlockingIssue
+          ? null
+          : blockingReason ?? this.blockingReason,
     );
   }
 }
@@ -84,6 +109,7 @@ class GameController extends Notifier<GameState> {
   StreamSubscription<Position>? _positionStream;
   InteractionService? _interactionService;
   DateTime? _lastSentTime;
+  Position? _lastAcceptedPosition;
   static const Duration _throttleDuration = Duration(milliseconds: 1000);
 
   StreamSubscription<List<DetectedPlayer>>? _bleSubscription;
@@ -107,8 +133,12 @@ class GameController extends Notifier<GameState> {
     eventStream.listen((event) {
       if (event.name == 'player_moved') {
         _handlePlayerMoved(event.payload);
-      } else if (event.name == 'player_arrested') {
+      } else if (event.name == 'player_arrested' ||
+          event.name == 'user_arrested') {
         _handlePlayerArrested(event.payload);
+      } else if (event.name == 'user_rescued' ||
+          event.name == 'player_rescued') {
+        _handleUserRescued(event.payload);
       }
     });
   }
@@ -126,17 +156,17 @@ class GameController extends Notifier<GameState> {
       final heading = (payload['heading'] as num?)?.toDouble();
       final heartRate = (payload['heartRate'] as num?)?.toInt();
 
-      final newPlayer = PlayerState(
+      final newMap = Map<String, PlayerState>.from(state.players);
+      final existing = newMap[userId];
+      newMap[userId] = PlayerState(
         userId: userId,
         lat: lat,
         lng: lng,
         team: team,
         heading: heading,
         heartRate: heartRate,
+        isArrested: existing?.isArrested ?? false,
       );
-
-      final newMap = Map<String, PlayerState>.from(state.players);
-      newMap[userId] = newPlayer;
 
       state = state.copyWith(players: newMap);
     } catch (e) {
@@ -146,8 +176,14 @@ class GameController extends Notifier<GameState> {
 
   void _handlePlayerArrested(Map<String, dynamic> payload) {
     try {
-      final victimId = payload['victimId'] as String;
-      final arresterId = payload['arresterId'] as String;
+      final rawVictimId = payload['victimId'] ?? payload['targetUserId'];
+      final rawArresterId = payload['arresterId'] ?? payload['copId'];
+      if (rawVictimId == null || rawArresterId == null) {
+        return;
+      }
+
+      final victimId = rawVictimId.toString();
+      final arresterId = rawArresterId.toString();
 
       debugPrint('[GAME] Player Arrested: $victimId by $arresterId');
 
@@ -173,19 +209,55 @@ class GameController extends Notifier<GameState> {
     }
   }
 
+  void _handleUserRescued(Map<String, dynamic> payload) {
+    try {
+      final rescuedIds =
+          (payload['rescuedUserIds'] as List<dynamic>? ?? const [])
+              .map((e) => e.toString())
+              .toSet();
+      if (rescuedIds.isEmpty) return;
+
+      final newMap = Map<String, PlayerState>.from(state.players);
+      for (final id in rescuedIds) {
+        final current = newMap[id];
+        if (current != null) {
+          newMap[id] = current.copyWith(isArrested: false);
+        }
+      }
+      state = state.copyWith(players: newMap);
+    } catch (e) {
+      debugPrint('[GAME] Rescue parse error: $e');
+    }
+  }
+
   // Combined Start Method
-  Future<void> startGame() async {
+  Future<bool> startGame() async {
     final room = ref.read(roomProvider);
     final myId = room.myId;
 
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      state = state.copyWith(
+        blockingMessage: '위치 서비스가 꺼져 있습니다. 시스템 설정에서 위치 서비스를 켜주세요.',
+        blockingReason: GameStartBlock.locationService,
+      );
+      debugPrint('[GAME] Location service disabled');
+      return false;
+    }
+
     // 1. Check permissions (GPS)
-    final permission = await Geolocator.checkPermission();
+    var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      final requested = await Geolocator.requestPermission();
-      if (requested == LocationPermission.denied) {
-        debugPrint('[GAME] Location permission denied');
-        return;
-      }
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      state = state.copyWith(
+        blockingMessage: '게임을 진행하려면 위치 권한이 필요합니다. 설정에서 권한을 허용해주세요.',
+        blockingReason: GameStartBlock.locationPermission,
+      );
+      debugPrint('[GAME] Location permission denied');
+      return false;
     }
 
     // 2. Start GPS Stream
@@ -201,6 +273,7 @@ class GameController extends Notifier<GameState> {
     // 3. Start BLE Interaction Service
     final interactionService = ref.read(interactionServiceProvider);
     try {
+      _interactionService = interactionService;
       await interactionService.start(myId);
       _bleSubscription = interactionService.nearbyPlayers.listen((detected) {
         // Update local cache
@@ -217,8 +290,9 @@ class GameController extends Notifier<GameState> {
       _checkAutoArrest();
     });
 
-    state = state.copyWith(isTracking: true);
+    state = state.copyWith(isTracking: true, clearBlockingIssue: true);
     debugPrint('[GAME] Started Game Systems (GPS + BLE)');
+    return true;
   }
 
   void stopGame() {
@@ -234,9 +308,14 @@ class GameController extends Notifier<GameState> {
     // Stop InteractionService
     _interactionService?.stop();
     _interactionService = null;
+    _lastAcceptedPosition = null;
 
     state = GameState.initial();
     debugPrint('[GAME] Stopped location tracking + BLE interaction');
+  }
+
+  void clearBlockingIssue() {
+    state = state.copyWith(clearBlockingIssue: true);
   }
 
   // Auto-Arrest Logic
@@ -301,7 +380,7 @@ class GameController extends Notifier<GameState> {
       // Feedback during approach/capture
       _provideHapticFeedback(minDistance);
 
-      // Trigger Arrest if duration met (2s = 4 ticks)
+      // Trigger an aggressive sync once proximity is sustained.
       if (_candidateDurationTicks >= 4) {
         _performArrest(closestEnemyId);
         _candidateDurationTicks = 0; // Reset after attempt
@@ -337,28 +416,34 @@ class GameController extends Notifier<GameState> {
   }
 
   Future<void> _performArrest(String targetId) async {
-    debugPrint('[GAME] PERFORMING AUTO-ARREST on $targetId');
+    debugPrint('[GAME] AUTO-ARREST proximity satisfied for $targetId');
     HapticFeedback.vibrate();
 
-    final room = ref.read(roomProvider);
-    final repo = ref.read(gameRepositoryProvider);
-    try {
-      final result = await repo.arrest(room.roomId, targetId);
-      if (result.success) {
-        debugPrint('[GAME] Arrest Success: ${result.data?.status}');
-        // Play SFX
-        ref.read(audioServiceProvider).playSfx(AudioType.arrestSuccess);
-      } else {
-        debugPrint('[GAME] Arrest Failed: ${result.errorMessage}');
+    // Backend performs police capture during /game/move updates.
+    // Force one immediate location sync when local proximity confirms.
+    final currentPos = state.myPosition;
+    if (currentPos != null) {
+      try {
+        await _sendLocation(currentPos);
+      } catch (e) {
+        debugPrint('[GAME] Forced move sync failed during arrest: $e');
       }
-    } catch (e) {
-      debugPrint('[GAME] Arrest API Error: $e');
     }
   }
 
   void _onLocationUpdate(Position position) {
+    if (position.isMocked) {
+      debugPrint('[GAME] Mock location blocked');
+      return;
+    }
+
+    if (!_isPositionReliable(position)) {
+      return;
+    }
+
     // 1. Update local state (immediate UI feedback)
     state = state.copyWith(myPosition: position);
+    _lastAcceptedPosition = position;
 
     // 2. Network Throttle
     final now = DateTime.now();
@@ -398,8 +483,13 @@ class GameController extends Notifier<GameState> {
       matchId: room.roomId,
       lat: position.latitude,
       lng: position.longitude,
-      heartRate: heartRate ?? 0, // Use 0 if watch unavailable
-      heading: position.heading,
+      heartRate: heartRate != null && heartRate > 0 ? heartRate : null,
+      heading:
+          position.heading.isFinite &&
+                  position.heading >= 0 &&
+                  position.heading <= 360
+              ? position.heading
+              : null,
     );
 
     try {
@@ -411,6 +501,47 @@ class GameController extends Notifier<GameState> {
     } catch (e) {
       debugPrint('[GAME] Move exception: $e');
     }
+  }
+
+  bool _isPositionReliable(Position position) {
+    if (!position.latitude.isFinite || !position.longitude.isFinite) {
+      debugPrint('[GAME] Invalid coordinate blocked');
+      return false;
+    }
+
+    if (position.accuracy.isFinite && position.accuracy > 80) {
+      debugPrint(
+        '[GAME] Low-quality GPS blocked: accuracy=${position.accuracy}',
+      );
+      return false;
+    }
+
+    final prev = _lastAcceptedPosition;
+    if (prev == null) return true;
+
+    final nowTs = position.timestamp.millisecondsSinceEpoch;
+    final prevTs = prev.timestamp.millisecondsSinceEpoch;
+    final deltaMs = nowTs - prevTs;
+    if (deltaMs <= 0 || deltaMs > 30000) {
+      return true;
+    }
+
+    final distanceM = Geolocator.distanceBetween(
+      prev.latitude,
+      prev.longitude,
+      position.latitude,
+      position.longitude,
+    );
+    final speedMps = distanceM / (deltaMs / 1000);
+    final impossibleJump = distanceM > 100 && deltaMs < 5000;
+    if (speedMps > 25 || impossibleJump) {
+      debugPrint(
+        '[GAME] Suspicious movement blocked: distance=${distanceM.toStringAsFixed(1)}m speed=${speedMps.toStringAsFixed(1)}m/s',
+      );
+      return false;
+    }
+
+    return true;
   }
 }
 

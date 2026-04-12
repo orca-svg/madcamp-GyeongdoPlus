@@ -7,6 +7,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../core/widgets/inline_error_banner.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/room_provider.dart';
 
@@ -21,6 +22,7 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
   final _codeCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   bool _submitting = false;
+  String? _inlineErrorMessage;
 
   @override
   void dispose() {
@@ -60,7 +62,7 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '서버 연결이 어려운 경우, 코드 "TEST"를 입력하면 오프라인 모드로 로비를 테스트할 수 있습니다.',
+                      '서버에서 발급된 방 코드만 사용할 수 있습니다.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
                         height: 1.4,
@@ -69,22 +71,24 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                     const SizedBox(height: 14),
                     TextField(
                       controller: _codeCtrl,
+                      onChanged: (_) => _clearInlineError(),
                       textCapitalization: TextCapitalization.characters,
                       textInputAction: TextInputAction.next,
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(
                           RegExp(r'[A-Za-z0-9]'),
                         ),
-                        LengthLimitingTextInputFormatter(12), // RELAXED LIMIT
+                        LengthLimitingTextInputFormatter(5),
                       ],
                       decoration: const InputDecoration(
                         labelText: '방 코드',
-                        hintText: '예: ABCD12',
+                        hintText: '예: A1B2',
                       ),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _nameCtrl,
+                      onChanged: (_) => _clearInlineError(),
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _join(context),
                       decoration: const InputDecoration(
@@ -92,6 +96,13 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
                         hintText: '예: 김선수',
                       ),
                     ),
+                    if (_inlineErrorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      InlineErrorBanner(
+                        message: _inlineErrorMessage!,
+                        onRetry: _submitting ? null : () => _join(context),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     GradientButton(
                       variant: GradientButtonVariant.joinRoom,
@@ -125,22 +136,39 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
     );
   }
 
+  void _clearInlineError() {
+    if (_inlineErrorMessage == null) return;
+    ref.read(roomProvider.notifier).clearError();
+    setState(() => _inlineErrorMessage = null);
+  }
+
+  void _setInlineError(String message) {
+    setState(() => _inlineErrorMessage = message);
+  }
+
   Future<void> _join(BuildContext context) async {
     if (_submitting) return;
     final code = _codeCtrl.text.trim().toUpperCase();
     if (code.isEmpty) {
       debugPrint('[ROOM] join fail/error=EMPTY_CODE');
-      showAppSnackBar(context, message: '방 코드를 입력하세요', isError: true);
+      const message = '방 코드를 입력하세요';
+      _setInlineError(message);
+      showAppSnackBar(context, message: message, isError: true);
       return;
     }
-    final valid = RegExp(r'^[A-Z0-9]{4,12}$').hasMatch(code);
+    final valid = RegExp(r'^[A-Z0-9]{4,5}$').hasMatch(code);
     if (!valid) {
       debugPrint('[ROOM] join fail/error=INVALID_CODE_FORMAT');
-      showAppSnackBar(
-        context,
-        message: '방 코드는 4~12자 영문/숫자여야 합니다',
-        isError: true,
-      );
+      const message = '방 코드는 4자리이며, 이전 방 코드는 최대 5자까지 허용됩니다';
+      _setInlineError(message);
+      showAppSnackBar(context, message: message, isError: true);
+      return;
+    }
+    if (code == 'TEST' || code == '0000') {
+      debugPrint('[ROOM] join fail/error=BLOCKED_TEST_CODE');
+      const message = '테스트용 방 코드는 사용할 수 없습니다';
+      _setInlineError(message);
+      showAppSnackBar(context, message: message, isError: true);
       return;
     }
 
@@ -150,10 +178,14 @@ class _RoomJoinScreenState extends ConsumerState<RoomJoinScreen> {
         .joinRoom(myName: _nameCtrl.text, code: code);
     if (!context.mounted) return;
     if (success) {
+      setState(() => _inlineErrorMessage = null);
       ref.read(gamePhaseProvider.notifier).toLobby();
       Navigator.of(context).pop();
     } else {
       final roomState = ref.read(roomProvider);
+      setState(() {
+        _inlineErrorMessage = roomState.errorMessage ?? '방 참여에 실패했습니다';
+      });
       showAppSnackBar(
         context,
         message: roomState.errorMessage ?? '방 참여에 실패했습니다',

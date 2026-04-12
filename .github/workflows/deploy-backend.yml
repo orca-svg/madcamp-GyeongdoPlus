@@ -8,24 +8,55 @@ on:
       - '.github/workflows/deploy-backend.yml'
 
 jobs:
-  # 1. 빌드 및 도커 허브 푸시 작업
+  verify-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: Prisma Client 생성
+        run: npm run prisma:generate
+
+      - name: 빌드 검증
+        run: npm run build
+
+      - name: 단위 테스트
+        run: npm test -- --runInBand
+
+      - name: E2E 스모크 테스트
+        run: npm run test:e2e -- --runInBand
+
   build-and-push:
+    needs: verify-backend
     runs-on: ubuntu-latest
     steps:
       - name: 코드 체크아웃
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Docker Hub 로그인
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Docker Buildx 설정
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: 이미지 빌드 및 푸시
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: ./backend 
           file: ./backend/Dockerfile
@@ -41,25 +72,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 코드 체크아웃 (docker-compose.yml 가져오기 위함)
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 🚀 핵심: docker-compose.yml 내의 변수를 Secrets 값으로 치환합니다.
-      - name: Replace secrets in docker-compose.yml
-        shell: bash
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-        run: |
-          # envsubst가 파일 안의 ${VAR}를 실제 환경변수 값으로 바꿔줍니다.
-          envsubst < docker-compose.yml > docker-compose.prod.yml
-
-      - name: 완성된 docker-compose.yml 파일 EC2로 전송
+      - name: docker-compose.yml 파일 EC2로 전송
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.yml"
           target: "/home/${{ secrets.EC2_USER }}/backend"
 
       - name: SSH로 서버 접속 및 배포 실행
@@ -70,29 +91,36 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd /home/${{ secrets.EC2_USER }}/backend
-            
-            mv docker-compose.prod.yml docker-compose.yml
-            
-            # 1. .env 파일 생성 (GitHub Secrets 값을 이용해 서버에 파일 생성)
+
             echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
             echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
             echo "KAKAO_CALLBACK_URL=${{ secrets.KAKAO_CALLBACK_URL }}" >> .env
             echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
+            echo "BACKEND_PORT=4000" >> .env
             echo "NODE_ENV=production" >> .env
-            echo "PORT=4000" >> .env
+            echo "HOST=0.0.0.0" >> .env
+            echo "PORT=3000" >> .env
             echo "REDIS_HOST=redis" >> .env
             echo "REDIS_PORT=6379" >> .env
             echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
+            echo "SWAGGER_ENABLED=false" >> .env
+            echo "RUN_PRISMA_MIGRATIONS=true" >> .env
           
             docker compose pull backend
             
-            # 3. 컨테이너 재실행
             docker compose up -d --remove-orphans
             
-            # 4. 불필요한 이미지 정리
             docker image prune -f
-
-            # 5. [추가] Prisma 마이그레이션 실행 (DB 스키마 동기화) ⭐
-            docker compose exec -T backend npx prisma db push --accept-data-loss
+            
+            for i in $(seq 1 20); do
+              if curl -fsS http://127.0.0.1:4000/health > /dev/null; then
+                exit 0
+              fi
+              sleep 5
+            done
+            
+            docker compose logs backend
+            exit 1

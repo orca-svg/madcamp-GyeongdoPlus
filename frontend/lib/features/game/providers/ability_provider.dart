@@ -3,11 +3,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart'; // For IconData, Icons
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../providers/game_phase_provider.dart';
 import '../../../../core/services/audio_service.dart'; // Audio
 import '../../../../providers/game_provider.dart';
 import '../../../../providers/room_provider.dart';
-import '../../../../providers/interaction_service_provider.dart';
 import '../../../../providers/app_providers.dart'; // gameRepositoryProvider
 import '../../../../data/dto/game_dto.dart'; // UseAbilityDto
 import 'chaser_targets_provider.dart';
@@ -40,6 +40,29 @@ enum AbilityType {
 
   bool get isPolice => index <= 3;
   bool get isThief => index >= 4 && index <= 7;
+
+  String get wireClass {
+    switch (this) {
+      case AbilityType.chaser:
+        return 'CHASER';
+      case AbilityType.scanner:
+        return 'SEARCHER';
+      case AbilityType.jailkeeper:
+        return 'JAILER';
+      case AbilityType.silencer:
+        return 'ENFORCER';
+      case AbilityType.shadow:
+        return 'SHADOW';
+      case AbilityType.clown:
+        return 'CLOWN';
+      case AbilityType.hacker:
+        return 'HACKER';
+      case AbilityType.broker:
+        return 'BROKER';
+      case AbilityType.none:
+        return '';
+    }
+  }
 
   IconData get icon {
     switch (this) {
@@ -119,6 +142,7 @@ final abilityProvider = NotifierProvider<AbilityController, AbilityState>(
 class AbilityController extends Notifier<AbilityState> {
   Timer? _timer;
   Timer? _chaserPingTimer;
+  Timer? _activeTimer;
   // Accumulator for fractional cooldown reduction
   double _accumulator = 0.0;
 
@@ -127,6 +151,7 @@ class AbilityController extends Notifier<AbilityState> {
     ref.onDispose(() {
       _timer?.cancel();
       _chaserPingTimer?.cancel();
+      _activeTimer?.cancel();
     });
 
     // Listen to phase to start/stop engine
@@ -145,12 +170,27 @@ class AbilityController extends Notifier<AbilityState> {
     );
   }
 
-  void setType(AbilityType type) {
+  Future<void> setType(AbilityType type) async {
     state = state.copyWith(
       type: type,
       totalCooldownSec: type.defaultCooldown,
       cooldownRemainSec: 0, // Start ready? or full cooldown? Convention: Ready.
     );
+
+    final room = ref.read(roomProvider);
+    if (!room.inRoom || type == AbilityType.none) return;
+
+    try {
+      final repo = ref.read(gameRepositoryProvider);
+      final result = await repo.selectAbility(
+        SelectAbilityDto(matchId: room.roomId, abilityClass: type.wireClass),
+      );
+      if (!result.success) {
+        debugPrint('Ability selection failed on server: ${result.errorMessage}');
+      }
+    } catch (e) {
+      debugPrint('Ability selection exception: $e');
+    }
   }
 
   void setHeartRate(int bpm) {
@@ -205,16 +245,28 @@ class AbilityController extends Notifier<AbilityState> {
     // Clown gauge logic
     if (state.type == AbilityType.clown && !state.isSkillActive) {
       try {
-        final interaction = ref.read(interactionServiceProvider);
-        final distances = interaction.state.distances;
+        final gameState = ref.read(gameProvider);
         final room = ref.read(roomProvider);
+        final myPos = gameState.myPosition;
         final myTeam = room.me?.team;
 
+        if (myTeam != Team.thief || myPos == null) {
+          return;
+        }
+
         // Check if police within 7m
-        final hasNearbyPolice = distances.values.any((d) {
-          // For thief, enemy = police
-          final isEnemy = myTeam == Team.thief && d.distanceMeters < 7.0;
-          return isEnemy;
+        final hasNearbyPolice = gameState.players.values.any((player) {
+          if (player.team != 'POLICE' || player.isArrested) {
+            return false;
+          }
+
+          final distance = Geolocator.distanceBetween(
+            myPos.latitude,
+            myPos.longitude,
+            player.lat,
+            player.lng,
+          );
+          return distance < 7.0;
         });
 
         if (hasNearbyPolice) {
@@ -237,37 +289,69 @@ class AbilityController extends Notifier<AbilityState> {
     if (!state.isReady) return;
 
     // Play SFX
-    ref.read(audioServiceProvider).playSfx(AudioType.abilityActive);
-
-    // Call API
     final repo = ref.read(gameRepositoryProvider);
     final roomId = ref.read(roomProvider).roomId;
-
-    // Fire and forget / check result
-    repo.useAbility(UseAbilityDto(matchId: roomId)).then((result) {
-      if (!result.success) {
-        debugPrint('Ability usage failed on server: ${result.errorMessage}');
-        // Maybe rollback?
-      }
-    });
-
-    // For now, optimistic update
-
-    state = state.copyWith(
-      cooldownRemainSec: state.totalCooldownSec, // Reset to full
-      isUsing: true, // Trigger 'active' state if needed
-    );
-
-    // Ability-specific logic
-    if (state.type == AbilityType.chaser) {
-      _startChaserPing();
+    final result = await repo.useAbility(UseAbilityDto(matchId: roomId));
+    if (!result.success) {
+      debugPrint('Ability usage failed on server: ${result.errorMessage}');
+      return;
     }
 
-    // Duration logic? Some skills have duration.
-    // For now, just trigger.
+    ref.read(audioServiceProvider).playSfx(AudioType.abilityActive);
 
-    // Haptic feedback via Watch?
-    // Done by WatchSyncController hearing 'USE_SKILL' or implicit.
+    final response = result.data;
+    final data = response?.data;
+    final cooldown =
+        (data is Map<String, dynamic> ? data['cooldown'] as num? : null)
+            ?.toInt() ??
+        state.totalCooldownSec;
+    final duration =
+        (data is Map<String, dynamic> ? data['duration'] as num? : null)
+            ?.toInt() ??
+        _defaultActiveDuration(state.type);
+
+    _activeTimer?.cancel();
+    state = state.copyWith(
+      totalCooldownSec: cooldown,
+      cooldownRemainSec: cooldown,
+      isUsing: duration > 0,
+    );
+
+    if (duration > 0) {
+      _activeTimer = Timer(Duration(seconds: duration), () {
+        if (!ref.mounted) return;
+        state = state.copyWith(isUsing: false);
+        if (state.type == AbilityType.chaser) {
+          stopChaserPing();
+        }
+      });
+    }
+
+    // Ability-specific logic
+    if (state.type == AbilityType.chaser && duration > 0) {
+      _startChaserPing();
+    }
+  }
+
+  int _defaultActiveDuration(AbilityType type) {
+    switch (type) {
+      case AbilityType.scanner:
+        return 5;
+      case AbilityType.silencer:
+        return 5;
+      case AbilityType.shadow:
+        return 15;
+      case AbilityType.hacker:
+        return 9;
+      case AbilityType.clown:
+        return 30;
+      case AbilityType.chaser:
+        return 10;
+      case AbilityType.jailkeeper:
+      case AbilityType.broker:
+      case AbilityType.none:
+        return 0;
+    }
   }
 
   /// Chaser ability: Ping high heart rate targets every 2 seconds
@@ -296,5 +380,21 @@ class AbilityController extends Notifier<AbilityState> {
     _chaserPingTimer?.cancel();
     _chaserPingTimer = null;
     ref.read(chaserTargetsProvider.notifier).clear();
+  }
+
+  void reset() {
+    _timer?.cancel();
+    _timer = null;
+    _chaserPingTimer?.cancel();
+    _chaserPingTimer = null;
+    _activeTimer?.cancel();
+    _activeTimer = null;
+    _accumulator = 0.0;
+    ref.read(chaserTargetsProvider.notifier).clear();
+    state = const AbilityState(
+      type: AbilityType.none,
+      cooldownRemainSec: 0,
+      totalCooldownSec: 0,
+    );
   }
 }

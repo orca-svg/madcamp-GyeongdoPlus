@@ -78,4 +78,5 @@ web/.dart_tool/
 # Secrets (Kakao JS key)
 .env
 .env.*
+!.env.example
 ios/Flutter/Secure.xcconfig

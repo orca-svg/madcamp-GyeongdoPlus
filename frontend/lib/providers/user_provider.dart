@@ -136,9 +136,9 @@ class UserController extends Notifier<UserState> {
     }
   }
 
-  void loadMoreHistory() {
+  Future<void> loadMoreHistory() async {
     if (!state.hasMoreHistory || state.isLoading) return;
-    fetchMatchHistory(page: state.currentPage + 1);
+    await fetchMatchHistory(page: state.currentPage + 1);
   }
 
   // Calculate dynamic stats from history

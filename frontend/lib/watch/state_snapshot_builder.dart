@@ -1,14 +1,14 @@
 import 'dart:math';
 
+import '../features/game/providers/ability_provider.dart';
+import '../features/game/providers/item_provider.dart';
 import '../features/match/match_state_model.dart';
 import '../providers/game_provider.dart';
-import '../net/ws/dto/radar_ping.dart';
 import '../providers/active_tab_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/game_phase_provider.dart';
 import '../providers/match_rules_provider.dart';
 import '../providers/match_state_sim_provider.dart';
-import '../providers/match_sync_provider.dart';
 import '../providers/room_provider.dart';
 import 'watch_debug_overrides.dart';
 
@@ -18,15 +18,13 @@ class StateSnapshotBuilder {
     final rules = read(matchRulesProvider);
     final room = read(roomProvider);
     final sim = read(matchStateSimProvider);
-    final sync = read(matchSyncProvider);
     final auth = read(authProvider);
     final gameState = read(gameProvider);
+    final itemState = read(itemProvider);
+    final ability = read(abilityProvider);
     final user = auth.user;
 
-    final matchId =
-        sync.currentMatchId ??
-        sync.lastMatchState?.payload.matchId ??
-        (room.roomId.isNotEmpty ? room.roomId : 'MATCH_DEMO');
+    final matchId = room.roomId.isNotEmpty ? room.roomId : 'MATCH_DEMO';
 
     final team = _teamWire(room.me?.team);
 
@@ -37,7 +35,12 @@ class StateSnapshotBuilder {
         (sim?.mode != null ? _safeWire(sim!.mode) : null) ??
         'NORMAL';
 
-    final timeRemainSec = _timeRemainSec(sim, rules.timeLimitSec);
+    final timeRemainSec = _timeRemainSec(
+      sim,
+      itemState.gameDurationSec > 0 ? itemState.gameDurationSec : rules.timeLimitSec,
+      itemState.gameElapsedSec,
+      phase,
+    );
 
     final policeCount = room.members.isNotEmpty
         ? room.policeCount
@@ -53,11 +56,17 @@ class StateSnapshotBuilder {
 
     final rescueRate = _rescueRate(thiefAlive, thiefCaptured);
 
-    final radarPayload = sync.lastRadarPing?.payload;
+    final enemyNear = _enemyNear(
+      team: team,
+      room: room,
+      gameState: gameState,
+    );
 
-    final enemyNear = _enemyNear(team: team, radar: radarPayload);
-
-    final allyCount10m = _allyCount10m(team: team, radar: radarPayload);
+    final allyCount10m = _allyCount10m(
+      team: team,
+      room: room,
+      gameState: gameState,
+    );
     final allies = _allies(
       room: room,
       gameState: gameState,
@@ -92,7 +101,7 @@ class StateSnapshotBuilder {
         'captures': 0,
         'rescues': 0,
         'escapeSec': 0,
-        'hr': null,
+        'hr': ability.currentHeartRate > 0 ? ability.currentHeartRate : null,
         'hrMax': null, // PostGame용 최대 심박수
       },
       // 프로필 정보 (OffGame/Lobby용) - Use real user data
@@ -143,48 +152,71 @@ class StateSnapshotBuilder {
   /// team=THIEF 일 때만 의미가 있으며, enemyDistance<=5m이면 true
   static bool _enemyNear({
     required String team,
-    required RadarPingPayload? radar,
+    required RoomState room,
+    required GameState gameState,
   }) {
     if (team != 'THIEF') return false;
-    final d = _minEnemyDistance(radar);
-    if (d == null) return false;
-    return d <= 5.0;
+    final myPos = gameState.myPosition;
+    if (myPos == null) return false;
+
+    for (final player in gameState.players.values) {
+      if (player.userId == room.myId || player.team != 'POLICE') {
+        continue;
+      }
+
+      final distance = _distanceM(
+        myPos.latitude,
+        myPos.longitude,
+        player.lat,
+        player.lng,
+      );
+      if (distance <= 5.0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// 경찰 팀일 때, 10m 이내 아군 수를 간단히 카운트 (워치 AOD/레이더용)
   /// 레이더 kind 네이밍이 프로젝트마다 다를 수 있어 최대한 관대하게 처리합니다.
   static int? _allyCount10m({
     required String team,
-    required RadarPingPayload? radar,
+    required RoomState room,
+    required GameState gameState,
   }) {
-    if (radar == null || radar.pings.isEmpty) return null;
     if (team != 'POLICE') return null;
+    final myPos = gameState.myPosition;
+    if (myPos == null) return null;
 
     var count = 0;
-    for (final p in radar.pings) {
-      final k = p.kind.toUpperCase();
-      final isAlly = k.contains('ALLY') || k.contains('POLICE');
-      if (!isAlly) continue;
-      if (p.distanceM <= 10.0) count++;
+    for (final player in gameState.players.values) {
+      if (player.userId == room.myId || player.team != 'POLICE') {
+        continue;
+      }
+
+      final distance = _distanceM(
+        myPos.latitude,
+        myPos.longitude,
+        player.lat,
+        player.lng,
+      );
+      if (distance <= 10.0) {
+        count++;
+      }
     }
     return count;
   }
 
-  static double? _minEnemyDistance(RadarPingPayload? radar) {
-    if (radar == null || radar.pings.isEmpty) return null;
-    double? minD;
-    for (final p in radar.pings) {
-      final k = p.kind.toUpperCase();
-      // "ENEMY"/"THIEF" 등 여러 표현을 수용
-      final isEnemy = k.contains('ENEMY') || k.contains('THIEF');
-      if (!isEnemy) continue;
-      if (minD == null || p.distanceM < minD) minD = p.distanceM;
+  static int _timeRemainSec(
+    MatchStateSnapshot? sim,
+    int fallbackSec,
+    int elapsedSec,
+    GamePhase phase,
+  ) {
+    if (sim == null) {
+      if (phase != GamePhase.inGame) return fallbackSec;
+      return max(0, fallbackSec - elapsedSec);
     }
-    return minD;
-  }
-
-  static int _timeRemainSec(MatchStateSnapshot? sim, int fallbackSec) {
-    if (sim == null) return fallbackSec;
     final endsAt = sim.time.endsAtMs;
     if (endsAt == null) return fallbackSec;
     final remainMs = max(0, endsAt - sim.time.serverNowMs);

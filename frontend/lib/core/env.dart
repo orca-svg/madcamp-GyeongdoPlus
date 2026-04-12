@@ -1,33 +1,42 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
 class Env {
-  /// API Base URL - reads from dotenv first, then compile-time env var
-  static String get apiBaseUrl {
-    if (dotenv.isInitialized) {
-      final envUrl = dotenv.env['API_BASE_URL'];
-      if (envUrl != null && envUrl.isNotEmpty) return envUrl;
-    }
-    return const String.fromEnvironment(
-      'API_BASE_URL',
-      defaultValue: 'http://localhost:3000',
-    );
-  }
+  static bool _forceDisableMaps = false;
 
-  /// Socket.IO URL - reads from dotenv first, then compile-time env var
-  static String get socketIoUrl {
-    if (dotenv.isInitialized) {
-      final envUrl = dotenv.env['SOCKET_IO_URL'];
-      if (envUrl != null && envUrl.isNotEmpty) return envUrl;
-    }
-    return const String.fromEnvironment(
-      'SOCKET_IO_URL',
-      defaultValue: 'http://localhost:3000',
-    );
-  }
+  static String _trimmed(String value) => value.trim();
 
-  /// Legacy WebSocket URL (deprecated, use socketIoUrl)
-  static const String wsUrl = String.fromEnvironment(
-    'WS_URL',
-    defaultValue: 'ws://localhost:3000',
-  );
+  static String get apiBaseUrl => _trimmed(
+        const String.fromEnvironment(
+          'API_BASE_URL',
+          defaultValue: 'http://127.0.0.1:3000',
+        ),
+      );
+
+  static String get socketIoUrl => _trimmed(
+        const String.fromEnvironment(
+          'SOCKET_IO_URL',
+          defaultValue: 'http://127.0.0.1:3000',
+        ),
+      );
+
+  static String get wsUrl => _trimmed(
+        const String.fromEnvironment(
+          'WS_URL',
+          defaultValue: 'ws://127.0.0.1:3000/v1/ws',
+        ),
+      );
+
+  static String get kakaoJsAppKey =>
+      _trimmed(const String.fromEnvironment('KAKAO_JS_APP_KEY'));
+
+  static String get kakaoNativeAppKey =>
+      _trimmed(const String.fromEnvironment('KAKAO_NATIVE_APP_KEY'));
+
+  static bool get allowInMemAuth =>
+      const bool.fromEnvironment('ALLOW_INMEM_AUTH', defaultValue: false);
+
+  static bool get canRenderMaps =>
+      !_forceDisableMaps && kakaoJsAppKey.isNotEmpty;
+
+  static void debugForceDisableMaps(bool value) {
+    _forceDisableMaps = value;
+  }
 }

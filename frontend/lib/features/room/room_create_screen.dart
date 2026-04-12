@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:kakao_map_plugin/kakao_map_plugin.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../core/env.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/gradient_button.dart';
+import '../../core/widgets/inline_error_banner.dart';
 import '../../providers/game_phase_provider.dart';
 import '../../providers/match_rules_provider.dart';
 import '../../providers/room_provider.dart';
@@ -21,8 +23,12 @@ class RoomCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
+  static const double _defaultArenaRadiusM = 10.0;
+  static const double _defaultJailRadiusM = 3.0;
+
   RoomCreateFormState _form = RoomCreateFormState.initial();
   bool _submitting = false;
+  String? _inlineErrorMessage;
 
   void _setMode(RoomCreateMode mode) =>
       setState(() => _form = _form.copyWith(mode: mode));
@@ -59,7 +65,15 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
   Future<void> _onCreatePressed() async {
     if (_submitting) return;
     setState(() => _submitting = true);
-    final payload = buildRoomCreatePayload(_form);
+    final form = await _ensureZoneDefaults(_form);
+    if (!mounted) return;
+    if (form == null) {
+      setState(() => _submitting = false);
+      return;
+    }
+
+    setState(() => _form = form);
+    final payload = buildRoomCreatePayload(form);
     debugPrint('[ROOM_CREATE] payload=$payload');
 
     ref.read(matchRulesProvider.notifier).applyOfflineRoomConfig(payload);
@@ -68,12 +82,16 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
         .createRoom(myName: '김선수');
     if (!mounted) return;
     if (success) {
+      setState(() => _inlineErrorMessage = null);
       ref.read(gamePhaseProvider.notifier).toLobby();
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
     } else {
       final roomState = ref.read(roomProvider);
+      setState(() {
+        _inlineErrorMessage = roomState.errorMessage ?? '방 생성에 실패했습니다';
+      });
       showAppSnackBar(
         context,
         message: roomState.errorMessage ?? '방 생성에 실패했습니다',
@@ -85,6 +103,65 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
     _createRoomHook(payload);
   }
 
+  Future<RoomCreateFormState?> _ensureZoneDefaults(
+    RoomCreateFormState source,
+  ) async {
+    final polygon = source.polygon;
+    if (polygon != null && polygon.length >= 3) {
+      return source.jailCenter == null
+          ? source.copyWith(
+              jailCenter: _centroidGeo(polygon),
+              jailRadiusM: source.jailRadiusM ?? _defaultJailRadiusM,
+            )
+          : source;
+    }
+
+    final center = await _readCurrentLocation();
+    if (center == null) return null;
+
+    return source.copyWith(
+      polygon: buildCircularZonePolygon(
+        center: center,
+        radiusM: _defaultArenaRadiusM,
+      ),
+      jailCenter: center,
+      jailRadiusM: _defaultJailRadiusM,
+    );
+  }
+
+  Future<GeoPointDto?> _readCurrentLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _showCreateError('기본 경기장을 만들려면 위치 서비스를 켜주세요.');
+      return null;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      _showCreateError('기본 경기장을 만들려면 위치 권한이 필요합니다.');
+      return null;
+    }
+
+    try {
+      final pos = await Geolocator.getCurrentPosition();
+      return GeoPointDto(lat: pos.latitude, lng: pos.longitude).clamp();
+    } catch (e) {
+      debugPrint('[ROOM_CREATE] current location failed: $e');
+      _showCreateError('현재 위치를 가져오지 못했습니다. 경기장을 직접 설정해주세요.');
+      return null;
+    }
+  }
+
+  void _showCreateError(String message) {
+    if (!mounted) return;
+    setState(() => _inlineErrorMessage = message);
+    showAppSnackBar(context, message: message, isError: true);
+  }
+
   void _createRoomHook(Map<String, dynamic> payload) {
     debugPrint(
       '[ROOM_CREATE] hook called (no-op) keys=${payload.keys.toList()}',
@@ -93,9 +170,7 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
 
   Widget _buildMapPreview(BuildContext context) {
     // Only show map if API key exists
-    final hasKey =
-        dotenv.isInitialized &&
-        (dotenv.env['KAKAO_JS_APP_KEY']?.isNotEmpty ?? false);
+    final hasKey = Env.canRenderMaps;
     if (!hasKey) {
       return const Center(child: Text('Map Key Missing'));
     }
@@ -146,14 +221,19 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
   }
 
   LatLng _centroid(List<GeoPointDto> points) {
-    if (points.isEmpty) return LatLng(37.5665, 126.9780);
+    final center = _centroidGeo(points);
+    return LatLng(center.lat, center.lng);
+  }
+
+  GeoPointDto _centroidGeo(List<GeoPointDto> points) {
+    if (points.isEmpty) return const GeoPointDto(lat: 37.5665, lng: 126.9780);
     double lat = 0;
     double lng = 0;
     for (var p in points) {
       lat += p.lat;
       lng += p.lng;
     }
-    return LatLng(lat / points.length, lng / points.length);
+    return GeoPointDto(lat: lat / points.length, lng: lng / points.length);
   }
 
   @override
@@ -395,6 +475,13 @@ class _RoomCreateScreenState extends ConsumerState<RoomCreateScreen> {
                         ),
                       ),
                       const SizedBox(height: 18),
+                      if (_inlineErrorMessage != null) ...[
+                        InlineErrorBanner(
+                          message: _inlineErrorMessage!,
+                          onRetry: _submitting ? null : _onCreatePressed,
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                     ],
                   ),
                 ),

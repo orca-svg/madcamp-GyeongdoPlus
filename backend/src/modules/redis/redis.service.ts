@@ -1,21 +1,30 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import Redis from 'ioredis'; // 👈 이 import가 꼭 있어야 합니다.
+import Redis from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
-  // ✅ [수정] 아래 줄이 빠져서 에러가 났던 겁니다! 꼭 넣어주세요.
-  private redis: Redis;
+  private redis!: Redis;
 
-  onModuleInit() {
-    // Redis 연결 설정
+  async onModuleInit() {
     this.redis = new Redis({
       host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT!) || 6379,
-      password: process.env.REDIS_PASSWORD,
+      port: Number.parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD || undefined,
     });
+
+    await this.redis.ping();
   }
 
-  onModuleDestroy() {
+  async ping() {
+    return this.redis.ping();
+  }
+
+  async onModuleDestroy() {
+    if (this.redis.status === 'ready') {
+      await this.redis.quit();
+      return;
+    }
+
     this.redis.disconnect();
   }
 
@@ -65,7 +74,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   // [추가] GEO: 두 멤버 사이의 거리 계산 (단위: m)
   async geodist(key: string, member1: string, member2: string) {
-    // 반환값은 문자열(String)로 옴 -> 숫자로 변환 필요, 없으면 null
     const dist = await this.redis.geodist(key, member1, member2);
     return dist ? parseFloat(dist) : null;
   }
@@ -79,8 +87,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async lpop(key: string) {
     return this.redis.lpop(key);
   }
-  
-  // [추가] LIST: 오른쪽에서 꺼내기 (Pop) - LIFO 구조 (나중에 잡힌 사람 먼저 구출)
+
   async rpop(key: string) {
     return this.redis.rpop(key);
   }
@@ -99,8 +106,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.redis.hget(key, field);
   }
 
-  // [추가] List: 요소 제거 (아이템 사용 시 소모)
-  // count: 0(모두 삭제), 1(앞에서부터 1개 삭제), -1(뒤에서부터 1개 삭제)
   async lrem(key: string, count: number, value: string) {
     return this.redis.lrem(key, count, value);
   }
@@ -114,25 +119,25 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.redis.exists(key);
   }
 
-  // 2. [추가] GEO 좌표 조회 (geopos)
   async geopos(key: string, member: string) {
     return this.redis.geopos(key, member);
   }
 
-  // ✅ [추가] 키 만료 시간 설정 (expire)
   async expire(key: string, seconds: number) {
     return this.redis.expire(key, seconds);
   }
 
-  // ✅ [추가] Sorted Set 멤버 삭제 (zrem)
   async zrem(key: string, member: string) {
     return this.redis.zrem(key, member);
   }
 
-  async georadius(key: string, lng: number, lat: number, radius: number, unit: 'm' | 'km' = 'm') : Promise<[string, string][]>{
-    // ioredis의 georadius 메서드 사용
-    // WITHDIST: 거리도 같이 반환
-    // ASC: 가까운 순서대로 정렬
+  async georadius(
+    key: string,
+    lng: number,
+    lat: number,
+    radius: number,
+    unit: 'm' | 'km' = 'm',
+  ): Promise<[string, string][]> {
     return this.redis.georadius(key, lng, lat, radius, unit, 'WITHDIST', 'ASC') as any;
   }
 }

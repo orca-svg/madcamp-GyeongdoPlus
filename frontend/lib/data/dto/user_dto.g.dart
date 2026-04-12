@@ -192,12 +192,18 @@ Map<String, dynamic> _$MatchHistoryQueryDtoToJson(
 MyStatDto _$MyStatDtoFromJson(Map<String, dynamic> json) => MyStatDto(
   catchCount: (json['catchCount'] as num).toInt(),
   rescueCount: (json['rescueCount'] as num?)?.toInt(),
+  releaseCount: (json['releaseCount'] as num?)?.toInt(),
+  survivalTime: (json['survivalTime'] as num?)?.toInt(),
+  distanceMoved: (json['distanceMoved'] as num?)?.toDouble(),
   contribution: (json['contribution'] as num).toInt(),
 );
 
 Map<String, dynamic> _$MyStatDtoToJson(MyStatDto instance) => <String, dynamic>{
   'catchCount': instance.catchCount,
   'rescueCount': instance.rescueCount,
+  'releaseCount': instance.releaseCount,
+  'survivalTime': instance.survivalTime,
+  'distanceMoved': instance.distanceMoved,
   'contribution': instance.contribution,
 };
 
@@ -221,6 +227,7 @@ Map<String, dynamic> _$GameRulesDtoToJson(GameRulesDto instance) =>
     };
 
 GameInfoDto _$GameInfoDtoFromJson(Map<String, dynamic> json) => GameInfoDto(
+  mode: json['mode'] as String,
   maxPlayers: (json['maxPlayers'] as num).toInt(),
   timeLimit: (json['timeLimit'] as num).toInt(),
   mapConfig: MapConfigDto.fromJson(json['mapConfig'] as Map<String, dynamic>),
@@ -231,6 +238,7 @@ GameInfoDto _$GameInfoDtoFromJson(Map<String, dynamic> json) => GameInfoDto(
 
 Map<String, dynamic> _$GameInfoDtoToJson(GameInfoDto instance) =>
     <String, dynamic>{
+      'mode': instance.mode,
       'maxPlayers': instance.maxPlayers,
       'timeLimit': instance.timeLimit,
       'mapConfig': instance.mapConfig,

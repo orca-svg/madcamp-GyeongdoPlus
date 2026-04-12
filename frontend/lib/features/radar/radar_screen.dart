@@ -9,6 +9,7 @@
 // - Smooth countdown even when WS time.serverNowMs doesn't update frequently (local delta correction)
 // - Prevent setState after dispose
 import 'dart:async';
+import 'dart:math' show max;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -22,22 +23,17 @@ import '../../core/widgets/glass_background.dart';
 import '../../core/widgets/glow_card.dart';
 import '../../core/widgets/neon_card.dart';
 import '../../providers/match_mode_provider.dart';
+import '../../providers/match_rules_provider.dart' show GameMode;
 import '../../providers/match_state_sim_provider.dart';
-import '../../providers/match_sync_provider.dart';
 import '../../providers/radar_provider.dart';
 import '../../providers/room_provider.dart';
 import '../../providers/watch_provider.dart';
 import 'widgets/radar_painter.dart';
 import '../../watch/watch_sync_controller.dart';
 import '../game/widgets/skill_button.dart';
-import '../../core/widgets/section_title.dart';
-import '../../net/ws/dto/match_state.dart';
-import '../../net/ws/dto/radar_ping.dart';
-import '../../net/ws/ws_envelope.dart';
-import '../../net/ws/ws_client_provider.dart';
-import '../../net/ws/ws_types.dart';
-import '../../models/game_config.dart';
 import '../../providers/game_provider.dart';
+import '../../net/socket/socket_io_client_provider.dart';
+import '../game/providers/item_provider.dart';
 
 class RadarScreen extends ConsumerStatefulWidget {
   const RadarScreen({super.key});
@@ -51,12 +47,6 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   double _sweep = 0;
 
   late final ProviderSubscription<int?> _noticeSub;
-  late final ProviderSubscription<dynamic> _matchSub;
-
-  // ✅ countdown smoothing
-  int? _endsAtMs;
-  int? _lastServerNowMs;
-  int? _lastLocalNowMs;
 
   @override
   void initState() {
@@ -80,31 +70,11 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
         showAppSnackBar(context, message: msg);
       },
     );
-
-    // ✅ whenever matchState changes, refresh time anchors
-    _matchSub = ref.listenManual<dynamic>(
-      matchSyncProvider.select((s) => s.lastMatchState),
-      (prev, next) {
-        final match = next?.payload as MatchStateDto?;
-        final time = match?.time;
-        if (time == null) return;
-
-        final endsAt = time.endsAtMs;
-        if (endsAt == null) return;
-
-        _endsAtMs = endsAt;
-        _lastServerNowMs = time.serverNowMs;
-        _lastLocalNowMs = DateTime.now().millisecondsSinceEpoch;
-
-        if (mounted) setState(() {});
-      },
-    );
   }
 
   @override
   void dispose() {
     _noticeSub.close();
-    _matchSub.close();
     _timer.cancel();
     super.dispose();
   }
@@ -112,17 +82,13 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
   @override
   Widget build(BuildContext context) {
     final ui = ref.watch(radarProvider);
-    final sync = ref.watch(matchSyncProvider);
     final room = ref.watch(roomProvider);
-    final wsConn = ref.watch(wsConnectionProvider);
+    final socketState = ref.watch(socketIoClientProvider);
     final watchConnected = ref.watch(watchConnectedProvider);
     final watchSync = ref.watch(watchSyncControllerProvider);
     final gameMode = ref.watch(currentGameModeProvider);
-
+    final itemState = ref.watch(itemProvider);
     final gameState = ref.watch(gameProvider);
-
-    final match = sync.lastMatchState?.payload;
-    final ping = sync.lastRadarPing?.payload;
 
     final myTeam = room.me?.team == Team.thief ? 'THIEF' : 'POLICE';
     final teamStats = _computeTeamStats(gameState);
@@ -154,7 +120,11 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                 _buildTitleRow(
                   context,
                   watchConnected,
-                  _remainingTimeText(match),
+                  _remainingTimeText(
+                    itemState.gameDurationSec,
+                    itemState.gameElapsedSec,
+                  ),
+                  socketState,
                 ),
                 const SizedBox(height: 12),
 
@@ -171,7 +141,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
                       vertical: 12,
                     ),
                     child: Text(
-                      _summaryLine(match: match, myTeam: myTeam, ping: ping),
+                      'team=$myTeam / socket=${socketState.status.name} / '
+                      'pings=${ui.pings.length} / '
+                      'nearest=${ui.distanceText}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -263,71 +235,20 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
 
                 Align(
                   alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
-                    alignment: WrapAlignment.end,
-                    children: [
-                      if (kDebugMode) ...[
-                        TextButton.icon(
-                          onPressed: () =>
-                              ref.read(wsConnectionProvider.notifier).connect(),
-                          icon: const Icon(Icons.link_rounded, size: 18),
-                          label: Text('WS 연결 (${wsConn.status.name})'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => ref
-                              .read(wsConnectionProvider.notifier)
-                              .disconnect(),
-                          icon: const Icon(Icons.link_off_rounded, size: 18),
-                          label: const Text('WS 해제'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                      TextButton.icon(
-                        onPressed: () async {
-                          await ref
-                              .read(watchConnectedProvider.notifier)
-                              .refresh();
-                          final ok = ref.read(watchConnectedProvider);
-                          if (!context.mounted) return;
-                          showAppSnackBar(
-                            context,
-                            message: 'Watch connected: $ok',
-                          );
-                        },
-                        icon: const Icon(Icons.watch_rounded, size: 18),
-                        label: const Text('연결 확인'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (kDebugMode && (sync.lastJsonPreview ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  const SectionTitle(title: '디버그 JSON'),
-                  const SizedBox(height: 10),
-                  GlowCard(
-                    glow: false,
-                    borderColor: AppColors.outlineLow,
-                    child: SelectableText(
-                      sync.lastJsonPreview!,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.35,
-                      ),
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      await ref.read(watchConnectedProvider.notifier).refresh();
+                      final ok = ref.read(watchConnectedProvider);
+                      if (!context.mounted) return;
+                      showAppSnackBar(context, message: 'Watch connected: $ok');
+                    },
+                    icon: const Icon(Icons.watch_rounded, size: 18),
+                    label: const Text('연결 확인'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
                     ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -341,6 +262,7 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     BuildContext context,
     bool watchConnected,
     String remainText,
+    SocketIoConnectionState socketState,
   ) {
     return Row(
       children: [
@@ -359,14 +281,39 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(width: 10),
-        ConnectionIndicator(
-          icon: Icons.watch_rounded,
-          connected: watchConnected,
-          label: '워치',
+        const SizedBox(width: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ConnectionIndicator(
+              icon: Icons.wifi_tethering_rounded,
+              connected: socketState.status == SocketIoConnStatus.connected,
+              label: _socketStatusLabel(socketState.status),
+            ),
+            ConnectionIndicator(
+              icon: Icons.watch_rounded,
+              connected: watchConnected,
+              label: '워치',
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  String _socketStatusLabel(SocketIoConnStatus status) {
+    switch (status) {
+      case SocketIoConnStatus.connected:
+        return '서버';
+      case SocketIoConnStatus.connecting:
+        return '연결중';
+      case SocketIoConnStatus.reconnecting:
+        return '재연결';
+      case SocketIoConnStatus.disconnected:
+        return '오프라인';
+    }
   }
 
   /// B. 팀 현황 카드 3개 (경찰 수, 남은 도둑, 잡힌 도둑)
@@ -477,41 +424,9 @@ class _RadarScreenState extends ConsumerState<RadarScreen> {
     );
   }
 
-  String _summaryLine({
-    required MatchStateDto? match,
-    required String myTeam,
-    required RadarPingPayload? ping,
-  }) {
-    final matchId = match?.matchId ?? '—';
-    final phase = match?.state ?? '—';
-    final pingCount = ping?.pings.length ?? 0;
-    final ttl = ping?.ttlMs ?? 0;
-    final cap = match?.live.captureProgress?.progress01;
-    final capText = (cap == null) ? '—' : cap.toStringAsFixed(2);
-    return 'matchId=$matchId / phase=$phase / team=$myTeam / pings=$pingCount / ttlMs=$ttl / capture=$capText';
-  }
-
-  /// ✅ remaining time (mm:ss) with smoothing
-  String _remainingTimeText(MatchStateDto? match) {
-    if (_endsAtMs != null &&
-        _lastServerNowMs != null &&
-        _lastLocalNowMs != null) {
-      final localNow = DateTime.now().millisecondsSinceEpoch;
-      final elapsedLocal = localNow - _lastLocalNowMs!;
-      final estServerNow = _lastServerNowMs! + elapsedLocal;
-      final remainMs = _endsAtMs! - estServerNow;
-      final remainSec = (remainMs / 1000).floor();
-      if (remainSec <= 0) return '00:00';
-      return _fmtMmSs(remainSec);
-    }
-
-    final time = match?.time;
-    final endsAtMs = time?.endsAtMs;
-    if (time == null || endsAtMs == null) return '--:--';
-    final nowMs = time.serverNowMs;
-    final remainMs = endsAtMs - nowMs;
-    final remainSec = (remainMs / 1000).floor();
-    if (remainSec <= 0) return '00:00';
+  String _remainingTimeText(int gameDurationSec, int gameElapsedSec) {
+    if (gameDurationSec <= 0) return '--:--';
+    final remainSec = max(0, gameDurationSec - gameElapsedSec);
     return _fmtMmSs(remainSec);
   }
 

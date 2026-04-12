@@ -128,6 +128,21 @@ class MainActivity: FlutterActivity() {
                             }
                         }
                     }
+                    "sendHaptic" -> {
+                        val type = (call.arguments as? Map<*, *>)?.get("type") as? String
+                        if (type == null) {
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                bridge.sendHaptic(type)
+                                withContext(Dispatchers.Main) { result.success(true) }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) { result.success(false) }
+                            }
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }

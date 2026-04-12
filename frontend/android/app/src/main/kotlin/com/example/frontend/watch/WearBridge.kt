@@ -76,6 +76,26 @@ class WearBridge(private val context: Context) {
         }
     }
 
+    suspend fun sendHaptic(type: String) {
+        val intensity = when (type.lowercase()) {
+            "failure", "warning" -> "HEAVY"
+            "success" -> "MEDIUM"
+            else -> "LIGHT"
+        }
+        val payload = JSONObject().apply {
+            put("type", "HAPTIC_COMMAND")
+            put("ts", System.currentTimeMillis())
+            put("matchId", "watch")
+            put(
+                "payload",
+                JSONObject().apply {
+                    put("intensity", intensity)
+                }
+            )
+        }
+        sendHapticCommand(payload.toString())
+    }
+
     private fun extractMatchId(json: String): String {
         return try {
             val obj = JSONObject(json)

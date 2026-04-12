@@ -8,7 +8,6 @@ import 'package:crypto/crypto.dart';
 
 class BleProximityService {
   final String _myUserId;
-  final List<String> _gameParticipantIds;
 
   // State
   bool _isAdvertising = false;
@@ -28,8 +27,7 @@ class BleProximityService {
   BleProximityService({
     required String myUserId,
     required List<String> gameParticipantIds,
-  })  : _myUserId = myUserId,
-        _gameParticipantIds = gameParticipantIds {
+  }) : _myUserId = myUserId {
     // Pre-compute UUID mappings for all participants
     for (final userId in gameParticipantIds) {
       final uuid = _userIdToUuid(userId);
@@ -46,7 +44,8 @@ class BleProximityService {
     final hexString = digest.toString();
 
     // Format as UUID (8-4-4-4-12)
-    final uuid = '${hexString.substring(0, 8)}-'
+    final uuid =
+        '${hexString.substring(0, 8)}-'
         '${hexString.substring(8, 12)}-'
         '${hexString.substring(12, 16)}-'
         '${hexString.substring(16, 20)}-'
@@ -105,7 +104,8 @@ class BleProximityService {
         return false;
       }
 
-      final isOn = await FlutterBluePlus.adapterState.first == BluetoothAdapterState.on;
+      final isOn =
+          await FlutterBluePlus.adapterState.first == BluetoothAdapterState.on;
       if (!isOn) {
         debugPrint('[BLE] Bluetooth is off, attempting to turn on...');
         // Note: FlutterBluePlus cannot turn on Bluetooth, user must do it manually
@@ -118,8 +118,12 @@ class BleProximityService {
       //   2. Android: BluetoothLeAdvertiser via Kotlin MethodChannel
       // Currently, scanning works but other players won't be discoverable
       // unless they run a native advertising companion app or service.
-      debugPrint('[BLE] Advertising unavailable: requires native platform channel');
-      debugPrint('[BLE] Scanning is available for devices that advertise natively');
+      debugPrint(
+        '[BLE] Advertising unavailable: requires native platform channel',
+      );
+      debugPrint(
+        '[BLE] Scanning is available for devices that advertise natively',
+      );
       debugPrint('[BLE] My UUID: ${_userIdToUuid(_myUserId)}');
 
       _isAdvertising = false;

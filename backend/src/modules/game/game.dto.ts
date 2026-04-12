@@ -1,30 +1,66 @@
-import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  IsIn,
+  Max,
+  Min,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export const ITEM_IDS = [
+  'RADAR',
+  'RESCUE_BLOCK',
+  'THIEF_DETECTOR',
+  'AREA_SIREN',
+  'DECOY',
+  'RESCUE_BOOST',
+  'EMP',
+  'REMOTE_RESCUE',
+] as const;
+
+export type ItemId = (typeof ITEM_IDS)[number];
 
 // ==========================================
 // 1. 위치 이동 Request DTO
 // ==========================================
 export class MoveDto {
-  @ApiProperty({ description: '매치 ID', example: '550e8400-e29b-41d4-a716-446655440000' })
+  @ApiProperty({
+    description: '매치 ID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @IsString()
   matchId: string;
 
   @ApiProperty({ description: '위도 (Latitude)', example: 37.566535 })
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   lat: number;
 
   @ApiProperty({ description: '경도 (Longitude)', example: 126.977969 })
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   lng: number;
 
   @ApiProperty({ description: '심박수 (선택)', example: 120, required: false })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(240)
   heartRate?: number;
 
-  @ApiProperty({ description: '나침반 방향 (0~360)', example: 90.5, required: false })
+  @ApiProperty({
+    description: '나침반 방향 (0~360)',
+    example: 90.5,
+    required: false,
+  })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(360)
   heading?: number;
 }
 
@@ -33,10 +69,16 @@ export class MoveDto {
 // ==========================================
 
 export class NearbyObjectDto {
-  @ApiProperty({ example: 'PLAYER', description: '물체 타입 (PLAYER: 플레이어, DECOY: 미끼)' })
+  @ApiProperty({
+    example: 'PLAYER',
+    description: '물체 타입 (PLAYER: 플레이어, DECOY: 미끼)',
+  })
   type: 'PLAYER' | 'DECOY';
 
-  @ApiProperty({ example: 'user-uuid-5678', description: '유저 ID (미끼라면 설치한 유저 ID)' })
+  @ApiProperty({
+    example: 'user-uuid-5678',
+    description: '유저 ID (미끼라면 설치한 유저 ID)',
+  })
   userId: string;
 
   @ApiProperty({ example: 12.5, description: '나와의 거리 (미터)' })
@@ -55,10 +97,17 @@ export class AutoArrestStatusDto {
 }
 
 class MoveResponseDataDto {
-  @ApiProperty({ type: [NearbyObjectDto], description: '주변(50m) 플레이어 및 미끼 목록 (투명 상태 제외)' })
+  @ApiProperty({
+    type: [NearbyObjectDto],
+    description: '주변(50m) 플레이어 및 미끼 목록 (투명 상태 제외)',
+  })
   nearbyEvents: NearbyObjectDto[];
 
-  @ApiProperty({ type: AutoArrestStatusDto, nullable: true, description: '현재 진행 중인 자동 체포 상태' })
+  @ApiProperty({
+    type: AutoArrestStatusDto,
+    nullable: true,
+    description: '현재 진행 중인 자동 체포 상태',
+  })
   autoArrestStatus: AutoArrestStatusDto | null;
 }
 
@@ -76,7 +125,6 @@ export class MoveResponseDto {
   error: any;
 }
 
-
 // ==========================================
 // 2. 자수(항복) 요청 DTO
 // ==========================================
@@ -87,9 +135,10 @@ export class ArrestDto {
 
   // ✅ [추가] 나를 잡은 경찰의 ID (선택 사항)
   // 물리적으로 잡혔는데 시스템이 인식 못 했을 때, 해당 경찰에게 점수를 주기 위해 입력
-  @ApiProperty({ 
-    description: '나를 체포한 경찰의 ID (선택). 입력 시 해당 경찰의 카운트가 증가함.',
-    required: false 
+  @ApiProperty({
+    description:
+      '나를 체포한 경찰의 ID (선택). 입력 시 해당 경찰의 카운트가 증가함.',
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -98,13 +147,19 @@ export class ArrestDto {
 
 // 자수 성공 데이터
 class ArrestDataDto {
-  @ApiProperty({ example: 'my-uuid-1234', description: '체포된(자수한) 유저 ID' })
+  @ApiProperty({
+    example: 'my-uuid-1234',
+    description: '체포된(자수한) 유저 ID',
+  })
   arrestedUser: string;
 
   @ApiProperty({ example: 'ARRESTED' })
   status: string;
 
-  @ApiProperty({ example: 3, description: '감옥 구출 대기열 순서 (1부터 시작)' })
+  @ApiProperty({
+    example: 3,
+    description: '감옥 구출 대기열 순서 (1부터 시작)',
+  })
   prisonQueueIndex: number;
 }
 
@@ -134,7 +189,6 @@ export class ArrestRangeErrorDto {
   error: any;
 }
 
-
 // ==========================================
 // [수정] 구조 요청 응답 DTO
 // ==========================================
@@ -147,9 +201,9 @@ export class RescueDto {
 
 // 구조 성공 데이터
 class RescueDataDto {
-  @ApiProperty({ 
-    example: ['thief-uuid-1111', 'thief-uuid-2222'], 
-    description: '구출된 유저 ID 목록 (배열)' 
+  @ApiProperty({
+    example: ['thief-uuid-1111', 'thief-uuid-2222'],
+    description: '구출된 유저 ID 목록 (배열)',
   })
   rescuedUserIds: string[];
 
@@ -193,11 +247,29 @@ export class SelectAbilityDto {
   @IsString()
   matchId: string;
 
-  @ApiProperty({ 
-    description: '선택할 직업 코드', 
-    enum: ['SEARCHER', 'JAILER', 'ENFORCER', 'CHASER', 'SHADOW', 'BROKER', 'HACKER', 'CLOWN'] 
+  @ApiProperty({
+    description: '선택할 직업 코드',
+    enum: [
+      'SEARCHER',
+      'JAILER',
+      'ENFORCER',
+      'CHASER',
+      'SHADOW',
+      'BROKER',
+      'HACKER',
+      'CLOWN',
+    ],
   })
-  @IsEnum(['SEARCHER', 'JAILER', 'ENFORCER', 'CHASER', 'SHADOW', 'BROKER', 'HACKER', 'CLOWN'])
+  @IsEnum([
+    'SEARCHER',
+    'JAILER',
+    'ENFORCER',
+    'CHASER',
+    'SHADOW',
+    'BROKER',
+    'HACKER',
+    'CLOWN',
+  ])
   abilityClass: string;
 }
 
@@ -237,9 +309,13 @@ export class SelectAbilityErrorDto {
   @ApiProperty({ example: null })
   data: any;
 
-  @ApiProperty({ 
-    example: { code: 'INVALID_CLASS_FOR_ROLE', myRole: 'POLICE', requestedClass: 'SHADOW' },
-    description: '에러 상세 정보'
+  @ApiProperty({
+    example: {
+      code: 'INVALID_CLASS_FOR_ROLE',
+      myRole: 'POLICE',
+      requestedClass: 'SHADOW',
+    },
+    description: '에러 상세 정보',
   })
   error: any;
 }
@@ -249,7 +325,7 @@ export class UseAbilityDto {
   @ApiProperty({ description: '매치 ID' })
   @IsString()
   matchId: string;
-  
+
   // skillType은 필요 없습니다. (이미 선택한 직업의 스킬이 나가므로)
 }
 
@@ -259,8 +335,8 @@ export class UseAbilityDto {
 
 // 1. 성공 데이터
 class UseAbilityDataDto {
-  @ApiProperty({ example: 'DASH' })
-  skillType: string;
+  @ApiProperty({ example: 'SHADOW' })
+  myClass: string;
 
   @ApiProperty({ example: 45.0, description: '사용 후 남은 게이지' })
   remainingGauge: number;
@@ -298,11 +374,11 @@ export class AbilityGaugeErrorDto {
   @ApiProperty({ example: null, nullable: true })
   data: any;
 
-  @ApiProperty({ 
+  @ApiProperty({
     example: { code: 'NOT_ENOUGH_GAUGE', current: 10, required: 30 },
-    description: '에러 상세 정보 (필요 게이지량 등)'
+    description: '에러 상세 정보 (필요 게이지량 등)',
   })
-  error: { 
+  error: {
     code: string;
     current: number;
     required: number;
@@ -317,9 +393,13 @@ export class SelectItemDto {
   @IsString()
   matchId: string;
 
-  @ApiProperty({ description: '선택할 아이템 ID', example: 'RADAR' })
-  @IsEnum(['EMP', 'RADAR', 'DECOY', 'INVISIBLE', 'TRAP', 'SCANNER']) // 예시 아이템 목록
-  itemId: string;
+  @ApiProperty({
+    description: '선택할 아이템 ID',
+    example: 'RADAR',
+    enum: ITEM_IDS,
+  })
+  @IsIn(ITEM_IDS)
+  itemId: ItemId;
 }
 
 // ==========================================
@@ -331,7 +411,10 @@ class SelectItemDataDto {
   @ApiProperty({ example: 'RADAR', description: '획득한 아이템' })
   obtainedItem: string;
 
-  @ApiProperty({ example: ['EMP', 'RADAR'], description: '현재 보유 중인 전체 아이템 리스트' })
+  @ApiProperty({
+    example: ['EMP', 'RADAR'],
+    description: '현재 보유 중인 전체 아이템 리스트',
+  })
   currentInventory: string[];
 }
 
@@ -361,13 +444,13 @@ export class ItemTimeErrorDto {
   @ApiProperty({ example: null })
   data: any;
 
-  @ApiProperty({ 
-    example: { 
-      code: 'TOO_EARLY_TO_SELECT', 
-      elapsedMinutes: 5.5, 
-      requiredMinutes: 10 
+  @ApiProperty({
+    example: {
+      code: 'TOO_EARLY_TO_SELECT',
+      elapsedMinutes: 5.5,
+      requiredMinutes: 10,
     },
-    description: '에러 상세: 현재 경과 시간 및 필요 시간'
+    description: '에러 상세: 현재 경과 시간 및 필요 시간',
   })
   error: {
     code: string;
@@ -387,12 +470,12 @@ export class ItemConflictErrorDto {
   @ApiProperty({ example: null })
   data: any;
 
-  @ApiProperty({ 
-    example: { 
-      code: 'ALREADY_CLAIMED', 
-      nextAvailableTime: '20분 경과 후' 
+  @ApiProperty({
+    example: {
+      code: 'ALREADY_CLAIMED',
+      nextAvailableTime: '20분 경과 후',
     },
-    description: '에러 상세: 중복 수령 경고'
+    description: '에러 상세: 중복 수령 경고',
   })
   error: {
     code: string;
@@ -408,25 +491,13 @@ export class UseItemDto {
   @IsString()
   matchId: string;
 
-  @ApiProperty({ 
-    description: '아이템 ID (Type)', 
+  @ApiProperty({
+    description: '아이템 ID (Type)',
     example: 'RADAR',
-    enum: [
-      'RADAR',          // 경찰: 레이더 (7초간 도둑 위치 표시)
-      'RESCUE_BLOCK',   // 경찰: 구출 차단 (감옥 잠금)
-      'THIEF_DETECTOR', // 경찰: 도둑 탐지기 (5m 내 진동)
-      'AREA_SIREN',     // 경찰: 광역 사이렌 (30m 내 도둑 알림, 팀 1회)
-      'DECOY',          // 도둑: 미끼 (밟으면 경찰 위치 노출)
-      'RESCUE_BOOST',   // 도둑: 구출 촉진 (구출 속도/인원 증가)
-      'EMP',            // 도둑: EMP (경찰 아이템 무력화)
-      'REMOTE_RESCUE'   // 도둑: 원격 구출 (팀 1회, 3명 구출)
-    ]
+    enum: ITEM_IDS,
   })
-  @IsEnum([
-    'RADAR', 'RESCUE_BLOCK', 'THIEF_DETECTOR', 'AREA_SIREN',
-    'DECOY', 'RESCUE_BOOST', 'EMP', 'REMOTE_RESCUE'
-  ])
-  itemId: string;
+  @IsIn(ITEM_IDS)
+  itemId: ItemId;
 }
 
 // ==========================================
@@ -434,13 +505,20 @@ export class UseItemDto {
 // ==========================================
 
 class UseItemDataDto {
-  @ApiProperty({ example: ['EMP', 'DECOY'], description: '사용 후 남은 아이템 목록' })
+  @ApiProperty({
+    example: ['EMP', 'DECOY'],
+    description: '사용 후 남은 아이템 목록',
+  })
   remainingItems: string[];
 
   @ApiProperty({ example: 60, description: '효과 지속 시간 (초)' })
   effectDuration: number;
 
-  @ApiProperty({ example: 3, description: '영향을 받은 유저 수 (사이렌/구출 등)', required: false })
+  @ApiProperty({
+    example: 3,
+    description: '영향을 받은 유저 수 (사이렌/구출 등)',
+    required: false,
+  })
   affectedCount?: number;
 }
 
@@ -480,13 +558,22 @@ class MyStateDto {
   @ApiProperty({ example: 'THIEF', enum: ['POLICE', 'THIEF', 'NONE'] })
   role: string;
 
-  @ApiProperty({ example: 'ALIVE', enum: ['ALIVE', 'ARRESTED', 'ESCAPED', 'SPECTATOR'] })
+  @ApiProperty({
+    example: 'ALIVE',
+    enum: ['ALIVE', 'ARRESTED', 'ESCAPED', 'SPECTATOR'],
+  })
   status: string;
 
-  @ApiProperty({ example: ['EMP', 'DECOY'], description: '보유 아이템 (능력전일 경우 빈 배열)' })
+  @ApiProperty({
+    example: ['EMP', 'DECOY'],
+    description: '보유 아이템 (능력전일 경우 빈 배열)',
+  })
   items: string[];
 
-  @ApiProperty({ example: 80.5, description: '능력 게이지 (아이템전일 경우 0)' })
+  @ApiProperty({
+    example: 80.5,
+    description: '능력 게이지 (아이템전일 경우 0)',
+  })
   abilityGauge: number;
 
   @ApiProperty({ type: ActiveEffectsDto })
@@ -498,10 +585,16 @@ class SyncGameDataDto {
   @ApiProperty({ example: 'PLAYING' })
   gameStatus: string;
 
-  @ApiProperty({ example: '2026-01-24T16:45:30Z', description: '현재 서버 시간' })
+  @ApiProperty({
+    example: '2026-01-24T16:45:30Z',
+    description: '현재 서버 시간',
+  })
   serverTime: string;
 
-  @ApiProperty({ example: '2026-01-24T16:40:00Z', description: '게임 시작 시간' })
+  @ApiProperty({
+    example: '2026-01-24T16:40:00Z',
+    description: '게임 시작 시간',
+  })
   startTime: string;
 
   @ApiProperty({ example: 600, description: '제한 시간 (초)' })
@@ -516,7 +609,10 @@ class SyncGameDataDto {
   @ApiProperty({ type: MyStateDto })
   myState: MyStateDto;
 
-  @ApiProperty({ example: ['user-uuid-1', 'user-uuid-2'], description: '감옥 수감자 목록' })
+  @ApiProperty({
+    example: ['user-uuid-1', 'user-uuid-2'],
+    description: '감옥 수감자 목록',
+  })
   prisonQueue: string[];
 
   @ApiProperty({ example: 350.5, description: '현재 자기장 반경 (미터)' })
@@ -542,10 +638,10 @@ export class SyncGameResponseDto {
 // [수정] 게임 종료 Request DTO
 // ==========================================
 export class EndGameDto {
-  @ApiProperty({ 
-    description: '종료 사유', 
-    example: 'ALL_THIEVES_CAUGHT', 
-    enum: ['HOST_FORCE_END', 'ALL_THIEVES_CAUGHT', 'TIME_OVER']
+  @ApiProperty({
+    description: '종료 사유',
+    example: 'ALL_THIEVES_CAUGHT',
+    enum: ['HOST_FORCE_END', 'ALL_THIEVES_CAUGHT', 'TIME_OVER'],
   })
   @IsOptional()
   @IsString()
@@ -563,7 +659,10 @@ class MvpUserDto {
   @ApiProperty({ example: 'Sherlock', description: 'MVP 유저 닉네임' })
   nickname: string;
 
-  @ApiProperty({ example: 'http://image-url.com/profile.jpg', description: 'MVP 유저 프로필 이미지 URL' })
+  @ApiProperty({
+    example: 'http://image-url.com/profile.jpg',
+    description: 'MVP 유저 프로필 이미지 URL',
+  })
   profileImage: string;
 }
 
@@ -606,19 +705,24 @@ export class EndGameResponseDto {
   error: any;
 }
 
-
 // ==========================================
 // [신규] 게임 다시 하기 응답 DTOs
 // ==========================================
 
 class RematchDataDto {
-  @ApiProperty({ example: 'uuid-9999-new-match-id', description: '새로 생성된 매치 ID' })
+  @ApiProperty({
+    example: 'uuid-9999-new-match-id',
+    description: '새로 생성된 매치 ID',
+  })
   newMatchId: string;
 
-  @ApiProperty({ example: '7A9Z2', description: '새로운 5자리 방 코드' })
+  @ApiProperty({ example: '7A9Z', description: '새로운 4자리 방 코드' })
   roomCode: string;
 
-  @ApiProperty({ example: 'user-uuid-req-user', description: '새 방의 방장 ID (요청자)' })
+  @ApiProperty({
+    example: 'user-uuid-req-user',
+    description: '새 방의 방장 ID (요청자)',
+  })
   hostUserId: string;
 
   @ApiProperty({ example: 'ITEM', description: '이전 게임 설정을 승계한 모드' })
@@ -646,7 +750,10 @@ export class RematchResponseDto {
 // 7. 방장 위임 DTO
 // ==========================================
 export class DelegateHostDto {
-  @ApiProperty({ description: '방장을 넘겨줄 대상의 ID', example: 'user-uuid-new-host' })
+  @ApiProperty({
+    description: '방장을 넘겨줄 대상의 ID',
+    example: 'user-uuid-new-host',
+  })
   @IsString()
   targetUserId: string;
 }
@@ -688,10 +795,17 @@ class LeaveGameDataDto {
   @ApiProperty({ example: 'user-uuid-leaver', description: '퇴장한 유저 ID' })
   leftUserId: string;
 
-  @ApiProperty({ example: 'user-uuid-new-host', description: '새로운 방장 ID (방장이 나갔을 경우 위임된 유저)', nullable: true })
+  @ApiProperty({
+    example: 'user-uuid-new-host',
+    description: '새로운 방장 ID (방장이 나갔을 경우 위임된 유저)',
+    nullable: true,
+  })
   newHostId: string | null;
 
-  @ApiProperty({ example: false, description: '패널티 적용 여부 (PLAYING 상태에서 퇴장 시 true)' })
+  @ApiProperty({
+    example: false,
+    description: '패널티 적용 여부 (PLAYING 상태에서 퇴장 시 true)',
+  })
   penaltyApplied: boolean;
 }
 
