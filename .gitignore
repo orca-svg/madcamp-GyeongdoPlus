@@ -54,12 +54,9 @@ frontend/ios/CocoaPods/
 frontend/ios/vendor/bundle/
 
 CLAUDE.md
-code_dump.txt
 GEMINI.md
-API_CONSISTENCY_REPORT.md
-docs/*
-docs/private/
-docs/**/*.private.md
-docs/**/*.internal.md
-docs/**/*.local.md
 AGENTS.md
+code_dump.txt
+
+# Documentation (moved to docs/)
+docs/

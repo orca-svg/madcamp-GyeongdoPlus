@@ -72,4 +72,23 @@ describe('EventsGateway', () => {
       expect(result.data.ready).toBe(true);
     });
   });
+
+  describe('handleRoleUpdate', () => {
+    it('clears the class field when role is changed', async () => {
+      redisService.hgetall.mockResolvedValue({ game_status: 'WAITING' });
+      redisService.exists.mockResolvedValue(1);
+      redisService.hset.mockResolvedValue(undefined);
+      const client = makeClient('user-1', 'match-1');
+
+      await (gateway as any).handleRoleUpdate(client, {
+        matchId: 'match-1',
+        role: 'THIEF',
+      });
+
+      expect(redisService.hset).toHaveBeenCalledWith(
+        'game:match-1:player:user-1',
+        { role: 'THIEF', class: '' },
+      );
+    });
+  });
 });

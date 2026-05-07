@@ -373,7 +373,7 @@ export class LobbyService {
     }
 
     // Redis에 역할 업데이트
-    await this.redisService.hset(playerKey, { role: role });
+    await this.redisService.hset(playerKey, { role: role, class: '' });
     
     // (선택 사항) DB 업데이트가 필요하다면 나중에 게임 시작 시 한꺼번에 처리하거나, 
     // 여기서 prisma.gameMatch의 players JSON을 수정해야 하는데, 

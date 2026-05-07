@@ -58,8 +58,7 @@ export class GameService {
     const phase = globalState.phase;
     const canSelect =
       phase === 'PREPARE' ||
-      gameStatus === 'WAITING' ||
-      gameStatus === 'PLAYING';
+      gameStatus === 'WAITING';
     if (!canSelect) {
       throw new BadRequestException('능력 선택 시간이 아닙니다.');
     }

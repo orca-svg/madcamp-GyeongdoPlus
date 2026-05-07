@@ -287,7 +287,7 @@ export class EventsGateway
       throw new BadRequestException('참가자를 찾을 수 없습니다.');
     }
 
-    await this.redisService.hset(playerKey, { role: requestedRole });
+    await this.redisService.hset(playerKey, { role: requestedRole, class: '' });
     const payload = {
       userId,
       role: requestedRole,
